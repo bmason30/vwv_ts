@@ -45,17 +45,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # FIXED: Move data fetching outside class for proper caching
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_market_data(symbol='SPY', period='1y'):
-    """Fetch market data with proper error handling"""
+@st.cache_data(ttl=300)  # Cache for 5 minutes  
+def get_market_data_cached(symbol='SPY', period='1y'):
+    """Internal cached data fetcher"""
     try:
         ticker = yf.Ticker(symbol)
         data = ticker.history(period=period)
-        if len(data) == 0:
+        
+        if data is None or len(data) == 0:
             raise ValueError(f"No data found for symbol {symbol}")
+        
+        # Convert to dict for caching safety, then back to DataFrame
+        return data.to_dict('series')
+    except Exception as e:
+        return None
+
+def get_market_data(symbol='SPY', period='1y'):
+    """Fetch market data with proper error handling"""
+    try:
+        data_dict = get_market_data_cached(symbol, period)
+        
+        if data_dict is None:
+            raise ValueError(f"No data found for symbol {symbol}")
+        
+        # Convert back to DataFrame
+        data = pd.DataFrame(data_dict)
         
         # Add typical price for VWAP calculation
         data['Typical_Price'] = (data['High'] + data['Low'] + data['Close']) / 3
+        
         return data
     except Exception as e:
         st.error(f"Error fetching data for {symbol}: {str(e)}")
@@ -82,6 +100,10 @@ def safe_rsi(prices, period=14):
 def calculate_daily_vwap(data):
     """FIXED: Proper daily VWAP calculation with daily reset"""
     try:
+        # Ensure we have a DataFrame
+        if not isinstance(data, pd.DataFrame):
+            return float(data['Close'].iloc[-1]) if 'Close' in data else 0.0
+            
         # Group by date and calculate VWAP for each day
         data_copy = data.copy()
         data_copy['Date'] = data_copy.index.date
@@ -98,7 +120,10 @@ def calculate_daily_vwap(data):
         return float(current_vwap)
     except Exception as e:
         # Fallback to simple average if VWAP calculation fails
-        return float(data['Close'].iloc[-1])
+        try:
+            return float(data['Close'].iloc[-1])
+        except:
+            return 0.0
 
 def statistical_normalize(series, lookback_period=252):
     """FIXED: Replace magic numbers with statistical normalization"""
@@ -320,10 +345,10 @@ class VWVTradingSystemFixed:
     def calculate_real_confidence_intervals(self, data):
         """FIXED: Proper statistical confidence intervals"""
         try:
-            if len(data) < 100:
+            if not isinstance(data, pd.DataFrame) or len(data) < 100:
                 return None
             
-            # Calculate weekly returns
+            # Calculate weekly returns - ensure we're working with DataFrame
             weekly_data = data.resample('W-FRI')['Close'].last().dropna()
             weekly_returns = weekly_data.pct_change().dropna()
             
@@ -455,14 +480,34 @@ def load_vwv_system():
 
 def create_enhanced_chart(data, analysis, symbol):
     """Enhanced chart with proper confidence intervals"""
-    # FIXED: Add data validation
-    if data is None or len(data) == 0:
+    # FIXED: Add data validation and type checking
+    if data is None:
         st.error("No data available for chart creation")
+        return None
+    
+    # Convert dict to DataFrame if needed
+    if isinstance(data, dict):
+        try:
+            data = pd.DataFrame(data)
+        except Exception as e:
+            st.error(f"Could not convert data to DataFrame: {str(e)}")
+            return None
+    
+    if not isinstance(data, pd.DataFrame) or len(data) == 0:
+        st.error("Invalid data format for chart creation")
         return None
     
     try:
         chart_data = data.tail(100)
         current_price = analysis['current_price']
+        
+        # Validate required columns
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        missing_columns = [col for col in required_columns if col not in chart_data.columns]
+        if missing_columns:
+            st.error(f"Missing required columns: {missing_columns}")
+            return None
+            
     except Exception as e:
         st.error(f"Error preparing chart data: {str(e)}")
         return None
@@ -684,6 +729,12 @@ def main():
             # Enhanced chart
             if show_chart:
                 st.subheader("📈 Enhanced Chart with Statistical Levels")
+                
+                # Debug info
+                st.write(f"Data type: {type(data)}")
+                if hasattr(data, 'shape'):
+                    st.write(f"Data shape: {data.shape}")
+                
                 try:
                     chart = create_enhanced_chart(data, analysis, symbol)
                     if chart is not None:

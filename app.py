@@ -590,7 +590,7 @@ def statistical_normalize(series, lookback_period=252):
 # ENHANCED: VWV Trading System with enhanced indicators
 class VWVTradingSystem:
     def __init__(self, config=None):
-        """Initialize simple trading system"""
+        """Initialize enhanced trading system"""
         default_config = {
             'wvf_period': 22,
             'wvf_multiplier': 1.2,
@@ -1042,7 +1042,6 @@ def create_enhanced_chart(chart_market_data, analysis_results, symbol):
             std_levels = []
             upper_values = []
             lower_values = []
-            range_pcts = []
 
             for std_level in [1, 2, 3]:
                 std_data = weekly_devs.get(f'{std_level}_std')
@@ -1050,7 +1049,6 @@ def create_enhanced_chart(chart_market_data, analysis_results, symbol):
                     std_levels.append(f"{std_level}σ")
                     upper_values.append(std_data['upper'])
                     lower_values.append(std_data['lower'])
-                    range_pcts.append(std_data['range_pct'])
 
             if std_levels:
                 fig.add_trace(go.Scatter(
@@ -1140,12 +1138,18 @@ def main():
     # Data manager
     data_manager = st.session_state.data_manager
 
-    # Combined logic for buttons
+    # Test data fetch
     if test_button and symbol:
-        st.write("## 🧪 Quick Test")
+        if show_debug:
+            st.write("## 🧪 Data Fetch Test")
+        else:
+            st.write("## 🧪 Quick Test")
+        
         test_data = get_market_data_enhanced(symbol, period, show_debug)
+        
         if test_data is not None:
             st.success(f"✅ Data fetch successful for {symbol}!")
+            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 st.metric("Data Points", len(test_data))
@@ -1155,36 +1159,56 @@ def main():
                 st.metric("Date Range", f"{(test_data.index[-1] - test_data.index[0]).days} days")
             with col4:
                 st.metric("Avg Volume", f"{test_data['Volume'].mean():,.0f}")
+            
             if show_debug:
                 st.write("**Sample Data:**")
                 st.dataframe(test_data.tail().round(2), use_container_width=True)
         else:
             st.error(f"❌ Data fetch failed for {symbol}")
 
+    # Full analysis
     elif analyze_button and symbol:
         st.write("## 📊 VWV Trading Analysis")
+        
         with st.spinner(f"Analyzing {symbol}..."):
+            
+            # Step 1: Fetch data
+            if show_debug:
+                st.write("### Step 1: Data Fetching")
+            
             market_data = get_market_data_enhanced(symbol, period, show_debug)
+            
             if market_data is None:
+                st.error(f"❌ Could not fetch data for {symbol}")
                 return
-
+            
+            # Store data
             data_manager.store_market_data(symbol, market_data, show_debug)
+            
+            # Step 2: Analysis
+            if show_debug:
+                st.write("### Step 2: Analysis Processing")
+            
             analysis_input = data_manager.get_market_data_for_analysis(symbol)
+            
             if analysis_input is None:
                 st.error("❌ Could not prepare analysis data")
                 return
-
+            
             analysis_results = vwv_system.calculate_confluence(analysis_input, symbol, show_debug)
+            
             if 'error' in analysis_results:
                 st.error(f"❌ Analysis failed: {analysis_results['error']}")
                 return
-
-            data_manager.store_analysis_results(symbol, analysis_results)
-
-            # Display all results...
             
+            # Store results
+            data_manager.store_analysis_results(symbol, analysis_results)
+            
+            # ============================================================
             # SECTION 1: INDIVIDUAL SYMBOL ANALYSIS
+            # ============================================================
             st.header(f"📊 {symbol} - Individual Technical Analysis")
+            
             enhanced_indicators = analysis_results.get('enhanced_indicators', {})
             comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
             fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
@@ -1206,83 +1230,346 @@ def main():
             # Comprehensive Technical Analysis Table
             st.subheader("📋 Comprehensive Technical Indicators")
             
-            tech_analysis_data = []
             current_price = analysis_results['current_price']
-            
             daily_vwap = enhanced_indicators.get('daily_vwap', 0)
             point_of_control = enhanced_indicators.get('point_of_control', 0)
             
+            # Build comprehensive indicators table
             indicators_data = [
                 ("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current"),
-                ("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A", "Above" if current_price > daily_vwap else "Below"),
-                ("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A", "Above" if current_price > point_of_control else "Below"),
-                ("Prev Week High", f"${comprehensive_technicals.get('prev_week_high', 0):.2f}", "📈 Resistance", f"{((current_price - comprehensive_technicals.get('prev_week_high', current_price)) / comprehensive_technicals.get('prev_week_high', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_high', 0) > 0 else "N/A", "Above" if current_price > comprehensive_technicals.get('prev_week_high', 0) else "Below"),
-                ("Prev Week Low", f"${comprehensive_technicals.get('prev_week_low', 0):.2f}", "📉 Support", f"{((current_price - comprehensive_technicals.get('prev_week_low', current_price)) / comprehensive_technicals.get('prev_week_low', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_low', 0) > 0 else "N/A", "Above" if current_price > comprehensive_technicals.get('prev_week_low', 0) else "Below"),
+                ("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", 
+                 f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A", 
+                 "Above" if current_price > daily_vwap else "Below"),
+                ("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", 
+                 f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A",
+                 "Above" if current_price > point_of_control else "Below"),
+                ("Prev Week High", f"${comprehensive_technicals.get('prev_week_high', 0):.2f}", "📈 Resistance", 
+                 f"{((current_price - comprehensive_technicals.get('prev_week_high', current_price)) / comprehensive_technicals.get('prev_week_high', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_high', 0) > 0 else "N/A",
+                 "Above" if current_price > comprehensive_technicals.get('prev_week_high', 0) else "Below"),
+                ("Prev Week Low", f"${comprehensive_technicals.get('prev_week_low', 0):.2f}", "📉 Support", 
+                 f"{((current_price - comprehensive_technicals.get('prev_week_low', current_price)) / comprehensive_technicals.get('prev_week_low', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_low', 0) > 0 else "N/A",
+                 "Above" if current_price > comprehensive_technicals.get('prev_week_low', 0) else "Below"),
             ]
             
+            # Add Fibonacci EMAs
             for ema_name, ema_value in fibonacci_emas.items():
                 period = ema_name.split('_')[1]
                 distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
                 status = "Above" if current_price > ema_value else "Below"
                 indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status))
             
+            # Add Bollinger Bands
             bb_data = comprehensive_technicals.get('bollinger_bands', {})
             if bb_data:
                 indicators_data.extend([
-                    ("BB Upper", f"${bb_data.get('upper', 0):.2f}", "📊 Volatility", f"{((current_price - bb_data.get('upper', current_price)) / bb_data.get('upper', current_price) * 100):+.2f}%" if bb_data.get('upper', 0) > 0 else "N/A", f"Position: {bb_data.get('position', 50):.1f}%"),
-                    ("BB Middle", f"${bb_data.get('middle', 0):.2f}", "📊 SMA 20", f"{((current_price - bb_data.get('middle', current_price)) / bb_data.get('middle', current_price) * 100):+.2f}%" if bb_data.get('middle', 0) > 0 else "N/A", "Above" if current_price > bb_data.get('middle', 0) else "Below"),
-                    ("BB Lower", f"${bb_data.get('lower', 0):.2f}", "📊 Volatility", f"{((current_price - bb_data.get('lower', current_price)) / bb_data.get('lower', current_price) * 100):+.2f}%" if bb_data.get('lower', 0) > 0 else "N/A", "Above" if current_price > bb_data.get('lower', 0) else "Below"),
+                    ("BB Upper", f"${bb_data.get('upper', 0):.2f}", "📊 Volatility", 
+                     f"{((current_price - bb_data.get('upper', current_price)) / bb_data.get('upper', current_price) * 100):+.2f}%" if bb_data.get('upper', 0) > 0 else "N/A",
+                     f"Position: {bb_data.get('position', 50):.1f}%"),
+                    ("BB Middle", f"${bb_data.get('middle', 0):.2f}", "📊 SMA 20", 
+                     f"{((current_price - bb_data.get('middle', current_price)) / bb_data.get('middle', current_price) * 100):+.2f}%" if bb_data.get('middle', 0) > 0 else "N/A",
+                     "Above" if current_price > bb_data.get('middle', 0) else "Below"),
+                    ("BB Lower", f"${bb_data.get('lower', 0):.2f}", "📊 Volatility", 
+                     f"{((current_price - bb_data.get('lower', current_price)) / bb_data.get('lower', current_price) * 100):+.2f}%" if bb_data.get('lower', 0) > 0 else "N/A",
+                     "Above" if current_price > bb_data.get('lower', 0) else "Below"),
                 ])
             
+            # Convert to DataFrame and display
             df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
             st.dataframe(df_technical, use_container_width=True, hide_index=True)
-
-            # ... [rest of the analysis sections] ...
-
+            
+            # Oscillators and Momentum
+            st.subheader("📈 Momentum & Oscillator Analysis")
+            
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                rsi = comprehensive_technicals.get('rsi_14', 50)
+                rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "⚪ Neutral"
+                st.metric("RSI (14)", f"{rsi:.1f}", rsi_status)
+            
+            with col2:
+                mfi = comprehensive_technicals.get('mfi_14', 50)
+                mfi_status = "🔴 Overbought" if mfi > 80 else "🟢 Oversold" if mfi < 20 else "⚪ Neutral"
+                st.metric("MFI (14)", f"{mfi:.1f}", mfi_status)
+            
+            with col3:
+                williams_r = comprehensive_technicals.get('williams_r', -50)
+                wr_status = "🔴 Overbought" if williams_r > -20 else "🟢 Oversold" if williams_r < -80 else "⚪ Neutral"
+                st.metric("Williams %R", f"{williams_r:.1f}", wr_status)
+            
+            with col4:
+                stoch_data = comprehensive_technicals.get('stochastic', {})
+                stoch_k = stoch_data.get('k', 50)
+                stoch_status = "🔴 Overbought" if stoch_k > 80 else "🟢 Oversold" if stoch_k < 20 else "⚪ Neutral"
+                st.metric("Stochastic %K", f"{stoch_k:.1f}", stoch_status)
+            
+            # MACD Analysis
+            macd_data = comprehensive_technicals.get('macd', {})
+            if macd_data:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    macd_line = macd_data.get('macd', 0)
+                    st.metric("MACD Line", f"{macd_line:.4f}")
+                with col2:
+                    signal_line = macd_data.get('signal', 0)
+                    st.metric("Signal Line", f"{signal_line:.4f}")
+                with col3:
+                    histogram = macd_data.get('histogram', 0)
+                    hist_trend = "📈 Bullish" if histogram > 0 else "📉 Bearish"
+                    st.metric("MACD Histogram", f"{histogram:.4f}", hist_trend)
+            
+            # Volume Analysis
+            st.subheader("📊 Volume Analysis")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                current_volume = comprehensive_technicals.get('current_volume', 0)
+                st.metric("Current Volume", f"{current_volume:,.0f}")
+            
+            with col2:
+                avg_volume = comprehensive_technicals.get('volume_sma_20', 0)
+                st.metric("20D Avg Volume", f"{avg_volume:,.0f}")
+            
+            with col3:
+                volume_ratio = comprehensive_technicals.get('volume_ratio', 1)
+                vol_status = "🔴 High" if volume_ratio > 1.5 else "🟢 Low" if volume_ratio < 0.5 else "⚪ Normal"
+                st.metric("Volume Ratio", f"{volume_ratio:.2f}x", vol_status)
+            
+            with col4:
+                atr = comprehensive_technicals.get('atr_14', 0)
+                st.metric("ATR (14)", f"${atr:.2f}")
+            
+            # ============================================================
+            # SECTION 2: MARKET COMPARISON ANALYSIS
+            # ============================================================
+            st.header("🌐 Market Correlation & Comparison Analysis")
+            
+            market_correlations = enhanced_indicators.get('market_correlations', {})
+            
+            if market_correlations:
+                st.subheader("📊 ETF Correlation Analysis")
+                
+                correlation_table_data = []
+                for etf, etf_data in market_correlations.items():
+                    correlation_table_data.append({
+                        'ETF': etf,
+                        'Correlation': f"{etf_data.get('correlation', 0):.3f}",
+                        'Beta': f"{etf_data.get('beta', 0):.3f}",
+                        'Relationship': etf_data.get('relationship', 'Unknown'),
+                        'Description': get_etf_description(etf)
+                    })
+                
+                df_correlations = pd.DataFrame(correlation_table_data)
+                st.dataframe(df_correlations, use_container_width=True, hide_index=True)
+                
+                # Correlation interpretation
+                st.write("**Correlation Interpretation:**")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write("• **FNGD**: 🐻 3x Inverse Tech ETF")
+                    st.write("• Negative correlation expected")
+                with col2:
+                    st.write("• **FNGU**: 🚀 3x Leveraged Tech ETF") 
+                    st.write("• Positive correlation for tech stocks")
+                with col3:
+                    st.write("• **MAGS**: 🏛️ Mega-cap Growth ETF")
+                    st.write("• Broad market correlation")
+            else:
+                st.warning("⚠️ Market correlation data not available")
+            
+            # Broader market context
+            st.subheader("📈 Market Context")
+            trend_analysis = analysis_results.get('trend_analysis', {})
+            if trend_analysis:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    trend_dir = trend_analysis.get('trend_direction', 'N/A')
+                    trend_strength = trend_analysis.get('trend_strength', 0)
+                    st.metric("Trend Direction", trend_dir, f"Strength: {trend_strength:.1f}")
+                
+                with col2:
+                    price_vs_ema21 = trend_analysis.get('price_vs_ema21', 0)
+                    st.metric("Price vs EMA21", f"{price_vs_ema21:+.2f}%")
+                
+                with col3:
+                    ema21_slope = trend_analysis.get('ema21_slope', 0)
+                    slope_trend = "📈 Rising" if ema21_slope > 0 else "📉 Falling"
+                    st.metric("EMA21 Slope", f"{ema21_slope:+.2f}%", slope_trend)
+            
+            # ============================================================
+            # SECTION 3: OPTIONS ANALYSIS
+            # ============================================================
+            st.header("🎯 Options Trading Analysis")
+            
+            options_levels = enhanced_indicators.get('options_levels', [])
+            
+            if options_levels:
+                st.subheader("💰 Premium Selling Levels")
+                st.write("**Approximate option strike levels for premium selling strategies**")
+                
+                df_options = pd.DataFrame(options_levels)
+                st.dataframe(df_options, use_container_width=True, hide_index=True)
+                
+                # Options context
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.info("**Put Selling Strategy:**\n"
+                           "• Sell puts below current price\n"
+                           "• Collect premium if stock stays above strike\n"
+                           "• PoT = Probability of Touch")
+                
+                with col2:
+                    st.info("**Call Selling Strategy:**\n"
+                           "• Sell calls above current price\n" 
+                           "• Collect premium if stock stays below strike\n"
+                           "• Lower PoT = Higher probability of profit")
+                
+                # Risk warning
+                st.warning("⚠️ **Risk Disclaimer**: Options trading involves significant risk. "
+                          "These are theoretical levels based on statistical analysis. "
+                          "Always conduct your own research and consider your risk tolerance.")
+            else:
+                st.warning("⚠️ Options analysis not available - insufficient data")
+            
+            # VWV Signal Analysis
+            st.subheader("🎯 VWV Trading Signal")
+            
+            # Signal display
+            if analysis_results['signal_type'] != 'NONE':
+                entry_info = analysis_results['entry_info']
+                direction = entry_info['direction']
+                
+                st.success(f"""
+                🚨 **VWV {direction} SIGNAL DETECTED**
+                
+                **Signal Strength:** {analysis_results['signal_type']}  
+                **Direction:** {direction}  
+                **Entry Price:** ${entry_info['entry_price']}  
+                **Stop Loss:** ${entry_info['stop_loss']}  
+                **Take Profit:** ${entry_info['take_profit']}  
+                **Risk/Reward Ratio:** {entry_info['risk_reward']}:1  
+                **Directional Confluence:** {analysis_results['directional_confluence']:.2f}
+                """)
+            else:
+                st.info("⚪ **No VWV Signal** - Market conditions do not meet signal criteria")
+            
+            # Show confluence components only if debug is on
+            if show_debug:
+                st.subheader("🔧 VWV Components Breakdown")
+                comp_data = []
+                for comp, value in analysis_results['components'].items():
+                    weight = vwv_system.weights[comp]
+                    contribution = round(value * weight, 3)
+                    comp_data.append({
+                        'Component': comp.upper(),
+                        'Normalized Value': f"{value:.3f}",
+                        'Weight': f"{weight}",
+                        'Contribution': f"{contribution:.3f}"
+                    })
+                
+                df_components = pd.DataFrame(comp_data)
+                st.dataframe(df_components, use_container_width=True, hide_index=True)
+            
+            # ============================================================
             # SECTION 4: INTERACTIVE CHART
+            # ============================================================
             if show_chart:
                 st.header("📈 Technical Analysis Chart")
+                
                 chart_market_data = data_manager.get_market_data_for_chart(symbol)
+                
                 if chart_market_data is None:
                     st.error("❌ Could not get chart data")
                     return
-
+                
                 chart = create_enhanced_chart(chart_market_data, analysis_results, symbol)
+                
                 if chart is not None:
                     st.plotly_chart(chart, use_container_width=True)
                     if show_debug:
                         st.success("✅ Chart created successfully")
                 else:
                     st.error("❌ Chart creation failed")
-
+            
             # Statistical confidence intervals (if available)
             if analysis_results.get('confidence_analysis'):
                 st.subheader("📊 Statistical Confidence Intervals")
-                conf_data = analysis_results['confidence_analysis']
+                confidence_data = analysis_results['confidence_analysis']
+                
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Mean Weekly Return", f"{conf_data['mean_weekly_return']:.3f}%")
+                    st.metric("Mean Weekly Return", f"{confidence_data['mean_weekly_return']:.3f}%")
                 with col2:
-                    st.metric("Weekly Volatility", f"{conf_data['weekly_volatility']:.2f}%")
+                    st.metric("Weekly Volatility", f"{confidence_data['weekly_volatility']:.2f}%")
                 with col3:
-                    st.metric("Sample Size", f"{conf_data['sample_size']} weeks")
+                    st.metric("Sample Size", f"{confidence_data['sample_size']} weeks")
                 
-                intervals_data = []
-                for level, interval_details in conf_data['confidence_intervals'].items():
-                    intervals_data.append({
+                final_intervals_data = []
+                for level, level_data in confidence_data['confidence_intervals'].items():
+                    final_intervals_data.append({
                         'Confidence Level': level,
-                        'Upper Bound': f"${interval_details['upper_bound']}",
-                        'Lower Bound': f"${interval_details['lower_bound']}",
-                        'Expected Move': f"±{interval_details['expected_move_pct']:.2f}%"
+                        'Upper Bound': f"${level_data['upper_bound']}",
+                        'Lower Bound': f"${level_data['lower_bound']}",
+                        'Expected Move': f"±{level_data['expected_move_pct']:.2f}%"
                     })
                 
-                df_intervals = pd.DataFrame(intervals_data)
+                df_intervals = pd.DataFrame(final_intervals_data)
                 st.dataframe(df_intervals, use_container_width=True, hide_index=True)
     
     else:
         st.markdown("""
         ## 🛠️ VWV Professional Trading System
-        ... [welcome message] ...
+        
+        ### ✅ **Comprehensive Analysis Structure:**
+        
+        1. **📊 Individual Symbol Analysis**
+           - Exhaustive technical indicator table
+           - Price levels: VWAP, EMAs, Support/Resistance
+           - Momentum indicators: RSI, MFI, MACD, Stochastic
+           - Volume analysis and volatility metrics
+           - Previous week high/low levels
+        
+        2. **🌐 Market Correlation Analysis**
+           - Correlation with FNGD (3x Inverse Tech)
+           - Correlation with FNGU (3x Leveraged Tech)  
+           - Correlation with MAGS (Mega-cap Growth)
+           - Beta calculations and relationship strength
+           - Broader market context and trend analysis
+        
+        3. **🎯 Options Trading Analysis**
+           - Premium selling strike levels
+           - Probability of touch calculations
+           - Put and call selling strategies
+           - Risk-adjusted option levels for multiple expiries
+        
+        4. **📈 Interactive Technical Chart**
+           - All Fibonacci EMAs displayed
+           - VWAP and Point of Control levels
+           - Weekly standard deviation bands
+           - Comprehensive visual analysis
+        
+        ### 🔧 **Enhanced Technical Indicators:**
+        
+        - **Moving Averages**: Fibonacci sequence (21, 55, 89, 144, 233)
+        - **Volume Analysis**: VWAP, POC, Volume trends
+        - **Momentum Oscillators**: RSI, MFI, Williams %R, Stochastic
+        - **Volatility Metrics**: ATR, Bollinger Bands, Weekly deviations
+        - **Trend Analysis**: MACD, EMA slopes, Price momentum
+        
+        ### 📊 **Market Comparison Features:**
+        
+        - **ETF Correlations**: Statistical relationship analysis
+        - **Beta Calculations**: Sensitivity to market movements
+        - **Divergence Analysis**: Individual vs market performance
+        - **Sector Positioning**: Technology and growth exposure
+        
+        ### 💰 **Options Trading Tools:**
+        
+        - **Strike Selection**: Statistical probability-based levels
+        - **Premium Collection**: Optimized risk/reward ratios
+        - **Expiry Analysis**: Multiple timeframe strategies
+        - **Risk Management**: Probability of touch calculations
+        
+        **Start with: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA, or any major symbol**
         """)
 
 if __name__ == "__main__":

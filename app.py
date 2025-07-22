@@ -471,73 +471,35 @@ class VWVTradingSystemFixed:
 def load_vwv_system():
     return VWVTradingSystemFixed()
 
-def create_enhanced_chart(data, analysis, symbol):
+def create_enhanced_chart(market_data, analysis, symbol):
     """Enhanced chart with proper confidence intervals - HANDLES DICT/DATAFRAME"""
     
     # CRITICAL FIX: Handle dict to DataFrame conversion properly
-    if isinstance(data, dict):
-        try:
-            st.write(f"DEBUG: Converting dict to DataFrame. Keys: {list(data.keys())}")
-            
-            # Check the structure of the dictionary
-            sample_value = next(iter(data.values())) if data else None
-            st.write(f"DEBUG: Sample value type: {type(sample_value)}")
-            
-            if all(isinstance(v, dict) for v in data.values()):
-                # Method 1: Dict of dicts (index-oriented) - e.g. {timestamp: {Open: 100, Close: 102}}
-                data = pd.DataFrame.from_dict(data, orient='index')
-                st.success("✅ Converted dict of dicts to DataFrame")
-            elif all(hasattr(v, '__len__') and not isinstance(v, str) for v in data.values()):
-                # Method 2: Dict of sequences - e.g. {'Open': [100, 101], 'Close': [102, 103]}
-                data = pd.DataFrame(data)
-                st.success("✅ Converted dict of sequences to DataFrame")
-            else:
-                # Method 3: Dict of scalar values - need to create single row DataFrame
-                # e.g. {'Open': 100, 'Close': 102} -> single row DataFrame
-                data = pd.DataFrame([data])  # Wrap in list to create single row
-                st.success("✅ Converted dict of scalars to single-row DataFrame")
-                
-            # Ensure datetime index if possible and we have multiple rows
-            if len(data) > 1 and not isinstance(data.index, pd.DatetimeIndex):
-                try:
-                    data.index = pd.to_datetime(data.index)
-                    st.success("✅ Converted index to datetime")
-                except:
-                    st.info("ℹ️ Could not convert index to datetime, keeping original")
-                    
-        except Exception as e:
-            st.error(f"Could not convert data dict to DataFrame: {e}")
-            st.write(f"Dict keys: {list(data.keys()) if data else 'No keys'}")
-            st.write(f"Dict structure: {type(data)}")
-            return None
+    if isinstance(market_data, dict):
+        st.error(f"❌ Received dict instead of DataFrame for market data!")
+        st.write(f"Dict keys: {list(market_data.keys())}")
+        st.write(f"This suggests the market data variable was overwritten somewhere")
+        return None
     
     # Validate DataFrame
-    if not isinstance(data, pd.DataFrame):
-        st.error(f"Invalid data after conversion. Type: {type(data)}")
+    if not isinstance(market_data, pd.DataFrame):
+        st.error(f"Invalid market data type: {type(market_data)}")
         return None
         
-    if len(data) == 0:
-        st.error(f"DataFrame is empty after conversion")
+    if len(market_data) == 0:
+        st.error(f"DataFrame is empty")
         return None
-    
-    st.success(f"✅ DataFrame ready: shape {data.shape}, columns: {list(data.columns)}")
     
     # Validate required columns
     required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-    missing_columns = [col for col in required_columns if col not in data.columns]
+    missing_columns = [col for col in required_columns if col not in market_data.columns]
     if missing_columns:
         st.error(f"Missing required columns: {missing_columns}")
-        st.write(f"Available columns: {list(data.columns)}")
+        st.write(f"Available columns: {list(market_data.columns)}")
         return None
     
     try:
-        # For single-row DataFrames, we can't show much of a chart
-        if len(data) == 1:
-            st.warning("Only one data point available - limited chart functionality")
-            chart_data = data
-        else:
-            chart_data = data.tail(100)
-            
+        chart_data = market_data.tail(100)
         current_price = analysis['current_price']
         
         fig = make_subplots(
@@ -546,20 +508,13 @@ def create_enhanced_chart(data, analysis, symbol):
             vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
         )
         
-        # Candlestick chart (only if we have enough data)
-        if len(chart_data) > 1:
-            fig.add_trace(go.Candlestick(
-                x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
-                low=chart_data['Low'], close=chart_data['Close'], name='Price'
-            ), row=1, col=1)
-        else:
-            # Single point - show as scatter
-            fig.add_trace(go.Scatter(
-                x=chart_data.index, y=chart_data['Close'], 
-                mode='markers', name='Current Price', marker=dict(size=10)
-            ), row=1, col=1)
+        # Candlestick chart
+        fig.add_trace(go.Candlestick(
+            x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
+            low=chart_data['Low'], close=chart_data['Close'], name='Price'
+        ), row=1, col=1)
         
-        # Moving averages (only if we have enough data)
+        # Moving averages
         if len(chart_data) >= 21:
             ema21 = chart_data['Close'].ewm(span=21).mean()
             fig.add_trace(go.Scatter(
@@ -590,15 +545,10 @@ def create_enhanced_chart(data, analysis, symbol):
                      line_width=3, row=1, col=1)
         
         # Volume chart
-        if len(chart_data) > 1:
-            colors = ['green' if close >= open else 'red' 
-                      for close, open in zip(chart_data['Close'], chart_data['Open'])]
-            fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
-                                name='Volume', marker_color=colors), row=2, col=1)
-        else:
-            # Single volume bar
-            fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
-                                name='Volume', marker_color=['blue']), row=2, col=1)
+        colors = ['green' if close >= open else 'red' 
+                  for close, open in zip(chart_data['Close'], chart_data['Open'])]
+        fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
+                            name='Volume', marker_color=colors), row=2, col=1)
         
         # FIXED: Real confidence intervals chart
         if analysis.get('confidence_analysis'):
@@ -625,8 +575,7 @@ def create_enhanced_chart(data, analysis, symbol):
         
     except Exception as e:
         st.error(f"Error creating chart components: {str(e)}")
-        st.write(f"Chart data shape: {chart_data.shape}")
-        st.write(f"Chart data columns: {list(chart_data.columns)}")
+        st.write(f"Chart data shape: {chart_data.shape if 'chart_data' in locals() else 'N/A'}")
         return None
 
 # Main application

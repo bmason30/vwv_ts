@@ -244,6 +244,61 @@ def calculate_point_of_control(data):
         except:
             return 0.0
 
+def calculate_additional_metrics(data):
+    """Calculate additional metrics for comprehensive table"""
+    try:
+        if len(data) < 20:
+            return {}
+        
+        close = data['Close']
+        volume = data['Volume']
+        
+        # 5-day moving average
+        ma_5 = close.rolling(window=5).mean().iloc[-1] if len(close) >= 5 else close.iloc[-1]
+        
+        # Volume metrics
+        volume_20_avg = volume.rolling(window=20).mean().iloc[-1] if len(volume) >= 20 else volume.mean()
+        
+        # Volume trend (compare recent 5-day avg to previous 5-day avg)
+        if len(volume) >= 10:
+            recent_vol_avg = volume.tail(5).mean()
+            previous_vol_avg = volume.iloc[-10:-5].mean()
+            volume_trend = "📈 Rising" if recent_vol_avg > previous_vol_avg else "📉 Falling"
+            volume_change_pct = ((recent_vol_avg - previous_vol_avg) / previous_vol_avg * 100) if previous_vol_avg > 0 else 0
+        else:
+            volume_trend = "➡️ Neutral"
+            volume_change_pct = 0
+        
+        # Price trend analysis (5-day vs 10-day momentum)
+        if len(close) >= 10:
+            recent_avg = close.tail(5).mean()
+            previous_avg = close.iloc[-10:-5].mean()
+            if recent_avg > previous_avg * 1.002:  # 0.2% threshold
+                price_trend = "📈 Bullish"
+            elif recent_avg < previous_avg * 0.998:
+                price_trend = "📉 Bearish"
+            else:
+                price_trend = "➡️ Sideways"
+        else:
+            price_trend = "➡️ Neutral"
+        
+        return {
+            'ma_5': round(float(ma_5), 2),
+            'volume_20_avg': round(float(volume_20_avg), 0),
+            'volume_trend': volume_trend,
+            'volume_change_pct': round(float(volume_change_pct), 1),
+            'price_trend': price_trend
+        }
+        
+    except Exception:
+        return {
+            'ma_5': 0,
+            'volume_20_avg': 0,
+            'volume_trend': "➡️ Neutral",
+            'volume_change_pct': 0,
+            'price_trend': "➡️ Neutral"
+        }
+
 def calculate_weekly_deviations(data):
     """Calculate weekly 1, 2, 3 standard deviation levels"""
     try:
@@ -560,6 +615,7 @@ class VWVTradingSystem:
             fibonacci_emas = calculate_fibonacci_emas(working_data)
             point_of_control = calculate_point_of_control(working_data)
             weekly_deviations = calculate_weekly_deviations(working_data)
+            additional_metrics = calculate_additional_metrics(working_data)
             
             # Calculate original VWV components
             components = {
@@ -641,7 +697,8 @@ class VWVTradingSystem:
                     'daily_vwap': daily_vwap,
                     'fibonacci_emas': fibonacci_emas,
                     'point_of_control': point_of_control,
-                    'weekly_deviations': weekly_deviations
+                    'weekly_deviations': weekly_deviations,
+                    'additional_metrics': additional_metrics
                 },
                 'system_status': 'OPERATIONAL'
             }
@@ -933,35 +990,114 @@ def main():
                 st.metric("Trend Direction", trend_dir)
             
             # Enhanced Technical Indicators
-            st.subheader("📊 Enhanced Technical Indicators")
+            st.subheader("📊 Technical Analysis Overview")
             enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+            additional_metrics = enhanced_indicators.get('additional_metrics', {})
             
-            # Daily VWAP and POC
+            # Comprehensive Technical Table
+            current_price = analysis_results['current_price']
+            daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+            poc = enhanced_indicators.get('point_of_control', 0)
+            fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+            
+            # Create comprehensive technical analysis table
+            tech_table_data = []
+            
+            # Current Price row
+            tech_table_data.append({
+                'Indicator': 'Current Price',
+                'Value': f"${current_price:.2f}",
+                'Trend': additional_metrics.get('price_trend', '➡️ Neutral'),
+                'Distance %': '0.0%',
+                'Status': '📍 Current'
+            })
+            
+            # VWAP row
+            vwap_distance = ((current_price - daily_vwap) / daily_vwap * 100) if daily_vwap > 0 else 0
+            vwap_status = "🟢 Above" if vwap_distance > 0 else "🔴 Below" if vwap_distance < 0 else "⚪ At"
+            tech_table_data.append({
+                'Indicator': 'Daily VWAP',
+                'Value': f"${daily_vwap:.2f}",
+                'Trend': '📊 Volume Weighted',
+                'Distance %': f"{vwap_distance:+.2f}%",
+                'Status': vwap_status
+            })
+            
+            # 5-Day Average row
+            ma_5 = additional_metrics.get('ma_5', 0)
+            ma5_distance = ((current_price - ma_5) / ma_5 * 100) if ma_5 > 0 else 0
+            ma5_status = "🟢 Above" if ma5_distance > 0 else "🔴 Below" if ma5_distance < 0 else "⚪ At"
+            tech_table_data.append({
+                'Indicator': '5-Day Average',
+                'Value': f"${ma_5:.2f}",
+                'Trend': additional_metrics.get('price_trend', '➡️ Neutral'),
+                'Distance %': f"{ma5_distance:+.2f}%",
+                'Status': ma5_status
+            })
+            
+            # Fibonacci EMAs rows
+            for ema_name, ema_value in fibonacci_emas.items():
+                period = ema_name.split('_')[1]
+                ema_distance = ((current_price - ema_value) / ema_value * 100) if ema_value > 0 else 0
+                ema_status = "🟢 Above" if ema_distance > 0 else "🔴 Below" if ema_distance < 0 else "⚪ At"
+                
+                # Determine EMA trend (simple momentum check)
+                ema_trend = "📈 Rising" if ema_distance > -2 and ema_distance > 0 else "📉 Falling" if ema_distance < -2 else "➡️ Sideways"
+                
+                tech_table_data.append({
+                    'Indicator': f'EMA {period}',
+                    'Value': f"${ema_value:.2f}",
+                    'Trend': ema_trend,
+                    'Distance %': f"{ema_distance:+.2f}%",
+                    'Status': ema_status
+                })
+            
+            # Point of Control row
+            poc_distance = ((current_price - poc) / poc * 100) if poc > 0 else 0
+            poc_status = "🟢 Above" if poc_distance > 0 else "🔴 Below" if poc_distance < 0 else "⚪ At"
+            tech_table_data.append({
+                'Indicator': 'Point of Control',
+                'Value': f"${poc:.2f}",
+                'Trend': '📊 Volume Profile',
+                'Distance %': f"{poc_distance:+.2f}%",
+                'Status': poc_status
+            })
+            
+            # Volume Analysis row
+            volume_avg = additional_metrics.get('volume_20_avg', 0)
+            volume_trend = additional_metrics.get('volume_trend', '➡️ Neutral')
+            volume_change = additional_metrics.get('volume_change_pct', 0)
+            tech_table_data.append({
+                'Indicator': 'Average Volume (20D)',
+                'Value': f"{volume_avg:,.0f}",
+                'Trend': f"{volume_trend} ({volume_change:+.1f}%)",
+                'Distance %': 'N/A',
+                'Status': '📊 Volume'
+            })
+            
+            # Create and display the table
+            df_technical = pd.DataFrame(tech_table_data)
+            st.dataframe(df_technical, use_container_width=True, hide_index=True)
+            
+            # Quick summary metrics below the table
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                daily_vwap = enhanced_indicators.get('daily_vwap', 0)
-                st.metric("Daily VWAP", f"${daily_vwap:.2f}")
+                trend_analysis = analysis_results.get('trend_analysis', {})
+                trend_dir = trend_analysis.get('trend_direction', 'N/A') if trend_analysis else 'N/A'
+                st.metric("Overall Trend", trend_dir)
             with col2:
-                poc = enhanced_indicators.get('point_of_control', 0)
-                st.metric("Point of Control", f"${poc:.2f}")
+                # Count how many EMAs price is above
+                emas_above = sum(1 for _, ema_val in fibonacci_emas.items() if current_price > ema_val)
+                total_emas = len(fibonacci_emas)
+                st.metric("EMAs Above", f"{emas_above}/{total_emas}")
             with col3:
-                current_price = analysis_results['current_price']
-                vwap_distance = ((current_price - daily_vwap) / daily_vwap * 100) if daily_vwap > 0 else 0
-                st.metric("Distance from VWAP", f"{vwap_distance:.2f}%")
+                # Volume trend summary
+                vol_trend_short = volume_trend.split()[0] if volume_trend else "➡️"
+                st.metric("Volume Trend", f"{vol_trend_short} {volume_change:+.1f}%")
             with col4:
-                poc_distance = ((current_price - poc) / poc * 100) if poc > 0 else 0
-                st.metric("Distance from POC", f"{poc_distance:.2f}%")
-            
-            # Fibonacci EMAs
-            fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
-            if fibonacci_emas:
-                st.write("**Fibonacci EMAs:**")
-                ema_cols = st.columns(len(fibonacci_emas))
-                for i, (ema_name, ema_value) in enumerate(fibonacci_emas.items()):
-                    period = ema_name.split('_')[1]
-                    distance_pct = ((current_price - ema_value) / ema_value * 100) if ema_value > 0 else 0
-                    with ema_cols[i]:
-                        st.metric(f"EMA {period}", f"${ema_value:.2f}", f"{distance_pct:+.1f}%")
+                # Distance from VWAP summary
+                vwap_direction = "Above" if vwap_distance > 0 else "Below"
+                st.metric(f"vs VWAP", f"{vwap_direction} {abs(vwap_distance):.1f}%")
             
             # Weekly Standard Deviations
             weekly_devs = enhanced_indicators.get('weekly_deviations', {})

@@ -44,10 +44,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# FIXED: Move data fetching outside class for proper caching
-@st.cache_data(ttl=300)  # Cache for 5 minutes  
-def get_market_data_cached(symbol='SPY', period='1y'):
-    """Internal cached data fetcher"""
+# FIXED: Simplified data fetching (caching disabled for now)
+def get_market_data(symbol='SPY', period='1y'):
+    """Fetch market data with proper error handling"""
     try:
         ticker = yf.Ticker(symbol)
         data = ticker.history(period=period)
@@ -55,21 +54,9 @@ def get_market_data_cached(symbol='SPY', period='1y'):
         if data is None or len(data) == 0:
             raise ValueError(f"No data found for symbol {symbol}")
         
-        # Convert to dict for caching safety, then back to DataFrame
-        return data.to_dict('series')
-    except Exception as e:
-        return None
-
-def get_market_data(symbol='SPY', period='1y'):
-    """Fetch market data with proper error handling"""
-    try:
-        data_dict = get_market_data_cached(symbol, period)
-        
-        if data_dict is None:
-            raise ValueError(f"No data found for symbol {symbol}")
-        
-        # Convert back to DataFrame
-        data = pd.DataFrame(data_dict)
+        # Ensure it's a proper DataFrame
+        if not isinstance(data, pd.DataFrame):
+            raise ValueError(f"Expected DataFrame, got {type(data)}")
         
         # Add typical price for VWAP calculation
         data['Typical_Price'] = (data['High'] + data['Low'] + data['Close']) / 3
@@ -485,16 +472,8 @@ def create_enhanced_chart(data, analysis, symbol):
         st.error("No data available for chart creation")
         return None
     
-    # Convert dict to DataFrame if needed
-    if isinstance(data, dict):
-        try:
-            data = pd.DataFrame(data)
-        except Exception as e:
-            st.error(f"Could not convert data to DataFrame: {str(e)}")
-            return None
-    
     if not isinstance(data, pd.DataFrame) or len(data) == 0:
-        st.error("Invalid data format for chart creation")
+        st.error(f"Invalid data format for chart creation. Got {type(data)}")
         return None
     
     try:

@@ -278,14 +278,16 @@ def calculate_graham_score(symbol, show_debug=False):
             score += 1
             criteria.append(f"✅ Earnings Growth > 0% ({earnings_growth*100:.1f}%)")
         else:
-            criteria.append(f"❌ Earnings Growth > 0% ({earnings_growth*100:.1f}% if earnings_growth else 'N/A'})")
+            earnings_display = f"{earnings_growth*100:.1f}%" if earnings_growth is not None else "N/A"
+            criteria.append(f"❌ Earnings Growth > 0% ({earnings_display})")
         
         # 8. Positive revenue growth
         if revenue_growth is not None and revenue_growth > 0:
             score += 1
             criteria.append(f"✅ Revenue Growth > 0% ({revenue_growth*100:.1f}%)")
         else:
-            criteria.append(f"❌ Revenue Growth > 0% ({revenue_growth*100:.1f}% if revenue_growth else 'N/A'})")
+            revenue_display = f"{revenue_growth*100:.1f}%" if revenue_growth is not None else "N/A"
+            criteria.append(f"❌ Revenue Growth > 0% ({revenue_display})")
         
         # 9. Positive net income (current year)
         net_income_positive = info.get('netIncomeToCommon', 0) > 0

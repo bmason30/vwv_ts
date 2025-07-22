@@ -1830,9 +1830,18 @@ def main():
     # Basic controls
     symbol = st.sidebar.text_input("Symbol", value="SPY", help="Enter stock symbol").upper()
     period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
+    
+    # Main analyze button - positioned right after data period
+    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
 
     # Debug toggle
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
+    
+    # Test button - only show if debug is enabled
+    if show_debug:
+        test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
+    else:
+        test_button = False
 
     # Position sizing controls
     with st.sidebar.expander("💰 Position Sizing"):
@@ -1866,8 +1875,6 @@ def main():
 
     # Controls
     show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
-    test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
-    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
 
     # Data manager
     data_manager = st.session_state.data_manager

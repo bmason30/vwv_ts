@@ -7,13 +7,6 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import warnings
 import copy
-import logging
-import json
-import hashlib
-import time
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, asdict
-from pathlib import Path
 
 # Suppress only specific warnings, not all
 warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
@@ -26,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS for better styling
+# Custom CSS for better styling
 st.markdown("""
 <style>
     .main-header {
@@ -49,566 +42,100 @@ st.markdown("""
     .signal-very-strong { background-color: #f8d7da; border-left: 5px solid #dc3545; }
     .signal-none { background-color: #e2e3e5; border-left: 5px solid #6c757d; }
     .signal-bearish { background-color: #f8d7da; border-left: 5px solid #dc3545; }
-    .performance-excellent { background-color: #d1ecf1; border-left: 5px solid #bee5eb; }
-    .performance-good { background-color: #fff3cd; border-left: 5px solid #ffc107; }
-    .performance-poor { background-color: #f8d7da; border-left: 5px solid #dc3545; }
-    .log-entry {
-        font-family: 'Courier New', monospace;
-        background-color: #f8f9fa;
-        padding: 0.5rem;
-        border-radius: 4px;
-        margin: 0.2rem 0;
-        font-size: 0.9rem;
-    }
 </style>
 """, unsafe_allow_html=True)
 
-# ENHANCED: Performance tracking and logging
-@dataclass
-class PerformanceMetrics:
-    operation: str
-    start_time: float
-    end_time: float
-    duration: float
-    data_size: int
-    memory_usage: Optional[float] = None
-    
-    def to_dict(self):
-        return asdict(self)
-
-@dataclass
-class ValidationResult:
-    is_valid: bool
-    issues: List[str]
-    warnings: List[str]
-    data_quality_score: float
-    
-class AdvancedLogger:
-    """Enhanced logging system for production trading analysis"""
+# SIMPLE: Back to basic data manager that works
+class SimpleDataManager:
+    """Simple data manager without complex caching"""
     
     def __init__(self):
-        self.setup_logging()
-        self.performance_log = []
-        self.analysis_history = []
-        
-    def setup_logging(self):
-        """Setup comprehensive logging"""
-        # Create logs directory if it doesn't exist
-        log_dir = Path("logs")
-        log_dir.mkdir(exist_ok=True)
-        
-        # Setup logger
-        self.logger = logging.getLogger("VWVTradingSystem")
-        self.logger.setLevel(logging.INFO)
-        
-        # Avoid duplicate handlers
-        if not self.logger.handlers:
-            # File handler
-            file_handler = logging.FileHandler(
-                log_dir / f"vwv_trading_{datetime.now().strftime('%Y%m%d')}.log"
-            )
-            file_handler.setLevel(logging.INFO)
-            
-            # Console handler for Streamlit
-            console_handler = logging.StreamHandler()
-            console_handler.setLevel(logging.WARNING)
-            
-            # Formatter
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            file_handler.setFormatter(formatter)
-            console_handler.setFormatter(formatter)
-            
-            self.logger.addHandler(file_handler)
-            self.logger.addHandler(console_handler)
-    
-    def log_performance(self, metrics: PerformanceMetrics):
-        """Log performance metrics"""
-        self.performance_log.append(metrics)
-        self.logger.info(f"Performance: {metrics.operation} took {metrics.duration:.3f}s for {metrics.data_size} records")
-    
-    def log_analysis(self, symbol: str, analysis_result: Dict):
-        """Log analysis results"""
-        log_entry = {
-            'timestamp': datetime.now().isoformat(),
-            'symbol': symbol,
-            'signal_type': analysis_result.get('signal_type', 'NONE'),
-            'confluence': analysis_result.get('directional_confluence', 0),
-            'current_price': analysis_result.get('current_price', 0),
-            'system_status': analysis_result.get('system_status', 'UNKNOWN')
-        }
-        
-        self.analysis_history.append(log_entry)
-        self.logger.info(f"Analysis: {symbol} - {log_entry['signal_type']} - Confluence: {log_entry['confluence']:.2f}")
-    
-    def get_performance_summary(self) -> Dict:
-        """Get performance analytics summary"""
-        if not self.performance_log:
-            return {}
-        
-        durations = [m.duration for m in self.performance_log]
-        operations = {}
-        
-        for metric in self.performance_log:
-            op = metric.operation
-            if op not in operations:
-                operations[op] = []
-            operations[op].append(metric.duration)
-        
-        return {
-            'total_operations': len(self.performance_log),
-            'avg_duration': np.mean(durations),
-            'max_duration': np.max(durations),
-            'min_duration': np.min(durations),
-            'operations_breakdown': {
-                op: {
-                    'count': len(times),
-                    'avg_time': np.mean(times),
-                    'max_time': np.max(times)
-                }
-                for op, times in operations.items()
-            }
-        }
-
-# ENHANCED: Optimized data manager with performance tracking
-class OptimizedDataManager:
-    """Advanced data manager with performance optimization and caching"""
-    
-    def __init__(self, logger: AdvancedLogger):
         self._market_data_store = {}
         self._analysis_store = {}
-        self._data_hashes = {}  # For change detection
-        self._cache_timestamps = {}
-        self.logger = logger
-        self.cache_ttl = 300  # 5 minutes cache TTL
     
-    def _calculate_data_hash(self, data: pd.DataFrame) -> str:
-        """Calculate hash for change detection"""
-        return hashlib.md5(
-            str(data.index[-1]) + str(data['Close'].iloc[-1]) + str(len(data))
-        ).hexdigest()
-    
-    def _is_cache_valid(self, symbol: str) -> bool:
-        """Check if cached data is still valid"""
-        if symbol not in self._cache_timestamps:
-            return False
-        
-        cache_age = time.time() - self._cache_timestamps[symbol]
-        return cache_age < self.cache_ttl
-    
-    def store_market_data(self, symbol: str, market_data: pd.DataFrame):
-        """Optimized market data storage with change detection"""
-        start_time = time.time()
-        
+    def store_market_data(self, symbol, market_data):
+        """Simple data storage"""
         if not isinstance(market_data, pd.DataFrame):
             raise ValueError(f"Expected DataFrame, got {type(market_data)}")
         
-        # Calculate hash for change detection
-        data_hash = self._calculate_data_hash(market_data)
-        
-        # Check if data actually changed
-        if symbol in self._data_hashes and self._data_hashes[symbol] == data_hash:
-            # Data unchanged, extend cache
-            self._cache_timestamps[symbol] = time.time()
-            self.logger.logger.info(f"Data unchanged for {symbol}, using cache")
-            return
-        
-        # Store with optimized copying strategy
-        if len(market_data) > 1000:
-            # For large datasets, use more memory-efficient approach
-            self._market_data_store[symbol] = market_data.copy(deep=False)  # Shallow copy first
-        else:
-            # For smaller datasets, use deep copy for safety
-            self._market_data_store[symbol] = market_data.copy(deep=True)
-        
-        self._data_hashes[symbol] = data_hash
-        self._cache_timestamps[symbol] = time.time()
-        
-        # Log performance
-        duration = time.time() - start_time
-        metrics = PerformanceMetrics(
-            operation="store_market_data",
-            start_time=start_time,
-            end_time=time.time(),
-            duration=duration,
-            data_size=len(market_data)
-        )
-        self.logger.log_performance(metrics)
-        
-        st.write(f"🔒 Optimized storage for {symbol}: {market_data.shape} ({duration:.3f}s)")
+        self._market_data_store[symbol] = market_data.copy(deep=True)
+        st.write(f"🔒 Stored market data for {symbol}: {market_data.shape}")
     
-    def get_market_data_for_analysis(self, symbol: str) -> Optional[pd.DataFrame]:
-        """Get optimized copy for analysis"""
-        start_time = time.time()
-        
+    def get_market_data_for_analysis(self, symbol):
+        """Get copy for analysis"""
         if symbol not in self._market_data_store:
             return None
         
-        if not self._is_cache_valid(symbol):
-            self.logger.logger.warning(f"Cache expired for {symbol}")
-        
-        # Optimized copying based on data size
-        original_data = self._market_data_store[symbol]
-        if len(original_data) > 1000:
-            # For large datasets, use view-based approach for analysis
-            analysis_copy = original_data.iloc[-1000:].copy(deep=True)  # Last 1000 rows only
-        else:
-            analysis_copy = original_data.copy(deep=True)
-        
-        # Log performance
-        duration = time.time() - start_time
-        metrics = PerformanceMetrics(
-            operation="get_analysis_data",
-            start_time=start_time,
-            end_time=time.time(),
-            duration=duration,
-            data_size=len(analysis_copy)
-        )
-        self.logger.log_performance(metrics)
-        
-        return analysis_copy
+        return self._market_data_store[symbol].copy(deep=True)
     
-    def get_market_data_for_chart(self, symbol: str) -> Optional[pd.DataFrame]:
-        """Get optimized copy for chart (last 200 periods max)"""
-        start_time = time.time()
-        
+    def get_market_data_for_chart(self, symbol):
+        """Get copy for chart"""
         if symbol not in self._market_data_store:
             return None
         
-        original_data = self._market_data_store[symbol]
+        chart_copy = self._market_data_store[symbol].copy(deep=True)
         
-        # For charts, we only need recent data
-        chart_periods = min(200, len(original_data))
-        chart_copy = original_data.tail(chart_periods).copy(deep=True)
-        
-        # Verify integrity
         if not isinstance(chart_copy, pd.DataFrame):
-            self.logger.logger.error(f"Chart data corrupted for {symbol}: {type(chart_copy)}")
+            st.error(f"🚨 Chart data corrupted: {type(chart_copy)}")
             return None
-        
-        # Log performance
-        duration = time.time() - start_time
-        metrics = PerformanceMetrics(
-            operation="get_chart_data",
-            start_time=start_time,
-            end_time=time.time(),
-            duration=duration,
-            data_size=len(chart_copy)
-        )
-        self.logger.log_performance(metrics)
         
         return chart_copy
     
-    def store_analysis_results(self, symbol: str, analysis_results: Dict):
-        """Store analysis results with timestamp"""
-        self._analysis_store[symbol] = {
-            'results': copy.deepcopy(analysis_results),
-            'timestamp': time.time()
-        }
-        
-        # Log analysis
-        self.logger.log_analysis(symbol, analysis_results)
+    def store_analysis_results(self, symbol, analysis_results):
+        """Store analysis results"""
+        self._analysis_store[symbol] = copy.deepcopy(analysis_results)
     
-    def get_analysis_results(self, symbol: str) -> Dict:
+    def get_analysis_results(self, symbol):
         """Get analysis results"""
-        if symbol not in self._analysis_store:
-            return {}
-        return self._analysis_store[symbol]['results']
+        return self._analysis_store.get(symbol, {})
 
-# ENHANCED: Advanced data validation
-class AdvancedDataValidator:
-    """Comprehensive data quality validation"""
-    
-    @staticmethod
-    def validate_market_data(data: pd.DataFrame, symbol: str) -> ValidationResult:
-        """Comprehensive but more lenient market data validation"""
-        issues = []
-        warnings = []
-        quality_score = 100.0
+# Initialize simple data manager
+if 'simple_data_manager' not in st.session_state:
+    st.session_state.simple_data_manager = SimpleDataManager()
+
+# SIMPLE: Back to basic data fetching that works
+def get_market_data_simple(symbol='SPY', period='1y'):
+    """Simple, reliable market data fetching"""
+    try:
+        st.write(f"📡 Fetching data for {symbol}...")
         
-        # Basic structure validation
-        if not isinstance(data, pd.DataFrame):
-            issues.append(f"Data is not a DataFrame: {type(data)}")
-            return ValidationResult(False, issues, warnings, 0.0)
+        ticker = yf.Ticker(symbol)
+        raw_data = ticker.history(period=period)
         
-        if len(data) == 0:
-            issues.append("DataFrame is empty")
-            return ValidationResult(False, issues, warnings, 0.0)
+        if raw_data is None or len(raw_data) == 0:
+            st.error(f"❌ No data returned for {symbol}")
+            return None
         
-        # Required columns validation
+        st.write(f"📊 Retrieved {len(raw_data)} rows")
+        
+        # Check for required columns
         required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        missing_columns = [col for col in required_columns if col not in data.columns]
+        available_columns = list(raw_data.columns)
+        
+        st.write(f"📋 Available columns: {available_columns}")
+        
+        missing_columns = [col for col in required_columns if col not in available_columns]
         if missing_columns:
-            issues.append(f"Missing required columns: {missing_columns}")
-            quality_score -= 50  # Reduced penalty
+            st.error(f"❌ Missing columns: {missing_columns}")
+            return None
         
-        # Data quantity checks (more lenient)
-        if len(data) < 10:
-            warnings.append(f"Very limited data history: only {len(data)} periods")
-            quality_score -= 20
-        elif len(data) < 30:
-            warnings.append(f"Limited data history: only {len(data)} periods")
-            quality_score -= 10
+        # Clean data
+        clean_data = raw_data[required_columns].copy()
+        clean_data = clean_data.dropna()
         
-        # Price data validation (more lenient)
-        for col in ['Open', 'High', 'Low', 'Close']:
-            if col in data.columns:
-                zero_or_negative = (data[col] <= 0).sum()
-                if zero_or_negative > 0:
-                    if zero_or_negative > len(data) * 0.1:  # More than 10%
-                        issues.append(f"Too many invalid {col} prices: {zero_or_negative} values")
-                        quality_score -= 30
-                    else:
-                        warnings.append(f"Some invalid {col} prices: {zero_or_negative} values")
-                        quality_score -= 10
-                
-                missing_count = data[col].isna().sum()
-                if missing_count > len(data) * 0.2:  # More than 20% missing (was 5%)
-                    warnings.append(f"High missing data in {col}: {missing_count} values")
-                    quality_score -= 15
+        if len(clean_data) == 0:
+            st.error(f"❌ No data after cleaning")
+            return None
         
-        # Volume validation (more lenient)
-        if 'Volume' in data.columns:
-            negative_volume = (data['Volume'] < 0).sum()
-            if negative_volume > 0:
-                if negative_volume > len(data) * 0.05:  # More than 5%
-                    issues.append(f"Too many negative volume values: {negative_volume}")
-                    quality_score -= 20
-                else:
-                    warnings.append(f"Some negative volume values: {negative_volume}")
-                    quality_score -= 5
-            
-            missing_volume = data['Volume'].isna().sum()
-            if missing_volume > len(data) * 0.3:  # More than 30% missing (was 10%)
-                warnings.append(f"High missing volume data: {missing_volume} values")
-                quality_score -= 10
+        # Add typical price
+        clean_data['Typical_Price'] = (clean_data['High'] + clean_data['Low'] + clean_data['Close']) / 3
         
-        # OHLC relationship validation (more lenient)
-        if all(col in data.columns for col in ['Open', 'High', 'Low', 'Close']):
-            # Check for obvious violations
-            invalid_high = data['High'] < data[['Open', 'Close']].max(axis=1)
-            invalid_low = data['Low'] > data[['Open', 'Close']].min(axis=1)
-            
-            high_violations = invalid_high.sum()
-            low_violations = invalid_low.sum()
-            
-            if high_violations > len(data) * 0.05:  # More than 5%
-                warnings.append(f"Invalid OHLC relationships (High): {high_violations} cases")
-                quality_score -= 10
-            
-            if low_violations > len(data) * 0.05:  # More than 5%
-                warnings.append(f"Invalid OHLC relationships (Low): {low_violations} cases")
-                quality_score -= 10
+        st.success(f"✅ Data ready: {clean_data.shape}")
+        return clean_data
         
-        # Outlier detection (more lenient)
-        if 'Close' in data.columns and len(data) > 20:
-            returns = data['Close'].pct_change().dropna()
-            extreme_returns = abs(returns) > 0.50  # 50% daily moves (was 20%)
-            extreme_count = extreme_returns.sum()
-            
-            if extreme_count > len(returns) * 0.05:  # More than 5% extreme moves (was 2%)
-                warnings.append(f"High volatility detected: {extreme_count} extreme daily moves")
-                quality_score -= 5
-        
-        # Data freshness check (more lenient)
-        if hasattr(data.index, 'max'):
-            try:
-                latest_date = data.index.max()
-                if isinstance(latest_date, pd.Timestamp):
-                    days_old = (datetime.now() - latest_date.to_pydatetime()).days
-                    if days_old > 30:  # 30 days (was 7)
-                        warnings.append(f"Data may be stale: {days_old} days old")
-                        quality_score -= 5
-            except:
-                pass  # Ignore date parsing errors
-        
-        # Final quality score adjustment
-        quality_score = max(0.0, min(100.0, quality_score))
-        
-        # More lenient acceptance criteria
-        is_valid = len(issues) == 0 and quality_score >= 30.0  # Was 50.0
-        
-        return ValidationResult(is_valid, issues, warnings, quality_score)
-
-# ENHANCED: Error recovery system
-class ErrorRecoverySystem:
-    """Advanced error recovery and fallback mechanisms"""
-    
-    def __init__(self, logger: AdvancedLogger):
-        self.logger = logger
-        self.fallback_sources = ['yfinance']  # Could add more sources
-        self.max_retries = 3
-        self.retry_delay = 1.0  # Reduced from 2.0 for faster retries
-    
-    def fetch_with_retry(self, symbol: str, period: str) -> Optional[pd.DataFrame]:
-        """Fetch data with intelligent retry and fallback"""
-        last_error = None
-        
-        for attempt in range(self.max_retries):
-            try:
-                st.write(f"📡 Fetching {symbol} data, attempt {attempt + 1}/{self.max_retries}")
-                
-                # Primary fetch method
-                data = self._fetch_yfinance_data(symbol, period)
-                
-                if data is not None and len(data) > 0:
-                    st.write(f"✅ Got {len(data)} rows of data for {symbol}")
-                    
-                    # Validate the fetched data with more lenient criteria
-                    validation = AdvancedDataValidator.validate_market_data(data, symbol)
-                    
-                    st.write(f"🔍 Data quality score: {validation.data_quality_score:.1f}/100")
-                    
-                    # More lenient acceptance criteria
-                    if validation.is_valid or validation.data_quality_score >= 50.0:
-                        if validation.warnings:
-                            st.warning(f"⚠️ Data warnings for {symbol}:")
-                            for warning in validation.warnings[:3]:  # Show first 3 warnings
-                                st.warning(f"  • {warning}")
-                        
-                        st.success(f"✅ Accepting {symbol} data (quality: {validation.data_quality_score:.1f})")
-                        return data
-                    else:
-                        st.error(f"❌ Data quality too low for {symbol}: {validation.data_quality_score:.1f}")
-                        for issue in validation.issues[:2]:  # Show first 2 issues
-                            st.error(f"  • {issue}")
-                else:
-                    st.warning(f"⚠️ No data returned for {symbol} on attempt {attempt + 1}")
-                
-                # If we get here, the attempt failed
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (attempt + 1)
-                    st.info(f"🔄 Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                
-            except Exception as e:
-                last_error = str(e)
-                st.error(f"❌ Error in attempt {attempt + 1} for {symbol}: {str(e)}")
-                if attempt < self.max_retries - 1:
-                    wait_time = self.retry_delay * (attempt + 1)
-                    st.info(f"🔄 Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-        
-        # If all attempts failed, provide detailed error info
-        st.error(f"❌ All {self.max_retries} attempts failed for {symbol}")
-        if last_error:
-            st.error(f"Last error: {last_error}")
-        
-        # Try simple fallback
-        st.info("🔄 Attempting simple fallback...")
-        try:
-            fallback_data = self._simple_yfinance_fallback(symbol, period)
-            if fallback_data is not None:
-                st.success("✅ Fallback successful!")
-                return fallback_data
-        except Exception as e:
-            st.error(f"❌ Fallback also failed: {str(e)}")
-        
+    except Exception as e:
+        st.error(f"❌ Error fetching {symbol}: {str(e)}")
         return None
-    
-    def _fetch_yfinance_data(self, symbol: str, period: str) -> Optional[pd.DataFrame]:
-        """Enhanced yfinance data fetching with better error handling"""
-        try:
-            st.write(f"📊 Connecting to yfinance for {symbol}...")
-            
-            ticker = yf.Ticker(symbol)
-            raw_data = ticker.history(period=period)
-            
-            if raw_data is None or len(raw_data) == 0:
-                st.warning(f"⚠️ No data returned from yfinance for {symbol}")
-                return None
-            
-            st.write(f"📈 Retrieved {len(raw_data)} periods for {symbol}")
-            st.write(f"📅 Date range: {raw_data.index[0].date()} to {raw_data.index[-1].date()}")
-            
-            # Check available columns
-            available_columns = list(raw_data.columns)
-            st.write(f"📋 Available columns: {available_columns}")
-            
-            # Required columns with flexibility
-            required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-            missing_columns = [col for col in required_columns if col not in available_columns]
-            
-            if missing_columns:
-                st.error(f"❌ Missing columns for {symbol}: {missing_columns}")
-                st.write(f"Available: {available_columns}")
-                return None
-            
-            # Clean and prepare data
-            clean_data = raw_data[required_columns].copy()
-            
-            # Handle missing values more gracefully
-            initial_length = len(clean_data)
-            clean_data = clean_data.dropna()
-            final_length = len(clean_data)
-            
-            if final_length < initial_length:
-                st.warning(f"⚠️ Removed {initial_length - final_length} rows with missing data")
-            
-            if len(clean_data) < 10:
-                st.error(f"❌ Insufficient data after cleaning: {len(clean_data)} rows")
-                return None
-            
-            # Add calculated fields
-            clean_data['Typical_Price'] = (clean_data['High'] + clean_data['Low'] + clean_data['Close']) / 3
-            
-            st.success(f"✅ Cleaned data ready: {len(clean_data)} rows")
-            return clean_data
-            
-        except Exception as e:
-            st.error(f"❌ yfinance fetch error for {symbol}: {str(e)}")
-            return None
-    
-    def _simple_yfinance_fallback(self, symbol: str, period: str) -> Optional[pd.DataFrame]:
-        """Simple fallback method with minimal processing"""
-        try:
-            st.write(f"🔄 Simple fallback for {symbol}...")
-            
-            # Use basic yfinance call
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            
-            if data is None or len(data) == 0:
-                return None
-            
-            # Basic required columns check
-            if 'Close' not in data.columns:
-                return None
-            
-            # Fill missing columns if needed
-            for col in ['Open', 'High', 'Low']:
-                if col not in data.columns:
-                    data[col] = data['Close']  # Use Close as fallback
-            
-            if 'Volume' not in data.columns:
-                data['Volume'] = 1000000  # Default volume
-            
-            # Basic cleaning
-            data = data[['Open', 'High', 'Low', 'Close', 'Volume']].copy()
-            data = data.dropna()
-            
-            if len(data) < 5:
-                return None
-            
-            # Add typical price
-            data['Typical_Price'] = (data['High'] + data['Low'] + data['Close']) / 3
-            
-            st.success(f"✅ Fallback successful: {len(data)} rows")
-            return data
-            
-        except Exception as e:
-            st.error(f"❌ Fallback failed: {str(e)}")
-            return None
-
-# Initialize enhanced systems
-@st.cache_resource
-def initialize_enhanced_systems():
-    """Initialize all enhanced systems"""
-    logger = AdvancedLogger()
-    data_manager = OptimizedDataManager(logger)
-    error_recovery = ErrorRecoverySystem(logger)
-    return logger, data_manager, error_recovery
 
 def safe_rsi(prices, period=14):
     """Safe RSI calculation with proper error handling"""
@@ -625,7 +152,7 @@ def safe_rsi(prices, period=14):
         return pd.Series([50] * len(prices), index=prices.index)
 
 def calculate_daily_vwap(data):
-    """Optimized daily VWAP calculation"""
+    """Simple daily VWAP calculation"""
     try:
         if not hasattr(data, 'index') or not hasattr(data, 'columns'):
             return float(data['Close'].iloc[-1]) if 'Close' in data else 0.0
@@ -650,7 +177,7 @@ def calculate_daily_vwap(data):
             return 0.0
 
 def statistical_normalize(series, lookback_period=252):
-    """Optimized statistical normalization"""
+    """Simple statistical normalization"""
     try:
         if not hasattr(series, 'rolling') or len(series) < 10:
             if hasattr(series, '__iter__'):
@@ -667,10 +194,10 @@ def statistical_normalize(series, lookback_period=252):
     except Exception:
         return 0.5
 
-# ENHANCED: VWV Trading System with performance monitoring
-class VWVTradingSystemEnhanced:
-    def __init__(self, config=None, logger=None):
-        """Initialize enhanced trading system"""
+# SIMPLE: VWV Trading System without complex features
+class VWVTradingSystemSimple:
+    def __init__(self, config=None):
+        """Initialize simple trading system"""
         default_config = {
             'wvf_period': 22,
             'wvf_multiplier': 1.2,
@@ -694,24 +221,9 @@ class VWVTradingSystemEnhanced:
         self.signal_thresholds = self.config['signal_thresholds']
         self.stop_loss_pct = self.config['stop_loss_pct']
         self.take_profit_pct = self.config['take_profit_pct']
-        self.logger = logger
-    
-    def _log_performance(self, operation: str, start_time: float, data_size: int):
-        """Helper to log performance metrics"""
-        if self.logger:
-            duration = time.time() - start_time
-            metrics = PerformanceMetrics(
-                operation=operation,
-                start_time=start_time,
-                end_time=time.time(),
-                duration=duration,
-                data_size=data_size
-            )
-            self.logger.log_performance(metrics)
     
     def calculate_williams_vix_fix(self, data):
-        """Optimized Williams VIX Fix calculation"""
-        start_time = time.time()
+        """Williams VIX Fix calculation"""
         try:
             period = self.config['wvf_period']
             multiplier = self.config['wvf_multiplier']
@@ -723,15 +235,12 @@ class VWVTradingSystemEnhanced:
             highest_close = close.rolling(window=period).max()
             wvf = ((highest_close - low) / highest_close) * 100 * multiplier
             
-            result = statistical_normalize(wvf)
-            self._log_performance("williams_vix_fix", start_time, len(data))
-            return result
+            return statistical_normalize(wvf)
         except Exception:
             return 0.0
     
     def calculate_ma_confluence(self, data):
-        """Optimized moving average confluence"""
-        start_time = time.time()
+        """Moving average confluence"""
         try:
             ma_periods = self.config['ma_periods']
             if len(data) < max(ma_periods):
@@ -740,7 +249,6 @@ class VWVTradingSystemEnhanced:
             close = data['Close']
             current_price = close.iloc[-1]
             
-            # Vectorized MA calculation
             mas = []
             for period in ma_periods:
                 if len(close) >= period:
@@ -753,19 +261,13 @@ class VWVTradingSystemEnhanced:
             ma_avg = np.mean(mas)
             deviation_pct = (ma_avg - current_price) / ma_avg * 100 if ma_avg > 0 else 0
             
-            # Use last 252 periods for normalization
-            lookback_data = close.tail(252)
-            deviation_series = pd.Series([(ma_avg - p) / ma_avg * 100 for p in lookback_data])
-            
-            result = statistical_normalize(deviation_series.abs())
-            self._log_performance("ma_confluence", start_time, len(data))
-            return result
+            deviation_series = pd.Series([(ma_avg - p) / ma_avg * 100 for p in close.tail(252)])
+            return statistical_normalize(deviation_series.abs())
         except Exception:
             return 0.0
     
     def calculate_volume_confluence(self, data):
-        """Optimized volume analysis"""
-        start_time = time.time()
+        """Volume analysis"""
         try:
             periods = self.config['volume_periods']
             if len(data) < max(periods):
@@ -774,7 +276,6 @@ class VWVTradingSystemEnhanced:
             volume = data['Volume']
             current_vol = volume.iloc[-1]
             
-            # Vectorized volume MA calculation
             vol_mas = []
             for period in periods:
                 if len(volume) >= period:
@@ -787,18 +288,13 @@ class VWVTradingSystemEnhanced:
             avg_vol = np.mean(vol_mas)
             vol_ratio = current_vol / avg_vol if avg_vol > 0 else 1
             
-            # Use recent data for normalization
             vol_ratios = volume.tail(252) / volume.rolling(window=periods[0]).mean()
-            
-            result = statistical_normalize(vol_ratios)
-            self._log_performance("volume_confluence", start_time, len(data))
-            return result
+            return statistical_normalize(vol_ratios)
         except Exception:
             return 0.0
     
     def calculate_vwap_analysis(self, data):
-        """Optimized VWAP analysis"""
-        start_time = time.time()
+        """VWAP analysis"""
         try:
             if len(data) < 20:
                 return 0.0
@@ -808,11 +304,8 @@ class VWVTradingSystemEnhanced:
             
             vwap_deviation_pct = abs(current_price - current_vwap) / current_vwap * 100 if current_vwap > 0 else 0
             
-            # Optimized historical VWAP calculation
             vwap_deviations = []
-            max_lookback = min(252, len(data) - 20)
-            
-            for i in range(0, max_lookback, 5):  # Sample every 5th period for efficiency
+            for i in range(min(252, len(data) - 20)):
                 subset = data.iloc[i:i+20] if i+20 < len(data) else data.iloc[i:]
                 if len(subset) >= 5:
                     daily_vwap = calculate_daily_vwap(subset)
@@ -822,18 +315,14 @@ class VWVTradingSystemEnhanced:
             
             if vwap_deviations:
                 deviation_series = pd.Series(vwap_deviations + [vwap_deviation_pct])
-                result = statistical_normalize(deviation_series)
+                return statistical_normalize(deviation_series)
             else:
-                result = 0.0
-            
-            self._log_performance("vwap_analysis", start_time, len(data))
-            return result
+                return 0.0
         except Exception:
             return 0.0
     
     def calculate_momentum(self, data):
-        """Optimized momentum calculation"""
-        start_time = time.time()
+        """Momentum calculation"""
         try:
             period = self.config['rsi_period']
             if len(data) < period + 1:
@@ -844,16 +333,12 @@ class VWVTradingSystemEnhanced:
             rsi_value = rsi.iloc[-1]
             
             oversold_signal = (50 - rsi_value) / 50 if rsi_value < 50 else 0
-            result = float(np.clip(oversold_signal, 0, 1))
-            
-            self._log_performance("momentum", start_time, len(data))
-            return result
+            return float(np.clip(oversold_signal, 0, 1))
         except Exception:
             return 0.0
     
     def calculate_volatility_filter(self, data):
-        """Optimized volatility filter"""
-        start_time = time.time()
+        """Volatility filter"""
         try:
             period = self.config['volatility_period']
             if len(data) < period:
@@ -863,15 +348,12 @@ class VWVTradingSystemEnhanced:
             returns = close.pct_change().dropna()
             volatility = returns.rolling(window=period).std() * np.sqrt(252)
             
-            result = statistical_normalize(volatility)
-            self._log_performance("volatility_filter", start_time, len(data))
-            return result
+            return statistical_normalize(volatility)
         except Exception:
             return 0.0
     
     def calculate_trend_analysis(self, data):
-        """Enhanced trend analysis with performance tracking"""
-        start_time = time.time()
+        """Trend analysis"""
         try:
             if len(data) < 100:
                 return None
@@ -898,30 +380,23 @@ class VWVTradingSystemEnhanced:
                 trend_strength = 0
                 trend_bias = 0
             
-            result = {
+            return {
                 'trend_direction': trend_direction,
                 'trend_strength': round(trend_strength, 2),
                 'trend_bias': trend_bias,
                 'price_vs_ema21': round(price_vs_ema21, 2),
                 'ema21_slope': round(ema21_slope, 2)
             }
-            
-            self._log_performance("trend_analysis", start_time, len(data))
-            return result
         except Exception:
             return None
     
     def calculate_real_confidence_intervals(self, data):
-        """Optimized confidence intervals calculation"""
-        start_time = time.time()
+        """Confidence intervals calculation"""
         try:
             if not isinstance(data, pd.DataFrame) or len(data) < 100:
                 return None
             
-            # Use last 2 years of data for efficiency
-            analysis_data = data.tail(504) if len(data) > 504 else data
-            
-            weekly_data = analysis_data.resample('W-FRI')['Close'].last().dropna()
+            weekly_data = data.resample('W-FRI')['Close'].last().dropna()
             weekly_returns = weekly_data.pct_change().dropna()
             
             if len(weekly_returns) < 20:
@@ -945,22 +420,17 @@ class VWVTradingSystemEnhanced:
                     'expected_move_pct': round(expected_move_pct, 2)
                 }
             
-            result = {
+            return {
                 'mean_weekly_return': round(mean_return * 100, 3),
                 'weekly_volatility': round(std_return * 100, 2),
                 'confidence_intervals': confidence_intervals,
                 'sample_size': len(weekly_returns)
             }
-            
-            self._log_performance("confidence_intervals", start_time, len(data))
-            return result
         except Exception:
             return None
     
-    def calculate_confluence_enhanced(self, input_data, symbol='SPY'):
-        """Enhanced confluence calculation with comprehensive monitoring"""
-        overall_start_time = time.time()
-        
+    def calculate_confluence_simple(self, input_data, symbol='SPY'):
+        """Simple confluence calculation"""
         try:
             if not isinstance(input_data, pd.DataFrame):
                 raise ValueError(f"Expected DataFrame, got {type(input_data)}")
@@ -968,7 +438,7 @@ class VWVTradingSystemEnhanced:
             # Work on isolated copy
             working_data = input_data.copy(deep=True)
             
-            # Calculate all components with performance tracking
+            # Calculate components
             components = {
                 'wvf': self.calculate_williams_vix_fix(working_data),
                 'ma': self.calculate_ma_confluence(working_data),
@@ -978,7 +448,7 @@ class VWVTradingSystemEnhanced:
                 'volatility': self.calculate_volatility_filter(working_data)
             }
             
-            # Calculate confluence metrics
+            # Calculate confluence
             raw_confluence = sum(components[comp] * self.weights[comp] for comp in components)
             base_confluence = raw_confluence * self.scaling_multiplier
             
@@ -1030,9 +500,6 @@ class VWVTradingSystemEnhanced:
                     'risk_reward': round(self.take_profit_pct / self.stop_loss_pct, 2)
                 }
             
-            # Log overall performance
-            self._log_performance("full_confluence_analysis", overall_start_time, len(working_data))
-            
             return {
                 'symbol': symbol,
                 'timestamp': current_date,
@@ -1051,75 +518,51 @@ class VWVTradingSystemEnhanced:
             }
             
         except Exception as e:
-            if self.logger:
-                self.logger.logger.error(f"Confluence calculation error for {symbol}: {str(e)}")
-            
             return {
                 'symbol': symbol,
                 'error': str(e),
                 'system_status': 'ERROR'
             }
 
-# ENHANCED: Chart creation with performance optimization
-def create_enhanced_chart_optimized(chart_market_data, analysis_results, symbol, logger=None):
-    """Optimized chart creation with performance monitoring"""
-    start_time = time.time()
+# SIMPLE: Chart creation
+def create_chart_simple(chart_market_data, analysis_results, symbol):
+    """Simple chart creation"""
+    
+    if isinstance(chart_market_data, dict):
+        st.error(f"❌ CHART RECEIVED DICT INSTEAD OF DATAFRAME!")
+        return None
+    
+    if not isinstance(chart_market_data, pd.DataFrame):
+        st.error(f"❌ Invalid chart data type: {type(chart_market_data)}")
+        return None
+    
+    if len(chart_market_data) == 0:
+        st.error(f"❌ Chart DataFrame is empty")
+        return None
+    
+    required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    missing_columns = [col for col in required_columns if col not in chart_market_data.columns]
+    if missing_columns:
+        st.error(f"❌ Missing required columns: {missing_columns}")
+        return None
     
     try:
-        if logger:
-            logger.logger.info(f"Creating enhanced chart for {symbol}")
-        
-        # Data validation
-        if isinstance(chart_market_data, dict):
-            if logger:
-                logger.logger.error(f"Chart received dict for {symbol}: {list(chart_market_data.keys())}")
-            st.error(f"❌ CHART RECEIVED DICT INSTEAD OF DATAFRAME!")
-            return None
-        
-        if not isinstance(chart_market_data, pd.DataFrame):
-            if logger:
-                logger.logger.error(f"Invalid chart data type for {symbol}: {type(chart_market_data)}")
-            st.error(f"❌ Invalid chart data type: {type(chart_market_data)}")
-            return None
-        
-        if len(chart_market_data) == 0:
-            st.error(f"❌ Chart DataFrame is empty")
-            return None
-        
-        # Validate required columns
-        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        missing_columns = [col for col in required_columns if col not in chart_market_data.columns]
-        if missing_columns:
-            st.error(f"❌ Missing required columns: {missing_columns}")
-            return None
-        
-        # Optimize chart data size
-        chart_data = chart_market_data.tail(100)  # Last 100 periods for performance
+        chart_data = chart_market_data.tail(100)
         current_price = analysis_results['current_price']
         
-        # Create optimized subplots
         fig = make_subplots(
             rows=3, cols=1,
-            subplot_titles=(
-                f'{symbol} Price Chart with Statistical Levels', 
-                'Volume', 
-                'Confidence Intervals'
-            ),
-            vertical_spacing=0.08, 
-            row_heights=[0.6, 0.2, 0.2]
+            subplot_titles=(f'{symbol} Price Chart', 'Volume', 'Confidence Intervals'),
+            vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
         )
         
         # Candlestick chart
         fig.add_trace(go.Candlestick(
-            x=chart_data.index, 
-            open=chart_data['Open'], 
-            high=chart_data['High'],
-            low=chart_data['Low'], 
-            close=chart_data['Close'], 
-            name='Price'
+            x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
+            low=chart_data['Low'], close=chart_data['Close'], name='Price'
         ), row=1, col=1)
         
-        # Moving averages (optimized)
+        # Moving averages
         if len(chart_data) >= 21:
             ema21 = chart_data['Close'].ewm(span=21).mean()
             fig.add_trace(go.Scatter(
@@ -1131,14 +574,12 @@ def create_enhanced_chart_optimized(chart_market_data, analysis_results, symbol,
         if analysis_results.get('confidence_analysis'):
             conf_data = analysis_results['confidence_analysis']['confidence_intervals']
             
-            # 68% confidence
             if '68%' in conf_data:
                 fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
                              line_color="green", line_width=2, row=1, col=1)
                 fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
                              line_color="green", line_width=2, row=1, col=1)
             
-            # 95% confidence
             if '95%' in conf_data:
                 fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
                              line_color="red", line_width=1, row=1, col=1)
@@ -1149,15 +590,13 @@ def create_enhanced_chart_optimized(chart_market_data, analysis_results, symbol,
         fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
                      line_width=3, row=1, col=1)
         
-        # Volume chart (optimized colors)
-        volume_colors = ['green' if close >= open else 'red' 
-                        for close, open in zip(chart_data['Close'], chart_data['Open'])]
-        fig.add_trace(go.Bar(
-            x=chart_data.index, y=chart_data['Volume'], 
-            name='Volume', marker_color=volume_colors
-        ), row=2, col=1)
+        # Volume chart
+        colors = ['green' if close >= open else 'red' 
+                  for close, open in zip(chart_data['Close'], chart_data['Open'])]
+        fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
+                            name='Volume', marker_color=colors), row=2, col=1)
         
-        # Confidence intervals bar chart
+        # Confidence intervals chart
         if analysis_results.get('confidence_analysis'):
             conf_data = analysis_results['confidence_analysis']['confidence_intervals']
             x_labels = list(conf_data.keys())
@@ -1169,60 +608,40 @@ def create_enhanced_chart_optimized(chart_market_data, analysis_results, symbol,
                 text=[f"{v:.1f}%" for v in y_values], textposition='outside'
             ), row=3, col=1)
         
-        # Layout optimization
         fig.update_layout(
             title=f'{symbol} | Confluence: {analysis_results["directional_confluence"]:.2f} | Signal: {analysis_results["signal_type"]}',
-            height=800, 
-            showlegend=False, 
-            template='plotly_white'
+            height=800, showlegend=False, template='plotly_white'
         )
         
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
         fig.update_yaxes(title_text="Volume", row=2, col=1)
         fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
         
-        # Log performance
-        if logger:
-            duration = time.time() - start_time
-            metrics = PerformanceMetrics(
-                operation="create_chart",
-                start_time=start_time,
-                end_time=time.time(),
-                duration=duration,
-                data_size=len(chart_data)
-            )
-            logger.log_performance(metrics)
-        
         return fig
         
     except Exception as e:
-        if logger:
-            logger.logger.error(f"Chart creation error for {symbol}: {str(e)}")
         st.error(f"❌ Error creating chart: {str(e)}")
         return None
 
-# ENHANCED: Main application with comprehensive monitoring
+# Main application
 def main():
-    # Initialize enhanced systems
-    logger, data_manager, error_recovery = initialize_enhanced_systems()
-    
     # Header
     st.markdown("""
     <div class="main-header">
-        <h1>🚀 VWV Professional Trading System - PRODUCTION ENHANCED</h1>
-        <p>Advanced market analysis with performance optimization, monitoring & logging</p>
-        <p><em>Features: Performance tracking, advanced validation, error recovery, comprehensive logging</em></p>
+        <h1>🚀 VWV Professional Trading System - SIMPLIFIED WORKING</h1>
+        <p>Reliable market analysis with proven data flow</p>
+        <p><em>Back to basics: Simple, working, reliable</em></p>
     </div>
     """, unsafe_allow_html=True)
     
     # Sidebar controls
-    st.sidebar.title("📊 Enhanced Analysis Controls")
+    st.sidebar.title("📊 Trading Analysis")
     
     # Basic controls
     symbol = st.sidebar.text_input("Symbol", value="SPY", help="Enter stock symbol").upper()
     period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
     
-    # Enhanced system parameters
+    # System parameters
     with st.sidebar.expander("⚙️ System Parameters"):
         st.write("**Williams VIX Fix**")
         wvf_period = st.slider("WVF Period", 10, 50, 22)
@@ -1233,38 +652,7 @@ def main():
         strong_threshold = st.slider("Strong Signal", 3.0, 6.0, 4.5, 0.1)
         very_strong_threshold = st.slider("Very Strong Signal", 4.0, 7.0, 5.5, 0.1)
     
-    # Performance monitoring controls
-    with st.sidebar.expander("📈 Performance Monitoring"):
-        show_performance = st.checkbox("Show Performance Metrics", value=True)
-        show_logs = st.checkbox("Show System Logs", value=False)
-        show_data_quality = st.checkbox("Show Data Quality Report", value=True)
-    
-    # System controls
-    show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
-    analyze_button = st.sidebar.button("📊 Enhanced Analysis", type="primary", use_container_width=True)
-    
-    # Quick test button for debugging
-    test_fetch_button = st.sidebar.button("🧪 Quick Data Test", use_container_width=True)
-    
-    # Debug and maintenance tools
-    with st.sidebar.expander("🔧 System Tools"):
-        if st.button("Clear All Caches"):
-            st.cache_data.clear()
-            st.cache_resource.clear()
-            st.success("Caches cleared")
-        
-        if st.button("Reset Data Manager"):
-            logger, data_manager, error_recovery = initialize_enhanced_systems()
-            st.success("Systems reset")
-        
-        if st.button("Performance Summary"):
-            perf_summary = logger.get_performance_summary()
-            if perf_summary:
-                st.json(perf_summary)
-            else:
-                st.info("No performance data available")
-    
-    # Create custom configuration
+    # Create configuration
     custom_config = {
         'wvf_period': wvf_period,
         'wvf_multiplier': wvf_multiplier,
@@ -1275,91 +663,67 @@ def main():
         }
     }
     
-    # Initialize enhanced VWV system
-    vwv_system = VWVTradingSystemEnhanced(custom_config, logger)
+    # Initialize simple system
+    vwv_system = VWVTradingSystemSimple(custom_config)
     
-    # Quick data test functionality
-    if test_fetch_button and symbol:
-        st.write("## 🧪 Quick Data Fetch Test")
+    # Controls
+    show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
+    test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
+    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    
+    # Simple data manager
+    data_manager = st.session_state.simple_data_manager
+    
+    # Test data fetch
+    if test_button and symbol:
+        st.write("## 🧪 Simple Data Fetch Test")
         
-        with st.spinner(f"Testing data fetch for {symbol}..."):
-            test_data = error_recovery.fetch_with_retry(symbol, period)
+        test_data = get_market_data_simple(symbol, period)
+        
+        if test_data is not None:
+            st.success(f"✅ Data fetch successful for {symbol}!")
             
-            if test_data is not None:
-                st.success(f"✅ Data fetch successful for {symbol}!")
-                st.write(f"**Data shape:** {test_data.shape}")
-                st.write(f"**Date range:** {test_data.index[0].date()} to {test_data.index[-1].date()}")
-                st.write(f"**Columns:** {list(test_data.columns)}")
-                
-                # Show basic stats
-                st.write("**Basic Statistics:**")
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Current Price", f"${test_data['Close'].iloc[-1]:.2f}")
-                with col2:
-                    st.metric("Data Points", len(test_data))
-                with col3:
-                    st.metric("Price Range", f"${test_data['Close'].min():.2f} - ${test_data['Close'].max():.2f}")
-                with col4:
-                    st.metric("Avg Volume", f"{test_data['Volume'].mean():,.0f}")
-                
-                # Show sample data
-                st.write("**Latest 5 rows:**")
-                st.dataframe(test_data.tail().round(2), use_container_width=True)
-            else:
-                st.error(f"❌ Data fetch failed for {symbol}")
-                st.info("Try a different symbol like: SPY, AAPL, MSFT, GOOGL, TSLA")
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Data Points", len(test_data))
+            with col2:
+                st.metric("Current Price", f"${test_data['Close'].iloc[-1]:.2f}")
+            with col3:
+                st.metric("Date Range", f"{(test_data.index[-1] - test_data.index[0]).days} days")
+            with col4:
+                st.metric("Avg Volume", f"{test_data['Volume'].mean():,.0f}")
+            
+            st.write("**Sample Data:**")
+            st.dataframe(test_data.tail().round(2), use_container_width=True)
+        else:
+            st.error(f"❌ Data fetch failed for {symbol}")
     
+    # Full analysis
     if analyze_button and symbol:
-        st.write("## 🔄 Enhanced Analysis Process")
+        st.write("## 📊 VWV Analysis")
         
-        overall_analysis_start = time.time()
-        
-        with st.spinner(f"Running enhanced analysis for {symbol}..."):
+        with st.spinner(f"Analyzing {symbol}..."):
             
-            # STEP 1: Enhanced data fetching with retry
-            st.write("### Step 1: Enhanced Data Fetching with Retry Logic")
-            fetch_start_time = time.time()
+            # Step 1: Fetch data
+            st.write("### Step 1: Data Fetching")
+            market_data = get_market_data_simple(symbol, period)
             
-            fresh_market_data = error_recovery.fetch_with_retry(symbol, period)
-            
-            if fresh_market_data is None:
-                st.error(f"❌ Could not fetch data for {symbol} after {error_recovery.max_retries} attempts")
+            if market_data is None:
+                st.error(f"❌ Could not fetch data for {symbol}")
                 return
             
-            fetch_duration = time.time() - fetch_start_time
-            st.success(f"✅ Data fetched in {fetch_duration:.2f}s")
+            # Store data
+            data_manager.store_market_data(symbol, market_data)
             
-            # STEP 2: Data validation
-            st.write("### Step 2: Advanced Data Validation")
-            validation_result = AdvancedDataValidator.validate_market_data(fresh_market_data, symbol)
-            
-            # Display validation results
-            if validation_result.is_valid:
-                st.success(f"✅ Data validation passed (Quality Score: {validation_result.data_quality_score:.1f}/100)")
-            else:
-                st.error(f"❌ Data validation failed (Quality Score: {validation_result.data_quality_score:.1f}/100)")
-                for issue in validation_result.issues:
-                    st.error(f"  • {issue}")
-                return
-            
-            if validation_result.warnings and show_data_quality:
-                st.warning("⚠️ Data Quality Warnings:")
-                for warning in validation_result.warnings:
-                    st.warning(f"  • {warning}")
-            
-            # Store validated data
-            data_manager.store_market_data(symbol, fresh_market_data)
-            
-            # STEP 3: Enhanced analysis
-            st.write("### Step 3: Enhanced Confluence Analysis")
+            # Step 2: Analysis
+            st.write("### Step 2: Analysis")
             analysis_input = data_manager.get_market_data_for_analysis(symbol)
             
             if analysis_input is None:
                 st.error("❌ Could not prepare analysis data")
                 return
             
-            analysis_results = vwv_system.calculate_confluence_enhanced(analysis_input, symbol)
+            analysis_results = vwv_system.calculate_confluence_simple(analysis_input, symbol)
             
             if 'error' in analysis_results:
                 st.error(f"❌ Analysis failed: {analysis_results['error']}")
@@ -1368,105 +732,43 @@ def main():
             # Store results
             data_manager.store_analysis_results(symbol, analysis_results)
             
-            # STEP 4: Results display with enhanced metrics
-            st.write("### Step 4: Enhanced Results Display")
+            # Step 3: Display results
+            st.write("### Step 3: Results")
             
-            # Primary metrics
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
                 st.metric("Current Price", f"${analysis_results['current_price']}")
             with col2:
-                confluence_value = analysis_results['directional_confluence']
-                st.metric("Directional Confluence", f"{confluence_value:.2f}")
+                st.metric("Directional Confluence", f"{analysis_results['directional_confluence']:.2f}")
             with col3:
                 signal_icons = {
                     "NONE": "⚪", "GOOD_LONG": "🟢⬆️", "GOOD_SHORT": "🟢⬇️",
                     "STRONG_LONG": "🟡⬆️", "STRONG_SHORT": "🟡⬇️",
                     "VERY_STRONG_LONG": "🔴⬆️", "VERY_STRONG_SHORT": "🔴⬇️"
                 }
-                signal_display = f"{signal_icons.get(analysis_results['signal_type'], '⚪')} {analysis_results['signal_type']}"
-                st.metric("Signal", signal_display)
+                st.metric("Signal", f"{signal_icons.get(analysis_results['signal_type'], '⚪')} {analysis_results['signal_type']}")
             with col4:
                 trend_dir = analysis_results['trend_analysis']['trend_direction'] if analysis_results['trend_analysis'] else 'N/A'
                 st.metric("Trend Direction", trend_dir)
             
-            # Enhanced signal display
+            # Signal display
             if analysis_results['signal_type'] != 'NONE':
                 entry_info = analysis_results['entry_info']
                 direction = entry_info['direction']
                 
-                signal_class = "signal-good"
-                if "STRONG" in analysis_results['signal_type']:
-                    signal_class = "signal-strong"
-                elif "VERY_STRONG" in analysis_results['signal_type']:
-                    signal_class = "signal-very-strong"
+                st.success(f"""
+                🚨 **VWV {direction} SIGNAL DETECTED**
                 
-                st.markdown(f"""
-                <div class="{signal_class}" style="padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                    <h3>🚨 VWV {direction} SIGNAL DETECTED</h3>
-                    <p><strong>Signal:</strong> {analysis_results['signal_type']}</p>
-                    <p><strong>Direction:</strong> {direction}</p>
-                    <p><strong>Entry:</strong> ${entry_info['entry_price']}</p>
-                    <p><strong>Stop Loss:</strong> ${entry_info['stop_loss']}</p>
-                    <p><strong>Take Profit:</strong> ${entry_info['take_profit']}</p>
-                    <p><strong>Risk/Reward:</strong> {entry_info['risk_reward']}:1</p>
-                </div>
-                """, unsafe_allow_html=True)
+                **Signal:** {analysis_results['signal_type']}  
+                **Direction:** {direction}  
+                **Entry:** ${entry_info['entry_price']}  
+                **Stop Loss:** ${entry_info['stop_loss']}  
+                **Take Profit:** ${entry_info['take_profit']}  
+                **Risk/Reward:** {entry_info['risk_reward']}:1
+                """)
             
-            # Performance metrics display
-            if show_performance:
-                st.write("### 📈 Performance Metrics")
-                
-                total_duration = time.time() - overall_analysis_start
-                perf_summary = logger.get_performance_summary()
-                
-                if perf_summary:
-                    col1, col2, col3, col4 = st.columns(4)
-                    
-                    with col1:
-                        st.metric("Total Analysis Time", f"{total_duration:.2f}s")
-                    with col2:
-                        st.metric("Operations Count", perf_summary['total_operations'])
-                    with col3:
-                        st.metric("Average Operation Time", f"{perf_summary['avg_duration']:.3f}s")
-                    with col4:
-                        st.metric("Max Operation Time", f"{perf_summary['max_duration']:.3f}s")
-                    
-                    # Performance breakdown
-                    if perf_summary['operations_breakdown']:
-                        st.write("**Operation Performance Breakdown:**")
-                        breakdown_data = []
-                        for op, stats in perf_summary['operations_breakdown'].items():
-                            breakdown_data.append({
-                                'Operation': op,
-                                'Count': stats['count'],
-                                'Avg Time (s)': f"{stats['avg_time']:.3f}",
-                                'Max Time (s)': f"{stats['max_time']:.3f}"
-                            })
-                        
-                        df_performance = pd.DataFrame(breakdown_data)
-                        st.dataframe(df_performance, use_container_width=True)
-                
-                # Performance classification
-                if total_duration < 2.0:
-                    perf_class = "performance-excellent"
-                    perf_message = "🚀 Excellent Performance"
-                elif total_duration < 5.0:
-                    perf_class = "performance-good"
-                    perf_message = "✅ Good Performance"
-                else:
-                    perf_class = "performance-poor"
-                    perf_message = "⚠️ Performance Could Be Improved"
-                
-                st.markdown(f"""
-                <div class="{perf_class}" style="padding: 1rem; margin: 1rem 0; border-radius: 8px;">
-                    <h4>{perf_message}</h4>
-                    <p>Total analysis completed in {total_duration:.2f} seconds</p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Confidence intervals (existing code)
+            # Confidence intervals
             if analysis_results.get('confidence_analysis'):
                 st.subheader("📊 Statistical Confidence Intervals")
                 conf_data = analysis_results['confidence_analysis']
@@ -1491,7 +793,7 @@ def main():
                 df_intervals = pd.DataFrame(intervals_data)
                 st.dataframe(df_intervals, use_container_width=True)
             
-            # Components analysis (existing code)
+            # Components analysis
             st.subheader("🔧 VWV Components Analysis")
             comp_data = []
             for comp, value in analysis_results['components'].items():
@@ -1507,9 +809,9 @@ def main():
             df_components = pd.DataFrame(comp_data)
             st.dataframe(df_components, use_container_width=True)
             
-            # Enhanced chart creation
+            # Chart
             if show_chart:
-                st.write("### Step 5: Enhanced Chart Creation")
+                st.write("### Step 4: Chart")
                 
                 chart_market_data = data_manager.get_market_data_for_chart(symbol)
                 
@@ -1517,85 +819,47 @@ def main():
                     st.error("❌ Could not get chart data")
                     return
                 
-                chart = create_enhanced_chart_optimized(chart_market_data, analysis_results, symbol, logger)
+                chart = create_chart_simple(chart_market_data, analysis_results, symbol)
                 
                 if chart is not None:
                     st.plotly_chart(chart, use_container_width=True)
-                    st.success("✅ Enhanced chart created successfully")
+                    st.success("✅ Chart created successfully")
                 else:
                     st.error("❌ Chart creation failed")
-            
-            # System logs display
-            if show_logs:
-                st.write("### 📋 System Logs")
-                
-                if logger.analysis_history:
-                    st.write("**Recent Analysis History:**")
-                    for entry in logger.analysis_history[-5:]:  # Last 5 analyses
-                        st.markdown(f"""
-                        <div class="log-entry">
-                            {entry['timestamp']} | {entry['symbol']} | {entry['signal_type']} | Confluence: {entry['confluence']:.2f}
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                if logger.performance_log:
-                    st.write("**Recent Performance Log:**")
-                    for metric in logger.performance_log[-10:]:  # Last 10 operations
-                        st.markdown(f"""
-                        <div class="log-entry">
-                            {metric.operation}: {metric.duration:.3f}s ({metric.data_size} records)
-                        </div>
-                        """, unsafe_allow_html=True)
     
     else:
         st.markdown("""
-        ## 🛠️ VWV System - PRODUCTION ENHANCED FEATURES
+        ## 🛠️ VWV System - SIMPLIFIED & RELIABLE
         
-        ### ✅ **Enhanced Features Implemented:**
+        ### ✅ **Back to Basics - What Works:**
         
-        1. **🚀 Performance Optimization**
-           - Optimized data copying strategies
-           - Intelligent caching with TTL
-           - Vectorized calculations
-           - Memory-efficient operations
+        1. **🔧 Simple Data Fetching**
+           - Direct yfinance calls
+           - Clear error messages
+           - Basic validation only
         
-        2. **🔍 Advanced Validation**
-           - Comprehensive data quality scoring
-           - OHLC relationship validation
-           - Outlier detection
-           - Data freshness checking
+        2. **🔧 Proven Analysis Logic**
+           - All core VWV calculations intact
+           - Statistical normalization working
+           - Directional signals functional
         
-        3. **🛡️ Error Recovery**
-           - Intelligent retry with exponential backoff
-           - Multiple data source fallbacks
-           - Graceful degradation
-           - Emergency recovery systems
+        3. **🔧 Reliable Data Flow**
+           - Simple data manager
+           - Protected DataFrame copying
+           - No complex caching
         
-        4. **📊 Comprehensive Logging**
-           - Performance metrics tracking
-           - Analysis history logging
-           - File-based logging system
-           - Real-time monitoring
+        4. **🔧 Clear Debugging**
+           - Step-by-step process
+           - Detailed error reporting
+           - Test functionality
         
-        5. **⚡ Production Features**
-           - Cache optimization
-           - Performance classification
-           - System health monitoring
-           - Advanced debugging tools
+        ### 📊 **How to Use:**
         
-        ### 📈 **Performance Monitoring:**
-        - Real-time operation timing
-        - Performance breakdown by component
-        - Quality score reporting
-        - System efficiency tracking
+        1. **Test First**: Click "🧪 Test Data Fetch" to verify symbol works
+        2. **Analyze**: Click "📊 Analyze Symbol" for full analysis
+        3. **Review Results**: Check signals and confidence intervals
         
-        ### 🔧 **System Tools:**
-        - Cache management
-        - Performance analytics
-        - System reset capabilities
-        - Debugging utilities
-        
-        **Ready for production trading? Enter a symbol and click "Enhanced Analysis"!**
+        **Start with: SPY, AAPL, MSFT, GOOGL, or TSLA**
         """)
 
 if __name__ == "__main__":

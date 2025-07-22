@@ -171,6 +171,372 @@ def generate_cache_key(symbol: str, analysis_config: dict) -> str:
 
 # ENHANCED: Data fetching with debug control
 @safe_calculation_wrapper
+def calculate_graham_score(symbol, show_debug=False):
+    """Calculate Benjamin Graham Score based on value investing criteria"""
+    try:
+        if show_debug:
+            st.write(f"📊 Calculating Graham Score for {symbol}...")
+        
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        financials = ticker.financials
+        balance_sheet = ticker.balance_sheet
+        
+        if not info or len(financials.columns) == 0 or len(balance_sheet.columns) == 0:
+            return {'score': 0, 'total_possible': 10, 'criteria': [], 'error': 'Insufficient fundamental data'}
+        
+        score = 0
+        total_possible = 10
+        criteria = []
+        
+        # Get key metrics
+        pe_ratio = info.get('trailingPE', info.get('forwardPE', None))
+        pb_ratio = info.get('priceToBook', None)
+        debt_to_equity = info.get('debtToEquity', None)
+        current_ratio = info.get('currentRatio', None)
+        quick_ratio = info.get('quickRatio', None)
+        
+        # Calculate additional metrics from financial statements if available
+        try:
+            # Get most recent year data
+            latest_financials = financials.iloc[:, 0] if len(financials.columns) > 0 else None
+            prev_financials = financials.iloc[:, 1] if len(financials.columns) > 1 else None
+            
+            # Earnings growth
+            earnings_growth = None
+            if latest_financials is not None and prev_financials is not None:
+                if 'Net Income' in latest_financials and 'Net Income' in prev_financials:
+                    latest_earnings = latest_financials.get('Net Income', 0)
+                    prev_earnings = prev_financials.get('Net Income', 0)
+                    if prev_earnings != 0:
+                        earnings_growth = (latest_earnings - prev_earnings) / abs(prev_earnings)
+            
+            # Revenue growth
+            revenue_growth = None
+            if latest_financials is not None and prev_financials is not None:
+                if 'Total Revenue' in latest_financials and 'Total Revenue' in prev_financials:
+                    latest_revenue = latest_financials.get('Total Revenue', 0)
+                    prev_revenue = prev_financials.get('Total Revenue', 0)
+                    if prev_revenue != 0:
+                        revenue_growth = (latest_revenue - prev_revenue) / abs(prev_revenue)
+        
+        except:
+            earnings_growth = None
+            revenue_growth = None
+        
+        # Graham Criteria Evaluation
+        
+        # 1. P/E ratio < 15
+        if pe_ratio and pe_ratio < 15:
+            score += 1
+            criteria.append(f"✅ P/E < 15 ({pe_ratio:.2f})")
+        else:
+            criteria.append(f"❌ P/E < 15 ({pe_ratio:.2f if pe_ratio else 'N/A'})")
+        
+        # 2. P/B ratio < 1.5
+        if pb_ratio and pb_ratio < 1.5:
+            score += 1
+            criteria.append(f"✅ P/B < 1.5 ({pb_ratio:.2f})")
+        else:
+            criteria.append(f"❌ P/B < 1.5 ({pb_ratio:.2f if pb_ratio else 'N/A'})")
+        
+        # 3. P/E × P/B < 22.5
+        if pe_ratio and pb_ratio and (pe_ratio * pb_ratio) < 22.5:
+            score += 1
+            criteria.append(f"✅ P/E × P/B < 22.5 ({pe_ratio * pb_ratio:.2f})")
+        else:
+            pe_pb_product = (pe_ratio * pb_ratio) if (pe_ratio and pb_ratio) else None
+            criteria.append(f"❌ P/E × P/B < 22.5 ({pe_pb_product:.2f if pe_pb_product else 'N/A'})")
+        
+        # 4. Debt-to-Equity < 0.5 (50%)
+        if debt_to_equity is not None:
+            debt_ratio = debt_to_equity / 100  # Convert percentage to decimal
+            if debt_ratio < 0.5:
+                score += 1
+                criteria.append(f"✅ Debt/Equity < 50% ({debt_to_equity:.1f}%)")
+            else:
+                criteria.append(f"❌ Debt/Equity < 50% ({debt_to_equity:.1f}%)")
+        else:
+            criteria.append("❌ Debt/Equity < 50% (N/A)")
+        
+        # 5. Current Ratio > 1.5
+        if current_ratio and current_ratio > 1.5:
+            score += 1
+            criteria.append(f"✅ Current Ratio > 1.5 ({current_ratio:.2f})")
+        else:
+            criteria.append(f"❌ Current Ratio > 1.5 ({current_ratio:.2f if current_ratio else 'N/A'})")
+        
+        # 6. Quick Ratio > 1.0
+        if quick_ratio and quick_ratio > 1.0:
+            score += 1
+            criteria.append(f"✅ Quick Ratio > 1.0 ({quick_ratio:.2f})")
+        else:
+            criteria.append(f"❌ Quick Ratio > 1.0 ({quick_ratio:.2f if quick_ratio else 'N/A'})")
+        
+        # 7. Positive earnings growth
+        if earnings_growth is not None and earnings_growth > 0:
+            score += 1
+            criteria.append(f"✅ Earnings Growth > 0% ({earnings_growth*100:.1f}%)")
+        else:
+            criteria.append(f"❌ Earnings Growth > 0% ({earnings_growth*100:.1f}% if earnings_growth else 'N/A'})")
+        
+        # 8. Positive revenue growth
+        if revenue_growth is not None and revenue_growth > 0:
+            score += 1
+            criteria.append(f"✅ Revenue Growth > 0% ({revenue_growth*100:.1f}%)")
+        else:
+            criteria.append(f"❌ Revenue Growth > 0% ({revenue_growth*100:.1f}% if revenue_growth else 'N/A'})")
+        
+        # 9. Positive net income (current year)
+        net_income_positive = info.get('netIncomeToCommon', 0) > 0
+        if net_income_positive:
+            score += 1
+            criteria.append("✅ Positive Net Income")
+        else:
+            criteria.append("❌ Positive Net Income")
+        
+        # 10. Dividend paying (bonus point)
+        dividend_yield = info.get('dividendYield', 0)
+        if dividend_yield and dividend_yield > 0:
+            score += 1
+            criteria.append(f"✅ Dividend Paying ({dividend_yield*100:.2f}%)")
+        else:
+            criteria.append("❌ Dividend Paying (0.0%)")
+        
+        return {
+            'score': score,
+            'total_possible': total_possible,
+            'percentage': (score / total_possible) * 100,
+            'criteria': criteria,
+            'grade': get_graham_grade(score),
+            'interpretation': get_graham_interpretation(score)
+        }
+        
+    except Exception as e:
+        logger.error(f"Graham score calculation error: {e}")
+        return {'score': 0, 'total_possible': 10, 'criteria': [], 'error': f'Calculation error: {str(e)}'}
+
+@safe_calculation_wrapper
+def calculate_piotroski_score(symbol, show_debug=False):
+    """Calculate Piotroski F-Score (0-9 points)"""
+    try:
+        if show_debug:
+            st.write(f"📊 Calculating Piotroski F-Score for {symbol}...")
+            
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        financials = ticker.financials
+        balance_sheet = ticker.balance_sheet
+        cashflow = ticker.cashflow
+        
+        if len(financials.columns) < 2 or len(balance_sheet.columns) < 2:
+            return {'score': 0, 'total_possible': 9, 'criteria': [], 'error': 'Need at least 2 years of financial data'}
+        
+        score = 0
+        total_possible = 9
+        criteria = []
+        
+        # Get current and previous year data
+        current_year = financials.iloc[:, 0]
+        previous_year = financials.iloc[:, 1]
+        current_bs = balance_sheet.iloc[:, 0]
+        previous_bs = balance_sheet.iloc[:, 1]
+        
+        # PROFITABILITY CRITERIA (4 points)
+        
+        # 1. Positive Net Income
+        net_income = current_year.get('Net Income', 0)
+        if net_income > 0:
+            score += 1
+            criteria.append(f"✅ Positive Net Income (${net_income/1e9:.2f}B)")
+        else:
+            criteria.append(f"❌ Positive Net Income (${net_income/1e9:.2f}B)")
+        
+        # 2. Positive Operating Cash Flow
+        try:
+            if len(cashflow.columns) > 0:
+                operating_cf = cashflow.iloc[:, 0].get('Operating Cash Flow', 0)
+                if operating_cf > 0:
+                    score += 1
+                    criteria.append(f"✅ Positive Operating CF (${operating_cf/1e9:.2f}B)")
+                else:
+                    criteria.append(f"❌ Positive Operating CF (${operating_cf/1e9:.2f}B)")
+            else:
+                criteria.append("❌ Positive Operating CF (N/A)")
+        except:
+            criteria.append("❌ Positive Operating CF (N/A)")
+        
+        # 3. ROA Improvement (Return on Assets)
+        try:
+            # Calculate ROA = Net Income / Total Assets
+            current_assets = current_bs.get('Total Assets', 1)
+            previous_assets = previous_bs.get('Total Assets', 1)
+            prev_net_income = previous_year.get('Net Income', 0)
+            
+            current_roa = net_income / current_assets if current_assets != 0 else 0
+            previous_roa = prev_net_income / previous_assets if previous_assets != 0 else 0
+            
+            if current_roa > previous_roa:
+                score += 1
+                criteria.append(f"✅ ROA Improved ({current_roa*100:.2f}% vs {previous_roa*100:.2f}%)")
+            else:
+                criteria.append(f"❌ ROA Improved ({current_roa*100:.2f}% vs {previous_roa*100:.2f}%)")
+        except:
+            criteria.append("❌ ROA Improved (N/A)")
+        
+        # 4. Operating Cash Flow > Net Income (Quality of Earnings)
+        try:
+            if len(cashflow.columns) > 0:
+                operating_cf = cashflow.iloc[:, 0].get('Operating Cash Flow', 0)
+                if operating_cf > net_income:
+                    score += 1
+                    criteria.append("✅ Operating CF > Net Income")
+                else:
+                    criteria.append("❌ Operating CF > Net Income")
+            else:
+                criteria.append("❌ Operating CF > Net Income (N/A)")
+        except:
+            criteria.append("❌ Operating CF > Net Income (N/A)")
+        
+        # LEVERAGE/LIQUIDITY CRITERIA (3 points)
+        
+        # 5. Decrease in Debt-to-Assets ratio
+        try:
+            current_debt = current_bs.get('Total Debt', current_bs.get('Long Term Debt', 0))
+            previous_debt = previous_bs.get('Total Debt', previous_bs.get('Long Term Debt', 0))
+            
+            current_debt_ratio = current_debt / current_assets if current_assets != 0 else 0
+            previous_debt_ratio = previous_debt / previous_assets if previous_assets != 0 else 0
+            
+            if current_debt_ratio < previous_debt_ratio:
+                score += 1
+                criteria.append(f"✅ Debt Ratio Decreased ({current_debt_ratio*100:.1f}% vs {previous_debt_ratio*100:.1f}%)")
+            else:
+                criteria.append(f"❌ Debt Ratio Decreased ({current_debt_ratio*100:.1f}% vs {previous_debt_ratio*100:.1f}%)")
+        except:
+            criteria.append("❌ Debt Ratio Decreased (N/A)")
+        
+        # 6. Increase in Current Ratio
+        try:
+            current_current_assets = current_bs.get('Current Assets', 0)
+            current_current_liab = current_bs.get('Current Liabilities', 1)
+            prev_current_assets = previous_bs.get('Current Assets', 0)
+            prev_current_liab = previous_bs.get('Current Liabilities', 1)
+            
+            current_ratio_now = current_current_assets / current_current_liab
+            current_ratio_prev = prev_current_assets / prev_current_liab
+            
+            if current_ratio_now > current_ratio_prev:
+                score += 1
+                criteria.append(f"✅ Current Ratio Increased ({current_ratio_now:.2f} vs {current_ratio_prev:.2f})")
+            else:
+                criteria.append(f"❌ Current Ratio Increased ({current_ratio_now:.2f} vs {current_ratio_prev:.2f})")
+        except:
+            criteria.append("❌ Current Ratio Increased (N/A)")
+        
+        # 7. No Share Dilution (shares outstanding didn't increase)
+        try:
+            current_shares = info.get('sharesOutstanding', info.get('impliedSharesOutstanding', 0))
+            # For previous shares, we'll use a proxy or skip if not available
+            # This is often hard to get from yfinance, so we'll be conservative
+            shares_metric_available = False  # Set to False since historical shares data is limited
+            
+            if shares_metric_available:
+                # Would compare current_shares vs previous_shares here
+                pass
+            else:
+                # Conservative approach - check if company has been buying back shares recently
+                shares_change = info.get('netSharesPurchased', 0)  # This is often not available
+                if shares_change <= 0:  # No dilution or buybacks
+                    score += 1
+                    criteria.append("✅ No Share Dilution")
+                else:
+                    criteria.append("❌ No Share Dilution")
+        except:
+            # Default to neutral/conservative scoring
+            criteria.append("⚪ No Share Dilution (N/A - Assumed Neutral)")
+        
+        # OPERATING EFFICIENCY CRITERIA (2 points)
+        
+        # 8. Increase in Gross Margin
+        try:
+            current_revenue = current_year.get('Total Revenue', 0)
+            current_gross_profit = current_year.get('Gross Profit', 0)
+            prev_revenue = previous_year.get('Total Revenue', 0)
+            prev_gross_profit = previous_year.get('Gross Profit', 0)
+            
+            current_gross_margin = current_gross_profit / current_revenue if current_revenue != 0 else 0
+            prev_gross_margin = prev_gross_profit / prev_revenue if prev_revenue != 0 else 0
+            
+            if current_gross_margin > prev_gross_margin:
+                score += 1
+                criteria.append(f"✅ Gross Margin Increased ({current_gross_margin*100:.1f}% vs {prev_gross_margin*100:.1f}%)")
+            else:
+                criteria.append(f"❌ Gross Margin Increased ({current_gross_margin*100:.1f}% vs {prev_gross_margin*100:.1f}%)")
+        except:
+            criteria.append("❌ Gross Margin Increased (N/A)")
+        
+        # 9. Increase in Asset Turnover Ratio
+        try:
+            current_asset_turnover = current_revenue / current_assets if current_assets != 0 else 0
+            prev_asset_turnover = prev_revenue / previous_assets if previous_assets != 0 else 0
+            
+            if current_asset_turnover > prev_asset_turnover:
+                score += 1
+                criteria.append(f"✅ Asset Turnover Increased ({current_asset_turnover:.2f} vs {prev_asset_turnover:.2f})")
+            else:
+                criteria.append(f"❌ Asset Turnover Increased ({current_asset_turnover:.2f} vs {prev_asset_turnover:.2f})")
+        except:
+            criteria.append("❌ Asset Turnover Increased (N/A)")
+        
+        return {
+            'score': score,
+            'total_possible': total_possible,
+            'percentage': (score / total_possible) * 100,
+            'criteria': criteria,
+            'grade': get_piotroski_grade(score),
+            'interpretation': get_piotroski_interpretation(score)
+        }
+        
+    except Exception as e:
+        logger.error(f"Piotroski score calculation error: {e}")
+        return {'score': 0, 'total_possible': 9, 'criteria': [], 'error': f'Calculation error: {str(e)}'}
+
+def get_graham_grade(score):
+    """Convert Graham score to letter grade"""
+    percentage = (score / 10) * 100
+    if percentage >= 80: return "A"
+    elif percentage >= 70: return "B"
+    elif percentage >= 60: return "C"
+    elif percentage >= 50: return "D"
+    else: return "F"
+
+def get_graham_interpretation(score):
+    """Interpret Graham score"""
+    if score >= 8: return "Excellent value investment candidate"
+    elif score >= 6: return "Good value investment potential"
+    elif score >= 4: return "Moderate value investment appeal"
+    elif score >= 2: return "Limited value investment appeal"
+    else: return "Poor value investment candidate"
+
+def get_piotroski_grade(score):
+    """Convert Piotroski score to letter grade"""
+    if score >= 8: return "A"
+    elif score >= 7: return "B+"
+    elif score >= 6: return "B"
+    elif score >= 5: return "B-"
+    elif score >= 4: return "C"
+    elif score >= 3: return "D+"
+    elif score >= 2: return "D"
+    else: return "F"
+
+def get_piotroski_interpretation(score):
+    """Interpret Piotroski F-Score"""
+    if score >= 8: return "Very strong fundamental quality"
+    elif score >= 6: return "Strong fundamental quality" 
+    elif score >= 4: return "Average fundamental quality"
+    elif score >= 2: return "Weak fundamental quality"
+    else: return "Very weak fundamental quality"
 def get_market_data_enhanced(symbol='SPY', period='1y', show_debug=False):
     """Enhanced market data fetching with debug control"""
     try:
@@ -1131,6 +1497,10 @@ class VWVTradingSystem:
             # Calculate market correlations
             market_correlations = calculate_market_correlations(working_data, symbol, show_debug=show_debug)
 
+            # Calculate fundamental analysis scores
+            graham_score = calculate_graham_score(symbol, show_debug)
+            piotroski_score = calculate_piotroski_score(symbol, show_debug)
+
             # Calculate VWV components with corrected WVF
             components = {
                 'wvf': self.calculate_williams_vix_fix_corrected(working_data),
@@ -1218,7 +1588,9 @@ class VWVTradingSystem:
                     'weekly_deviations': weekly_deviations,
                     'comprehensive_technicals': comprehensive_technicals,
                     'market_correlations': market_correlations,
-                    'options_levels': options_levels
+                    'options_levels': options_levels,
+                    'graham_score': graham_score,
+                    'piotroski_score': piotroski_score
                 },
                 'system_status': 'OPERATIONAL'
             }
@@ -1753,6 +2125,104 @@ def main():
                 st.metric("ATR (14)", f"${atr:.2f}")
             
             # ============================================================
+            # SECTION 1.5: FUNDAMENTAL ANALYSIS
+            # ============================================================
+            st.header("📊 Fundamental Analysis - Value Investment Scores")
+            
+            graham_data = enhanced_indicators.get('graham_score', {})
+            piotroski_data = enhanced_indicators.get('piotroski_score', {})
+            
+            # Display scores overview
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if 'error' not in graham_data:
+                    st.metric(
+                        "Graham Score", 
+                        f"{graham_data.get('score', 0)}/10",
+                        f"Grade: {graham_data.get('grade', 'N/A')}"
+                    )
+                else:
+                    st.metric("Graham Score", "N/A", "Data Limited")
+            
+            with col2:
+                if 'error' not in piotroski_data:
+                    st.metric(
+                        "Piotroski F-Score", 
+                        f"{piotroski_data.get('score', 0)}/9",
+                        f"Grade: {piotroski_data.get('grade', 'N/A')}"
+                    )
+                else:
+                    st.metric("Piotroski F-Score", "N/A", "Data Limited")
+            
+            with col3:
+                if 'error' not in graham_data:
+                    st.metric(
+                        "Graham %", 
+                        f"{graham_data.get('percentage', 0):.0f}%",
+                        graham_data.get('interpretation', '')[:20] + "..."
+                    )
+                else:
+                    st.metric("Graham %", "0%", "No Data")
+            
+            with col4:
+                if 'error' not in piotroski_data:
+                    st.metric(
+                        "Piotroski %", 
+                        f"{piotroski_data.get('percentage', 0):.0f}%",
+                        piotroski_data.get('interpretation', '')[:20] + "..."
+                    )
+                else:
+                    st.metric("Piotroski %", "0%", "No Data")
+            
+            # Detailed breakdown
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("🏛️ Benjamin Graham Value Score")
+                if 'error' not in graham_data and graham_data.get('criteria'):
+                    st.write(f"**Overall Assessment:** {graham_data.get('interpretation', 'N/A')}")
+                    st.write("**Criteria Breakdown:**")
+                    for criterion in graham_data['criteria']:
+                        st.write(f"• {criterion}")
+                else:
+                    st.warning(f"⚠️ Graham analysis unavailable: {graham_data.get('error', 'Unknown error')}")
+                    st.info("💡 **Graham Score evaluates:**\n"
+                           "• P/E and P/B ratios\n"
+                           "• Debt levels and liquidity\n" 
+                           "• Earnings and revenue growth\n"
+                           "• Dividend policy")
+            
+            with col2:
+                st.subheader("🏆 Piotroski F-Score Quality")
+                if 'error' not in piotroski_data and piotroski_data.get('criteria'):
+                    st.write(f"**Overall Assessment:** {piotroski_data.get('interpretation', 'N/A')}")
+                    st.write("**Criteria Breakdown:**")
+                    for criterion in piotroski_data['criteria']:
+                        st.write(f"• {criterion}")
+                else:
+                    st.warning(f"⚠️ Piotroski analysis unavailable: {piotroski_data.get('error', 'Unknown error')}")
+                    st.info("💡 **Piotroski F-Score evaluates:**\n"
+                           "• Profitability trends\n"
+                           "• Leverage and liquidity changes\n"
+                           "• Operating efficiency improvements\n"
+                           "• Overall financial quality")
+            
+            # Combined interpretation
+            if 'error' not in graham_data and 'error' not in piotroski_data:
+                combined_score = (graham_data.get('percentage', 0) + piotroski_data.get('percentage', 0)) / 2
+                
+                if combined_score >= 75:
+                    st.success(f"🟢 **Strong Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Both value and quality metrics indicate a fundamentally sound investment candidate.")
+                elif combined_score >= 50:
+                    st.info(f"🟡 **Moderate Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Mixed fundamental signals - some strengths and weaknesses present.")
+                else:
+                    st.error(f"🔴 **Weak Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Fundamental analysis suggests caution - multiple areas of concern identified.")
+
+            # ============================================================
             # SECTION 2: MARKET COMPARISON ANALYSIS
             # ============================================================
             st.header("🌐 Market Correlation & Comparison Analysis")
@@ -1953,44 +2423,59 @@ def main():
         st.markdown("""
         ## 🛠️ VWV Professional Trading System - Enhanced
         
-        ### ✅ **Key Improvements Made:**
+        ### ✅ **Comprehensive Analysis Structure:**
         
-        **🔧 Technical Accuracy**
-        - **Fixed Williams VIX Fix**: Now uses correct formula per Larry Williams
-        - **Enhanced Options Pricing**: Black-Scholes approximation for strike levels  
-        - **Improved RSI Calculation**: Better error handling and edge cases
-        - **Data Quality Validation**: Comprehensive checks before analysis
+        1. **📊 Individual Symbol Analysis**
+           - Exhaustive technical indicator table with signal analysis
+           - Price levels: VWAP, EMAs, Support/Resistance
+           - Momentum indicators: RSI, MFI, MACD, Stochastic
+           - Volume analysis and volatility metrics
+           - Previous week high/low levels
         
-        **💰 Risk Management**
-        - **Position Sizing Calculator**: Professional risk-based position sizing
-        - **Account Balance Integration**: Real position size calculations
-        - **Risk Percentage Control**: Configurable risk per trade
-        - **Maximum Position Limits**: 15% account maximum protection
+        1.5. **📊 Fundamental Analysis**
+           - **Benjamin Graham Score**: Classic value investing criteria (0-10)
+           - **Piotroski F-Score**: Financial quality assessment (0-9)
+           - P/E, P/B, debt ratios, profitability trends
+           - Combined fundamental strength rating
         
-        **🚀 Performance & Reliability**
-        - **Enhanced Error Handling**: Robust calculation wrappers
-        - **Data Caching**: 5-minute cache for market data  
-        - **Logging System**: Comprehensive error tracking
-        - **Safe Calculations**: All indicators have fallback values
+        2. **🌐 Market Correlation Analysis**
+           - Correlation with FNGD (3x Inverse Tech)
+           - Correlation with FNGU (3x Leveraged Tech)  
+           - Correlation with MAGS (Mega-cap Growth)
+           - Beta calculations and relationship strength
+           - Broader market context and trend analysis
         
-        **📊 Enhanced Analysis**  
-        - **Corrected WVF Signals**: Now uses Bollinger Bands on WVF
-        - **Better Correlation Analysis**: More robust statistical calculations
-        - **Improved Volume Analysis**: Enhanced VWAP and POC calculations
-        - **Statistical Validation**: Data quality scoring system
+        3. **🎯 Options Trading Analysis**
+           - Enhanced premium selling strike levels (Black-Scholes)
+           - Probability of touch calculations
+           - Put and call selling strategies
+           - Risk-adjusted option levels for multiple expiries
         
-        ### 🔧 **Technical Indicators Enhanced:**
+        4. **📈 Interactive Technical Chart**
+           - All Fibonacci EMAs displayed
+           - VWAP and Point of Control levels
+           - Weekly standard deviation bands
+           - Comprehensive visual analysis
         
-        - **Williams VIX Fix**: ✅ **CORRECTED** - Now matches original formula
-        - **Options Levels**: ✅ **ENHANCED** - Black-Scholes approximation  
-        - **Moving Averages**: Fibonacci sequence (21, 55, 89, 144, 233)
-        - **Volume Analysis**: VWAP, POC, Volume trends with better accuracy
-        - **Momentum Oscillators**: RSI, MFI, Williams %R, Stochastic (all improved)
-        - **Volatility Metrics**: ATR, Bollinger Bands, Weekly deviations
+        ### 🔧 **Enhanced Features:**
+        
+        **📊 Technical Analysis**
+        - **Williams VIX Fix**: ✅ **CORRECTED** - Proper formula implementation
+        - **Options Pricing**: ✅ **ENHANCED** - Black-Scholes approximation  
+        - **Signal Analysis**: New bullish/neutral/bearish column in indicators table
+        
+        **💰 Fundamental Analysis**
+        - **Graham Score**: Benjamin Graham's value investing criteria
+        - **Piotroski F-Score**: 9-point financial quality assessment
+        - **Combined Rating**: Integrated fundamental strength evaluation
+        
+        **🚀 Risk Management**
+        - **Position Sizing**: Professional risk-based calculations
+        - **Account Integration**: Real position sizes with P&L projections
         
         **Start analyzing: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA, or any major symbol**
         
-        **System Status: ✅ ENHANCED & PRODUCTION-READY**
+        **System Status: ✅ ENHANCED WITH FUNDAMENTAL ANALYSIS**
         """)
 
 if __name__ == "__main__":

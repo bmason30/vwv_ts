@@ -45,21 +45,22 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# SIMPLE: Back to basic data manager that works
-class SimpleDataManager:
-    """Simple data manager without complex caching"""
+# ENHANCED: Data manager with debug control
+class DataManager:
+    """Enhanced data manager with debug control"""
     
     def __init__(self):
         self._market_data_store = {}
         self._analysis_store = {}
     
-    def store_market_data(self, symbol, market_data):
-        """Simple data storage"""
+    def store_market_data(self, symbol, market_data, show_debug=False):
+        """Data storage with debug control"""
         if not isinstance(market_data, pd.DataFrame):
             raise ValueError(f"Expected DataFrame, got {type(market_data)}")
         
         self._market_data_store[symbol] = market_data.copy(deep=True)
-        st.write(f"🔒 Stored market data for {symbol}: {market_data.shape}")
+        if show_debug:
+            st.write(f"🔒 Stored market data for {symbol}: {market_data.shape}")
     
     def get_market_data_for_analysis(self, symbol):
         """Get copy for analysis"""
@@ -89,15 +90,16 @@ class SimpleDataManager:
         """Get analysis results"""
         return self._analysis_store.get(symbol, {})
 
-# Initialize simple data manager
-if 'simple_data_manager' not in st.session_state:
-    st.session_state.simple_data_manager = SimpleDataManager()
+# Initialize data manager
+if 'data_manager' not in st.session_state:
+    st.session_state.data_manager = DataManager()
 
-# SIMPLE: Back to basic data fetching that works
-def get_market_data_simple(symbol='SPY', period='1y'):
-    """Simple, reliable market data fetching"""
+# ENHANCED: Data fetching with debug control
+def get_market_data_enhanced(symbol='SPY', period='1y', show_debug=False):
+    """Enhanced market data fetching with debug control"""
     try:
-        st.write(f"📡 Fetching data for {symbol}...")
+        if show_debug:
+            st.write(f"📡 Fetching data for {symbol}...")
         
         ticker = yf.Ticker(symbol)
         raw_data = ticker.history(period=period)
@@ -106,13 +108,15 @@ def get_market_data_simple(symbol='SPY', period='1y'):
             st.error(f"❌ No data returned for {symbol}")
             return None
         
-        st.write(f"📊 Retrieved {len(raw_data)} rows")
+        if show_debug:
+            st.write(f"📊 Retrieved {len(raw_data)} rows")
         
         # Check for required columns
         required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
         available_columns = list(raw_data.columns)
         
-        st.write(f"📋 Available columns: {available_columns}")
+        if show_debug:
+            st.write(f"📋 Available columns: {available_columns}")
         
         missing_columns = [col for col in required_columns if col not in available_columns]
         if missing_columns:
@@ -130,7 +134,11 @@ def get_market_data_simple(symbol='SPY', period='1y'):
         # Add typical price
         clean_data['Typical_Price'] = (clean_data['High'] + clean_data['Low'] + clean_data['Close']) / 3
         
-        st.success(f"✅ Data ready: {clean_data.shape}")
+        if show_debug:
+            st.success(f"✅ Data ready: {clean_data.shape}")
+        else:
+            st.success(f"✅ Data loaded: {len(clean_data)} periods")
+        
         return clean_data
         
     except Exception as e:
@@ -152,7 +160,7 @@ def safe_rsi(prices, period=14):
         return pd.Series([50] * len(prices), index=prices.index)
 
 def calculate_daily_vwap(data):
-    """Simple daily VWAP calculation"""
+    """Enhanced daily VWAP calculation"""
     try:
         if not hasattr(data, 'index') or not hasattr(data, 'columns'):
             return float(data['Close'].iloc[-1]) if 'Close' in data else 0.0
@@ -176,6 +184,115 @@ def calculate_daily_vwap(data):
         except:
             return 0.0
 
+def calculate_fibonacci_emas(data):
+    """Calculate Fibonacci EMAs (21, 55, 89, 144, 233)"""
+    try:
+        if len(data) < 21:
+            return {}
+        
+        close = data['Close']
+        fib_periods = [21, 55, 89, 144, 233]
+        emas = {}
+        
+        for period in fib_periods:
+            if len(close) >= period:
+                ema_value = close.ewm(span=period).mean().iloc[-1]
+                emas[f'EMA_{period}'] = round(float(ema_value), 2)
+        
+        return emas
+    except Exception:
+        return {}
+
+def calculate_point_of_control(data):
+    """Calculate daily Point of Control (POC) - price level with highest volume"""
+    try:
+        if len(data) < 20:
+            return None
+        
+        # Use recent data for daily POC
+        recent_data = data.tail(20)
+        
+        # Create price bins and sum volume for each bin
+        price_range = recent_data['High'].max() - recent_data['Low'].min()
+        bin_size = price_range / 50  # 50 price bins
+        
+        if bin_size <= 0:
+            return float(recent_data['Close'].iloc[-1])
+        
+        # Calculate volume profile
+        volume_profile = {}
+        
+        for idx, row in recent_data.iterrows():
+            # Distribute volume across the OHLC range
+            price_levels = [row['Open'], row['High'], row['Low'], row['Close']]
+            volume_per_level = row['Volume'] / len(price_levels)
+            
+            for price in price_levels:
+                bin_key = round(price / bin_size) * bin_size
+                volume_profile[bin_key] = volume_profile.get(bin_key, 0) + volume_per_level
+        
+        # Find POC (price with highest volume)
+        if volume_profile:
+            poc_price = max(volume_profile, key=volume_profile.get)
+            return round(float(poc_price), 2)
+        else:
+            return float(recent_data['Close'].iloc[-1])
+            
+    except Exception:
+        try:
+            return float(data['Close'].iloc[-1])
+        except:
+            return 0.0
+
+def calculate_weekly_deviations(data):
+    """Calculate weekly 1, 2, 3 standard deviation levels"""
+    try:
+        if len(data) < 50:
+            return {}
+        
+        # Resample to weekly data
+        weekly_data = data.resample('W-FRI').agg({
+            'Open': 'first',
+            'High': 'max', 
+            'Low': 'min',
+            'Close': 'last',
+            'Volume': 'sum'
+        }).dropna()
+        
+        if len(weekly_data) < 10:
+            return {}
+        
+        # Calculate weekly statistics
+        weekly_closes = weekly_data['Close']
+        current_price = data['Close'].iloc[-1]
+        
+        # Use last 20 weeks for calculation
+        recent_weekly = weekly_closes.tail(20)
+        mean_price = recent_weekly.mean()
+        std_price = recent_weekly.std()
+        
+        if pd.isna(std_price) or std_price == 0:
+            return {}
+        
+        deviations = {}
+        for std_level in [1, 2, 3]:
+            upper = mean_price + (std_level * std_price)
+            lower = mean_price - (std_level * std_price)
+            
+            deviations[f'{std_level}_std'] = {
+                'upper': round(float(upper), 2),
+                'lower': round(float(lower), 2),
+                'range_pct': round(float((std_level * std_price / mean_price) * 100), 2)
+            }
+        
+        deviations['mean_price'] = round(float(mean_price), 2)
+        deviations['std_price'] = round(float(std_price), 2)
+        
+        return deviations
+        
+    except Exception:
+        return {}
+
 def statistical_normalize(series, lookback_period=252):
     """Simple statistical normalization"""
     try:
@@ -194,8 +311,8 @@ def statistical_normalize(series, lookback_period=252):
     except Exception:
         return 0.5
 
-# SIMPLE: VWV Trading System without complex features
-class VWVTradingSystemSimple:
+# ENHANCED: VWV Trading System with enhanced indicators
+class VWVTradingSystem:
     def __init__(self, config=None):
         """Initialize simple trading system"""
         default_config = {
@@ -429,8 +546,8 @@ class VWVTradingSystemSimple:
         except Exception:
             return None
     
-    def calculate_confluence_simple(self, input_data, symbol='SPY'):
-        """Simple confluence calculation"""
+    def calculate_confluence(self, input_data, symbol='SPY'):
+        """Enhanced confluence calculation with additional technical indicators"""
         try:
             if not isinstance(input_data, pd.DataFrame):
                 raise ValueError(f"Expected DataFrame, got {type(input_data)}")
@@ -438,7 +555,13 @@ class VWVTradingSystemSimple:
             # Work on isolated copy
             working_data = input_data.copy(deep=True)
             
-            # Calculate components
+            # Calculate enhanced technical indicators
+            daily_vwap = calculate_daily_vwap(working_data)
+            fibonacci_emas = calculate_fibonacci_emas(working_data)
+            point_of_control = calculate_point_of_control(working_data)
+            weekly_deviations = calculate_weekly_deviations(working_data)
+            
+            # Calculate original VWV components
             components = {
                 'wvf': self.calculate_williams_vix_fix(working_data),
                 'ma': self.calculate_ma_confluence(working_data),
@@ -514,6 +637,12 @@ class VWVTradingSystemSimple:
                 'trend_analysis': trend_analysis,
                 'confidence_analysis': confidence_analysis,
                 'entry_info': entry_info,
+                'enhanced_indicators': {
+                    'daily_vwap': daily_vwap,
+                    'fibonacci_emas': fibonacci_emas,
+                    'point_of_control': point_of_control,
+                    'weekly_deviations': weekly_deviations
+                },
                 'system_status': 'OPERATIONAL'
             }
             
@@ -524,9 +653,9 @@ class VWVTradingSystemSimple:
                 'system_status': 'ERROR'
             }
 
-# SIMPLE: Chart creation
-def create_chart_simple(chart_market_data, analysis_results, symbol):
-    """Simple chart creation"""
+# ENHANCED: Chart creation with Fibonacci EMAs and enhanced indicators
+def create_enhanced_chart(chart_market_data, analysis_results, symbol):
+    """Enhanced chart creation with Fibonacci EMAs and technical levels"""
     
     if isinstance(chart_market_data, dict):
         st.error(f"❌ CHART RECEIVED DICT INSTEAD OF DATAFRAME!")
@@ -549,10 +678,11 @@ def create_chart_simple(chart_market_data, analysis_results, symbol):
     try:
         chart_data = chart_market_data.tail(100)
         current_price = analysis_results['current_price']
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         
         fig = make_subplots(
             rows=3, cols=1,
-            subplot_titles=(f'{symbol} Price Chart', 'Volume', 'Confidence Intervals'),
+            subplot_titles=(f'{symbol} Price Chart with Technical Levels', 'Volume', 'Weekly Deviations'),
             vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
         )
         
@@ -562,13 +692,43 @@ def create_chart_simple(chart_market_data, analysis_results, symbol):
             low=chart_data['Low'], close=chart_data['Close'], name='Price'
         ), row=1, col=1)
         
-        # Moving averages
-        if len(chart_data) >= 21:
-            ema21 = chart_data['Close'].ewm(span=21).mean()
-            fig.add_trace(go.Scatter(
-                x=chart_data.index, y=ema21, name='EMA21', 
-                line=dict(color='orange', width=2)
-            ), row=1, col=1)
+        # Fibonacci EMAs
+        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        ema_colors = {'EMA_21': 'orange', 'EMA_55': 'blue', 'EMA_89': 'purple', 'EMA_144': 'red', 'EMA_233': 'brown'}
+        
+        for ema_name, ema_value in fibonacci_emas.items():
+            period = int(ema_name.split('_')[1])
+            if len(chart_data) >= period:
+                ema_series = chart_data['Close'].ewm(span=period).mean()
+                color = ema_colors.get(ema_name, 'gray')
+                fig.add_trace(go.Scatter(
+                    x=chart_data.index, y=ema_series, name=ema_name, 
+                    line=dict(color=color, width=1.5)
+                ), row=1, col=1)
+        
+        # Daily VWAP
+        daily_vwap = enhanced_indicators.get('daily_vwap')
+        if daily_vwap:
+            fig.add_hline(y=daily_vwap, line_dash="solid", 
+                         line_color="cyan", line_width=2, row=1, col=1)
+        
+        # Point of Control
+        poc = enhanced_indicators.get('point_of_control')
+        if poc:
+            fig.add_hline(y=poc, line_dash="dot", 
+                         line_color="magenta", line_width=2, row=1, col=1)
+        
+        # Weekly Standard Deviations
+        weekly_devs = enhanced_indicators.get('weekly_deviations', {})
+        if weekly_devs:
+            for std_level in [1, 2, 3]:
+                std_data = weekly_devs.get(f'{std_level}_std')
+                if std_data:
+                    opacity = 0.6 - (std_level - 1) * 0.15  # Fade with distance
+                    fig.add_hline(y=std_data['upper'], line_dash="dash", 
+                                 line_color="green", line_width=1, opacity=opacity, row=1, col=1)
+                    fig.add_hline(y=std_data['lower'], line_dash="dash", 
+                                 line_color="red", line_width=1, opacity=opacity, row=1, col=1)
         
         # Confidence interval levels
         if analysis_results.get('confidence_analysis'):
@@ -576,15 +736,9 @@ def create_chart_simple(chart_market_data, analysis_results, symbol):
             
             if '68%' in conf_data:
                 fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
-                             line_color="green", line_width=2, row=1, col=1)
+                             line_color="lightgreen", line_width=1, row=1, col=1)
                 fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
-                             line_color="green", line_width=2, row=1, col=1)
-            
-            if '95%' in conf_data:
-                fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
-                             line_color="red", line_width=1, row=1, col=1)
-                fig.add_hline(y=conf_data['95%']['lower_bound'], line_dash="dot", 
-                             line_color="red", line_width=1, row=1, col=1)
+                             line_color="lightgreen", line_width=1, row=1, col=1)
         
         # Current price line
         fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
@@ -596,26 +750,39 @@ def create_chart_simple(chart_market_data, analysis_results, symbol):
         fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
                             name='Volume', marker_color=colors), row=2, col=1)
         
-        # Confidence intervals chart
-        if analysis_results.get('confidence_analysis'):
-            conf_data = analysis_results['confidence_analysis']['confidence_intervals']
-            x_labels = list(conf_data.keys())
-            y_values = [conf_data[key]['expected_move_pct'] for key in x_labels]
+        # Weekly deviations chart
+        if weekly_devs:
+            std_levels = []
+            upper_values = []
+            lower_values = []
+            range_pcts = []
             
-            fig.add_trace(go.Bar(
-                x=x_labels, y=y_values, name='Expected Weekly Move %', 
-                marker_color='lightblue',
-                text=[f"{v:.1f}%" for v in y_values], textposition='outside'
-            ), row=3, col=1)
+            for std_level in [1, 2, 3]:
+                std_data = weekly_devs.get(f'{std_level}_std')
+                if std_data:
+                    std_levels.append(f"{std_level}σ")
+                    upper_values.append(std_data['upper'])
+                    lower_values.append(std_data['lower'])
+                    range_pcts.append(std_data['range_pct'])
+            
+            if std_levels:
+                fig.add_trace(go.Scatter(
+                    x=std_levels, y=upper_values, name='Upper Bounds', 
+                    mode='markers+lines', marker_color='green'
+                ), row=3, col=1)
+                fig.add_trace(go.Scatter(
+                    x=std_levels, y=lower_values, name='Lower Bounds', 
+                    mode='markers+lines', marker_color='red'
+                ), row=3, col=1)
         
         fig.update_layout(
             title=f'{symbol} | Confluence: {analysis_results["directional_confluence"]:.2f} | Signal: {analysis_results["signal_type"]}',
-            height=800, showlegend=False, template='plotly_white'
+            height=800, showlegend=True, template='plotly_white'
         )
         
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
         fig.update_yaxes(title_text="Volume", row=2, col=1)
-        fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
+        fig.update_yaxes(title_text="Weekly Levels ($)", row=3, col=1)
         
         return fig
         
@@ -628,9 +795,9 @@ def main():
     # Header
     st.markdown("""
     <div class="main-header">
-        <h1>🚀 VWV Professional Trading System - SIMPLIFIED WORKING</h1>
-        <p>Reliable market analysis with proven data flow</p>
-        <p><em>Back to basics: Simple, working, reliable</em></p>
+        <h1>🚀 VWV Professional Trading System</h1>
+        <p>Advanced market analysis with enhanced technical indicators</p>
+        <p><em>Features: Daily VWAP, Fibonacci EMAs, Point of Control, Weekly Deviations</em></p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -640,6 +807,9 @@ def main():
     # Basic controls
     symbol = st.sidebar.text_input("Symbol", value="SPY", help="Enter stock symbol").upper()
     period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
+    
+    # Debug toggle
+    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
     
     # System parameters
     with st.sidebar.expander("⚙️ System Parameters"):
@@ -663,22 +833,25 @@ def main():
         }
     }
     
-    # Initialize simple system
-    vwv_system = VWVTradingSystemSimple(custom_config)
+    # Initialize system
+    vwv_system = VWVTradingSystem(custom_config)
     
     # Controls
     show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
     test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
     
-    # Simple data manager
-    data_manager = st.session_state.simple_data_manager
+    # Data manager
+    data_manager = st.session_state.data_manager
     
     # Test data fetch
     if test_button and symbol:
-        st.write("## 🧪 Simple Data Fetch Test")
+        if show_debug:
+            st.write("## 🧪 Data Fetch Test")
+        else:
+            st.write("## 🧪 Quick Test")
         
-        test_data = get_market_data_simple(symbol, period)
+        test_data = get_market_data_enhanced(symbol, period, show_debug)
         
         if test_data is not None:
             st.success(f"✅ Data fetch successful for {symbol}!")
@@ -693,37 +866,42 @@ def main():
             with col4:
                 st.metric("Avg Volume", f"{test_data['Volume'].mean():,.0f}")
             
-            st.write("**Sample Data:**")
-            st.dataframe(test_data.tail().round(2), use_container_width=True)
+            if show_debug:
+                st.write("**Sample Data:**")
+                st.dataframe(test_data.tail().round(2), use_container_width=True)
         else:
             st.error(f"❌ Data fetch failed for {symbol}")
     
     # Full analysis
     if analyze_button and symbol:
-        st.write("## 📊 VWV Analysis")
+        st.write("## 📊 VWV Trading Analysis")
         
         with st.spinner(f"Analyzing {symbol}..."):
             
             # Step 1: Fetch data
-            st.write("### Step 1: Data Fetching")
-            market_data = get_market_data_simple(symbol, period)
+            if show_debug:
+                st.write("### Step 1: Data Fetching")
+            
+            market_data = get_market_data_enhanced(symbol, period, show_debug)
             
             if market_data is None:
                 st.error(f"❌ Could not fetch data for {symbol}")
                 return
             
             # Store data
-            data_manager.store_market_data(symbol, market_data)
+            data_manager.store_market_data(symbol, market_data, show_debug)
             
             # Step 2: Analysis
-            st.write("### Step 2: Analysis")
+            if show_debug:
+                st.write("### Step 2: Analysis Processing")
+            
             analysis_input = data_manager.get_market_data_for_analysis(symbol)
             
             if analysis_input is None:
                 st.error("❌ Could not prepare analysis data")
                 return
             
-            analysis_results = vwv_system.calculate_confluence_simple(analysis_input, symbol)
+            analysis_results = vwv_system.calculate_confluence(analysis_input, symbol)
             
             if 'error' in analysis_results:
                 st.error(f"❌ Analysis failed: {analysis_results['error']}")
@@ -733,8 +911,10 @@ def main():
             data_manager.store_analysis_results(symbol, analysis_results)
             
             # Step 3: Display results
-            st.write("### Step 3: Results")
+            if show_debug:
+                st.write("### Step 3: Results Display")
             
+            # Primary metrics
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -751,6 +931,76 @@ def main():
             with col4:
                 trend_dir = analysis_results['trend_analysis']['trend_direction'] if analysis_results['trend_analysis'] else 'N/A'
                 st.metric("Trend Direction", trend_dir)
+            
+            # Enhanced Technical Indicators
+            st.subheader("📊 Enhanced Technical Indicators")
+            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+            
+            # Daily VWAP and POC
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+                st.metric("Daily VWAP", f"${daily_vwap:.2f}")
+            with col2:
+                poc = enhanced_indicators.get('point_of_control', 0)
+                st.metric("Point of Control", f"${poc:.2f}")
+            with col3:
+                current_price = analysis_results['current_price']
+                vwap_distance = ((current_price - daily_vwap) / daily_vwap * 100) if daily_vwap > 0 else 0
+                st.metric("Distance from VWAP", f"{vwap_distance:.2f}%")
+            with col4:
+                poc_distance = ((current_price - poc) / poc * 100) if poc > 0 else 0
+                st.metric("Distance from POC", f"{poc_distance:.2f}%")
+            
+            # Fibonacci EMAs
+            fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+            if fibonacci_emas:
+                st.write("**Fibonacci EMAs:**")
+                ema_cols = st.columns(len(fibonacci_emas))
+                for i, (ema_name, ema_value) in enumerate(fibonacci_emas.items()):
+                    period = ema_name.split('_')[1]
+                    distance_pct = ((current_price - ema_value) / ema_value * 100) if ema_value > 0 else 0
+                    with ema_cols[i]:
+                        st.metric(f"EMA {period}", f"${ema_value:.2f}", f"{distance_pct:+.1f}%")
+            
+            # Weekly Standard Deviations
+            weekly_devs = enhanced_indicators.get('weekly_deviations', {})
+            if weekly_devs:
+                st.write("**Weekly Standard Deviations:**")
+                
+                # Mean and std info
+                col1, col2 = st.columns(2)
+                with col1:
+                    mean_price = weekly_devs.get('mean_price', 0)
+                    st.metric("Weekly Mean Price", f"${mean_price:.2f}")
+                with col2:
+                    std_price = weekly_devs.get('std_price', 0)
+                    st.metric("Weekly Std Dev", f"${std_price:.2f}")
+                
+                # Deviation levels
+                std_data = []
+                for std_level in [1, 2, 3]:
+                    std_info = weekly_devs.get(f'{std_level}_std')
+                    if std_info:
+                        # Determine which zone current price is in
+                        if current_price > std_info['upper']:
+                            zone = f"Above +{std_level}σ"
+                        elif current_price < std_info['lower']:
+                            zone = f"Below -{std_level}σ"
+                        else:
+                            zone = f"Within ±{std_level}σ"
+                        
+                        std_data.append({
+                            'Level': f"±{std_level}σ",
+                            'Upper': f"${std_info['upper']:.2f}",
+                            'Lower': f"${std_info['lower']:.2f}",
+                            'Range %': f"±{std_info['range_pct']:.1f}%",
+                            'Current Zone': zone if std_level == 1 else ""
+                        })
+                
+                if std_data:
+                    df_std = pd.DataFrame(std_data)
+                    st.dataframe(df_std, use_container_width=True)
             
             # Signal display
             if analysis_results['signal_type'] != 'NONE':
@@ -793,25 +1043,29 @@ def main():
                 df_intervals = pd.DataFrame(intervals_data)
                 st.dataframe(df_intervals, use_container_width=True)
             
-            # Components analysis
-            st.subheader("🔧 VWV Components Analysis")
-            comp_data = []
-            for comp, value in analysis_results['components'].items():
-                weight = vwv_system.weights[comp]
-                contribution = round(value * weight, 3)
-                comp_data.append({
-                    'Component': comp.upper(),
-                    'Normalized Value': f"{value:.3f}",
-                    'Weight': f"{weight}",
-                    'Contribution': f"{contribution:.3f}"
-                })
-            
-            df_components = pd.DataFrame(comp_data)
-            st.dataframe(df_components, use_container_width=True)
+            # Components analysis (show only if debug is on)
+            if show_debug:
+                st.subheader("🔧 VWV Components Analysis")
+                comp_data = []
+                for comp, value in analysis_results['components'].items():
+                    weight = vwv_system.weights[comp]
+                    contribution = round(value * weight, 3)
+                    comp_data.append({
+                        'Component': comp.upper(),
+                        'Normalized Value': f"{value:.3f}",
+                        'Weight': f"{weight}",
+                        'Contribution': f"{contribution:.3f}"
+                    })
+                
+                df_components = pd.DataFrame(comp_data)
+                st.dataframe(df_components, use_container_width=True)
             
             # Chart
             if show_chart:
-                st.write("### Step 4: Chart")
+                if show_debug:
+                    st.write("### Step 4: Enhanced Chart Creation")
+                else:
+                    st.subheader("📈 Technical Chart")
                 
                 chart_market_data = data_manager.get_market_data_for_chart(symbol)
                 
@@ -819,47 +1073,61 @@ def main():
                     st.error("❌ Could not get chart data")
                     return
                 
-                chart = create_chart_simple(chart_market_data, analysis_results, symbol)
+                chart = create_enhanced_chart(chart_market_data, analysis_results, symbol)
                 
                 if chart is not None:
                     st.plotly_chart(chart, use_container_width=True)
-                    st.success("✅ Chart created successfully")
+                    if show_debug:
+                        st.success("✅ Chart created successfully")
                 else:
                     st.error("❌ Chart creation failed")
     
     else:
         st.markdown("""
-        ## 🛠️ VWV System - SIMPLIFIED & RELIABLE
+        ## 🛠️ VWV Professional Trading System
         
-        ### ✅ **Back to Basics - What Works:**
+        ### ✅ **Enhanced Features:**
         
-        1. **🔧 Simple Data Fetching**
-           - Direct yfinance calls
-           - Clear error messages
-           - Basic validation only
+        1. **🔧 Core VWV Analysis**
+           - Williams VIX Fix calculation
+           - Moving average confluence
+           - Volume analysis with VWAP
+           - Momentum and volatility filters
+           - Directional signal generation
         
-        2. **🔧 Proven Analysis Logic**
-           - All core VWV calculations intact
-           - Statistical normalization working
-           - Directional signals functional
+        2. **📊 Enhanced Technical Indicators**
+           - **Daily VWAP**: Volume-weighted average price
+           - **Fibonacci EMAs**: 21, 55, 89, 144, 233 period exponential moving averages
+           - **Point of Control**: Price level with highest volume activity
+           - **Weekly Standard Deviations**: 1σ, 2σ, 3σ support/resistance levels
         
-        3. **🔧 Reliable Data Flow**
-           - Simple data manager
-           - Protected DataFrame copying
-           - No complex caching
+        3. **🎯 Professional Features**
+           - Bidirectional signals (LONG/SHORT)
+           - Statistical confidence intervals
+           - Risk/reward calculations
+           - Comprehensive technical chart
+           - Debug mode for detailed analysis
         
-        4. **🔧 Clear Debugging**
-           - Step-by-step process
-           - Detailed error reporting
-           - Test functionality
+        4. **📈 Chart Enhancements**
+           - All Fibonacci EMAs displayed
+           - VWAP and Point of Control levels
+           - Weekly standard deviation bands
+           - Interactive technical analysis
         
         ### 📊 **How to Use:**
         
         1. **Test First**: Click "🧪 Test Data Fetch" to verify symbol works
-        2. **Analyze**: Click "📊 Analyze Symbol" for full analysis
-        3. **Review Results**: Check signals and confidence intervals
+        2. **Analyze**: Click "📊 Analyze Symbol" for complete analysis
+        3. **Review Signals**: Check VWV confluence and directional signals
+        4. **Study Levels**: Use technical levels for entry/exit planning
         
-        **Start with: SPY, AAPL, MSFT, GOOGL, or TSLA**
+        ### 🔧 **System Controls:**
+        
+        - **Debug Toggle**: Shows/hides detailed process information
+        - **System Parameters**: Customize VWV calculation settings
+        - **Chart Options**: Control technical chart display
+        
+        **Start with: SPY, AAPL, MSFT, GOOGL, QQQ, or TSLA**
         """)
 
 if __name__ == "__main__":

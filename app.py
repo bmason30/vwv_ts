@@ -1347,17 +1347,17 @@ def main():
             if market_correlations:
                 st.subheader("📊 ETF Correlation Analysis")
                 
-                corr_data = []
-                for etf, data in market_correlations.items():
-                    corr_data.append({
+                correlation_table_data = []
+                for etf, etf_data in market_correlations.items():
+                    correlation_table_data.append({
                         'ETF': etf,
-                        'Correlation': f"{data.get('correlation', 0):.3f}",
-                        'Beta': f"{data.get('beta', 0):.3f}",
-                        'Relationship': data.get('relationship', 'Unknown'),
+                        'Correlation': f"{etf_data.get('correlation', 0):.3f}",
+                        'Beta': f"{etf_data.get('beta', 0):.3f}",
+                        'Relationship': etf_data.get('relationship', 'Unknown'),
                         'Description': get_etf_description(etf)
                     })
                 
-                df_correlations = pd.DataFrame(corr_data)
+                df_correlations = pd.DataFrame(correlation_table_data)
                 st.dataframe(df_correlations, use_container_width=True, hide_index=True)
                 
                 # Correlation interpretation

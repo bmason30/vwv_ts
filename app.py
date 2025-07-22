@@ -44,10 +44,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# REVERTED: Back to original working pattern  
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+# FIXED: Remove problematic caching entirely
 def get_market_data(symbol='SPY', period='1y'):
-    """Fetch market data with proper error handling"""
+    """Fetch market data with proper error handling - NO CACHING"""
     try:
         ticker = yf.Ticker(symbol)
         data = ticker.history(period=period)
@@ -473,80 +472,120 @@ def load_vwv_system():
     return VWVTradingSystemFixed()
 
 def create_enhanced_chart(data, analysis, symbol):
-    """Enhanced chart with proper confidence intervals - REVERTED TO WORKING VERSION"""
-    chart_data = data.tail(100)
-    current_price = analysis['current_price']
+    """Enhanced chart with proper confidence intervals - HANDLES DICT/DATAFRAME"""
     
-    fig = make_subplots(
-        rows=3, cols=1,
-        subplot_titles=(f'{symbol} Price Chart with Statistical Levels', 'Volume', 'Confidence Intervals'),
-        vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
-    )
+    # CRITICAL FIX: Handle dict to DataFrame conversion
+    if isinstance(data, dict):
+        try:
+            # Try different conversion methods
+            if all(isinstance(v, dict) for v in data.values()):
+                # Method 1: Dict of dicts (index-oriented)
+                data = pd.DataFrame.from_dict(data, orient='index')
+            else:
+                # Method 2: Dict of series/lists (columns-oriented)  
+                data = pd.DataFrame(data)
+                
+            # Ensure datetime index if possible
+            if not isinstance(data.index, pd.DatetimeIndex):
+                try:
+                    data.index = pd.to_datetime(data.index)
+                except:
+                    pass  # Keep original index if conversion fails
+                    
+        except Exception as e:
+            st.error(f"Could not convert data dict to DataFrame: {e}")
+            return None
     
-    # Candlestick chart
-    fig.add_trace(go.Candlestick(
-        x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
-        low=chart_data['Low'], close=chart_data['Close'], name='Price'
-    ), row=1, col=1)
+    # Validate DataFrame
+    if not isinstance(data, pd.DataFrame) or len(data) == 0:
+        st.error(f"Invalid data after conversion. Type: {type(data)}, Length: {len(data) if hasattr(data, '__len__') else 'N/A'}")
+        return None
     
-    # Moving averages
-    if len(chart_data) >= 21:
-        ema21 = chart_data['Close'].ewm(span=21).mean()
-        fig.add_trace(go.Scatter(
-            x=chart_data.index, y=ema21, name='EMA21', 
-            line=dict(color='orange', width=2)
+    # Validate required columns
+    required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    missing_columns = [col for col in required_columns if col not in data.columns]
+    if missing_columns:
+        st.error(f"Missing required columns: {missing_columns}. Available: {list(data.columns)}")
+        return None
+    
+    try:
+        chart_data = data.tail(100)
+        current_price = analysis['current_price']
+        
+        fig = make_subplots(
+            rows=3, cols=1,
+            subplot_titles=(f'{symbol} Price Chart with Statistical Levels', 'Volume', 'Confidence Intervals'),
+            vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
+        )
+        
+        # Candlestick chart
+        fig.add_trace(go.Candlestick(
+            x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
+            low=chart_data['Low'], close=chart_data['Close'], name='Price'
         ), row=1, col=1)
-    
-    # FIXED: Real confidence interval levels
-    if analysis.get('confidence_analysis'):
-        conf_data = analysis['confidence_analysis']['confidence_intervals']
         
-        # 68% confidence (1 std dev) - green
-        if '68%' in conf_data:
-            fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
-                         line_color="green", line_width=2, row=1, col=1)
-            fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
-                         line_color="green", line_width=2, row=1, col=1)
+        # Moving averages
+        if len(chart_data) >= 21:
+            ema21 = chart_data['Close'].ewm(span=21).mean()
+            fig.add_trace(go.Scatter(
+                x=chart_data.index, y=ema21, name='EMA21', 
+                line=dict(color='orange', width=2)
+            ), row=1, col=1)
         
-        # 95% confidence (2 std dev) - red
-        if '95%' in conf_data:
-            fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
-                         line_color="red", line_width=1, row=1, col=1)
-            fig.add_hline(y=conf_data['95%']['lower_bound'], line_dash="dot", 
-                         line_color="red", line_width=1, row=1, col=1)
-    
-    # Current price line
-    fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
-                 line_width=3, row=1, col=1)
-    
-    # Volume chart
-    colors = ['green' if close >= open else 'red' 
-              for close, open in zip(chart_data['Close'], chart_data['Open'])]
-    fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
-                        name='Volume', marker_color=colors), row=2, col=1)
-    
-    # FIXED: Real confidence intervals chart
-    if analysis.get('confidence_analysis'):
-        conf_data = analysis['confidence_analysis']['confidence_intervals']
-        x_labels = list(conf_data.keys())
-        y_values = [conf_data[key]['expected_move_pct'] for key in x_labels]
+        # FIXED: Real confidence interval levels
+        if analysis.get('confidence_analysis'):
+            conf_data = analysis['confidence_analysis']['confidence_intervals']
+            
+            # 68% confidence (1 std dev) - green
+            if '68%' in conf_data:
+                fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
+                             line_color="green", line_width=2, row=1, col=1)
+                fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
+                             line_color="green", line_width=2, row=1, col=1)
+            
+            # 95% confidence (2 std dev) - red
+            if '95%' in conf_data:
+                fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
+                             line_color="red", line_width=1, row=1, col=1)
+                fig.add_hline(y=conf_data['95%']['lower_bound'], line_dash="dot", 
+                             line_color="red", line_width=1, row=1, col=1)
         
-        fig.add_trace(go.Bar(
-            x=x_labels, y=y_values, name='Expected Weekly Move %', 
-            marker_color='lightblue',
-            text=[f"{v:.1f}%" for v in y_values], textposition='outside'
-        ), row=3, col=1)
-    
-    fig.update_layout(
-        title=f'{symbol} | Directional Confluence: {analysis["directional_confluence"]:.2f} | Signal: {analysis["signal_type"]}',
-        height=800, showlegend=False, template='plotly_white'
-    )
-    
-    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
-    fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
-    
-    return fig
+        # Current price line
+        fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
+                     line_width=3, row=1, col=1)
+        
+        # Volume chart
+        colors = ['green' if close >= open else 'red' 
+                  for close, open in zip(chart_data['Close'], chart_data['Open'])]
+        fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
+                            name='Volume', marker_color=colors), row=2, col=1)
+        
+        # FIXED: Real confidence intervals chart
+        if analysis.get('confidence_analysis'):
+            conf_data = analysis['confidence_analysis']['confidence_intervals']
+            x_labels = list(conf_data.keys())
+            y_values = [conf_data[key]['expected_move_pct'] for key in x_labels]
+            
+            fig.add_trace(go.Bar(
+                x=x_labels, y=y_values, name='Expected Weekly Move %', 
+                marker_color='lightblue',
+                text=[f"{v:.1f}%" for v in y_values], textposition='outside'
+            ), row=3, col=1)
+        
+        fig.update_layout(
+            title=f'{symbol} | Directional Confluence: {analysis["directional_confluence"]:.2f} | Signal: {analysis["signal_type"]}',
+            height=800, showlegend=False, template='plotly_white'
+        )
+        
+        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating chart components: {str(e)}")
+        return None
 
 # Main application
 def main():

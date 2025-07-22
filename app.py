@@ -1530,48 +1530,167 @@ def main():
             daily_vwap = enhanced_indicators.get('daily_vwap', 0)
             point_of_control = enhanced_indicators.get('point_of_control', 0)
             
+            def determine_signal(indicator_name, current_price, indicator_value, distance_pct_str, bb_data=None):
+                """Determine if indicator is Bullish, Neutral, or Bearish"""
+                try:
+                    # Handle N/A cases
+                    if distance_pct_str == "N/A" or indicator_value == 0:
+                        return "Neutral"
+                    
+                    # Extract percentage value
+                    if "%" in distance_pct_str:
+                        distance_pct = float(distance_pct_str.replace("+", "").replace("%", ""))
+                    else:
+                        distance_pct = 0
+                    
+                    # Current Price - always neutral (reference point)
+                    if "Current Price" in indicator_name:
+                        return "Neutral"
+                    
+                    # VWAP and POC - above is bullish, below is bearish
+                    elif "VWAP" in indicator_name or "Point of Control" in indicator_name:
+                        return "Bullish" if distance_pct > 0 else "Bearish"
+                    
+                    # Previous Week High - breakout is very bullish
+                    elif "Prev Week High" in indicator_name:
+                        if distance_pct > 0:
+                            return "Bullish"  # Breakout above resistance
+                        elif distance_pct > -2:
+                            return "Neutral"  # Near resistance
+                        else:
+                            return "Bearish"  # Well below resistance
+                    
+                    # Previous Week Low - breakdown is very bearish
+                    elif "Prev Week Low" in indicator_name:
+                        if distance_pct > 5:
+                            return "Bullish"  # Well above support
+                        elif distance_pct > 0:
+                            return "Neutral"  # Just above support
+                        else:
+                            return "Bearish"  # Below support (breakdown)
+                    
+                    # EMAs - above is bullish, below is bearish
+                    elif "EMA" in indicator_name:
+                        if distance_pct > 1:
+                            return "Bullish"
+                        elif distance_pct > -1:
+                            return "Neutral"
+                        else:
+                            return "Bearish"
+                    
+                    # Bollinger Bands - more complex logic
+                    elif "BB" in indicator_name:
+                        if "Upper" in indicator_name:
+                            if distance_pct > 0:
+                                return "Bearish"  # Above upper band (overbought)
+                            elif distance_pct > -5:
+                                return "Bullish"  # Near upper band (strong momentum)
+                            else:
+                                return "Neutral"
+                        elif "Middle" in indicator_name:
+                            return "Bullish" if distance_pct > 0 else "Bearish"
+                        elif "Lower" in indicator_name:
+                            if distance_pct < 0:
+                                return "Bullish"  # Below lower band (oversold)
+                            elif distance_pct < 5:
+                                return "Bearish"  # Near lower band (weak momentum)
+                            else:
+                                return "Neutral"
+                    
+                    # Default logic for other indicators
+                    else:
+                        if distance_pct > 2:
+                            return "Bullish"
+                        elif distance_pct > -2:
+                            return "Neutral"
+                        else:
+                            return "Bearish"
+                
+                except:
+                    return "Neutral"
+
             # Build comprehensive indicators table
-            indicators_data = [
-                ("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current"),
-                ("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", 
-                 f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A", 
-                 "Above" if current_price > daily_vwap else "Below"),
-                ("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", 
-                 f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A",
-                 "Above" if current_price > point_of_control else "Below"),
-                ("Prev Week High", f"${comprehensive_technicals.get('prev_week_high', 0):.2f}", "📈 Resistance", 
-                 f"{((current_price - comprehensive_technicals.get('prev_week_high', current_price)) / comprehensive_technicals.get('prev_week_high', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_high', 0) > 0 else "N/A",
-                 "Above" if current_price > comprehensive_technicals.get('prev_week_high', 0) else "Below"),
-                ("Prev Week Low", f"${comprehensive_technicals.get('prev_week_low', 0):.2f}", "📉 Support", 
-                 f"{((current_price - comprehensive_technicals.get('prev_week_low', current_price)) / comprehensive_technicals.get('prev_week_low', current_price) * 100):+.2f}%" if comprehensive_technicals.get('prev_week_low', 0) > 0 else "N/A",
-                 "Above" if current_price > comprehensive_technicals.get('prev_week_low', 0) else "Below"),
-            ]
+            indicators_data = []
+            
+            # Current Price
+            indicators_data.append(("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current", 
+                                  determine_signal("Current Price", current_price, current_price, "0.0%")))
+            
+            # Daily VWAP
+            vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A"
+            vwap_status = "Above" if current_price > daily_vwap else "Below"
+            indicators_data.append(("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", vwap_distance, vwap_status,
+                                  determine_signal("Daily VWAP", current_price, daily_vwap, vwap_distance)))
+            
+            # Point of Control
+            poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A"
+            poc_status = "Above" if current_price > point_of_control else "Below"
+            indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status,
+                                  determine_signal("Point of Control", current_price, point_of_control, poc_distance)))
+            
+            # Previous Week High
+            prev_high = comprehensive_technicals.get('prev_week_high', 0)
+            high_distance = f"{((current_price - prev_high) / prev_high * 100):+.2f}%" if prev_high > 0 else "N/A"
+            high_status = "Above" if current_price > prev_high else "Below"
+            indicators_data.append(("Prev Week High", f"${prev_high:.2f}", "📈 Resistance", high_distance, high_status,
+                                  determine_signal("Prev Week High", current_price, prev_high, high_distance)))
+            
+            # Previous Week Low
+            prev_low = comprehensive_technicals.get('prev_week_low', 0)
+            low_distance = f"{((current_price - prev_low) / prev_low * 100):+.2f}%" if prev_low > 0 else "N/A"
+            low_status = "Above" if current_price > prev_low else "Below"
+            indicators_data.append(("Prev Week Low", f"${prev_low:.2f}", "📉 Support", low_distance, low_status,
+                                  determine_signal("Prev Week Low", current_price, prev_low, low_distance)))
             
             # Add Fibonacci EMAs
             for ema_name, ema_value in fibonacci_emas.items():
                 period = ema_name.split('_')[1]
                 distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
                 status = "Above" if current_price > ema_value else "Below"
-                indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status))
+                signal = determine_signal(f"EMA {period}", current_price, ema_value, distance_pct)
+                indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status, signal))
             
             # Add Bollinger Bands
             bb_data = comprehensive_technicals.get('bollinger_bands', {})
             if bb_data:
+                # BB Upper
+                bb_upper = bb_data.get('upper', 0)
+                upper_distance = f"{((current_price - bb_upper) / bb_upper * 100):+.2f}%" if bb_upper > 0 else "N/A"
+                upper_status = f"Position: {bb_data.get('position', 50):.1f}%"
+                upper_signal = determine_signal("BB Upper", current_price, bb_upper, upper_distance, bb_data)
+                
+                # BB Middle
+                bb_middle = bb_data.get('middle', 0)
+                middle_distance = f"{((current_price - bb_middle) / bb_middle * 100):+.2f}%" if bb_middle > 0 else "N/A"
+                middle_status = "Above" if current_price > bb_middle else "Below"
+                middle_signal = determine_signal("BB Middle", current_price, bb_middle, middle_distance, bb_data)
+                
+                # BB Lower
+                bb_lower = bb_data.get('lower', 0)
+                lower_distance = f"{((current_price - bb_lower) / bb_lower * 100):+.2f}%" if bb_lower > 0 else "N/A"
+                lower_status = "Above" if current_price > bb_lower else "Below"
+                lower_signal = determine_signal("BB Lower", current_price, bb_lower, lower_distance, bb_data)
+                
                 indicators_data.extend([
-                    ("BB Upper", f"${bb_data.get('upper', 0):.2f}", "📊 Volatility", 
-                     f"{((current_price - bb_data.get('upper', current_price)) / bb_data.get('upper', current_price) * 100):+.2f}%" if bb_data.get('upper', 0) > 0 else "N/A",
-                     f"Position: {bb_data.get('position', 50):.1f}%"),
-                    ("BB Middle", f"${bb_data.get('middle', 0):.2f}", "📊 SMA 20", 
-                     f"{((current_price - bb_data.get('middle', current_price)) / bb_data.get('middle', current_price) * 100):+.2f}%" if bb_data.get('middle', 0) > 0 else "N/A",
-                     "Above" if current_price > bb_data.get('middle', 0) else "Below"),
-                    ("BB Lower", f"${bb_data.get('lower', 0):.2f}", "📊 Volatility", 
-                     f"{((current_price - bb_data.get('lower', current_price)) / bb_data.get('lower', current_price) * 100):+.2f}%" if bb_data.get('lower', 0) > 0 else "N/A",
-                     "Above" if current_price > bb_data.get('lower', 0) else "Below"),
+                    ("BB Upper", f"${bb_upper:.2f}", "📊 Volatility", upper_distance, upper_status, upper_signal),
+                    ("BB Middle", f"${bb_middle:.2f}", "📊 SMA 20", middle_distance, middle_status, middle_signal),
+                    ("BB Lower", f"${bb_lower:.2f}", "📊 Volatility", lower_distance, lower_status, lower_signal),
                 ])
             
             # Convert to DataFrame and display
-            df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
-            st.dataframe(df_technical, use_container_width=True, hide_index=True)
+            df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status', 'Signal'])
+            
+            # Apply color coding to the Signal column
+            def color_signal(val):
+                if val == 'Bullish':
+                    return 'background-color: #d4edda; color: #155724'  # Green
+                elif val == 'Bearish':
+                    return 'background-color: #f8d7da; color: #721c24'  # Red
+                else:
+                    return 'background-color: #fff3cd; color: #856404'  # Yellow
+            
+            styled_df = df_technical.style.applymap(color_signal, subset=['Signal'])
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
             
             # Oscillators and Momentum
             st.subheader("📈 Momentum & Oscillator Analysis")

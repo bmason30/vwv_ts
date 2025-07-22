@@ -170,6 +170,60 @@ def generate_cache_key(symbol: str, analysis_config: dict) -> str:
     return hashlib.md5(f"{symbol}_{config_str}".encode()).hexdigest()
 
 # ENHANCED: Data fetching with debug control
+def is_etf(symbol):
+    """Detect if a symbol is an ETF"""
+    try:
+        # Common ETF patterns and known ETFs
+        etf_suffixes = ['ETF', 'FUND']
+        common_etfs = {
+            'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VEA', 'VWO', 'AGG', 'BND', 'TLT',
+            'GLD', 'SLV', 'USO', 'UNG', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP',
+            'XLY', 'XLU', 'XLRE', 'XLB', 'EFA', 'EEM', 'FXI', 'EWJ', 'EWG', 'EWU',
+            'ARKK', 'ARKQ', 'ARKW', 'ARKG', 'ARKF', 'FNGU', 'FNGD', 'MAGS', 'SOXX',
+            'SMH', 'IBB', 'XBI', 'JETS', 'HACK', 'ESPO', 'ICLN', 'PBW', 'KWEB'
+        }
+        
+        # Check if symbol is in known ETFs list
+        if symbol.upper() in common_etfs:
+            return True
+        
+        # Check for ETF suffixes
+        for suffix in etf_suffixes:
+            if symbol.upper().endswith(suffix):
+                return True
+        
+        # Try to get security type from yfinance (more reliable but slower)
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            # Check various fields that might indicate ETF
+            security_type = info.get('quoteType', '').upper()
+            category = info.get('category', '').upper() 
+            fund_family = info.get('fundFamily', '').upper()
+            
+            if 'ETF' in security_type or 'ETF' in category or 'ETF' in fund_family:
+                return True
+                
+            # Check long name for ETF indicators
+            long_name = info.get('longName', '').upper()
+            short_name = info.get('shortName', '').upper()
+            
+            etf_keywords = ['ETF', 'EXCHANGE TRADED', 'INDEX FUND', 'TRUST']
+            for keyword in etf_keywords:
+                if keyword in long_name or keyword in short_name:
+                    return True
+                    
+        except:
+            # If yfinance lookup fails, use pattern matching
+            pass
+        
+        return False
+        
+    except Exception as e:
+        logger.error(f"ETF detection error for {symbol}: {e}")
+        return False
+
 @safe_calculation_wrapper
 def calculate_graham_score(symbol, show_debug=False):
     """Calculate Benjamin Graham Score based on value investing criteria"""
@@ -231,22 +285,24 @@ def calculate_graham_score(symbol, show_debug=False):
             score += 1
             criteria.append(f"✅ P/E < 15 ({pe_ratio:.2f})")
         else:
-            criteria.append(f"❌ P/E < 15 ({pe_ratio:.2f if pe_ratio else 'N/A'})")
+            pe_display = f"{pe_ratio:.2f}" if pe_ratio else "N/A"
+            criteria.append(f"❌ P/E < 15 ({pe_display})")
         
         # 2. P/B ratio < 1.5
         if pb_ratio and pb_ratio < 1.5:
             score += 1
             criteria.append(f"✅ P/B < 1.5 ({pb_ratio:.2f})")
         else:
-            criteria.append(f"❌ P/B < 1.5 ({pb_ratio:.2f if pb_ratio else 'N/A'})")
+            pb_display = f"{pb_ratio:.2f}" if pb_ratio else "N/A"
+            criteria.append(f"❌ P/B < 1.5 ({pb_display})")
         
         # 3. P/E × P/B < 22.5
         if pe_ratio and pb_ratio and (pe_ratio * pb_ratio) < 22.5:
             score += 1
             criteria.append(f"✅ P/E × P/B < 22.5 ({pe_ratio * pb_ratio:.2f})")
         else:
-            pe_pb_product = (pe_ratio * pb_ratio) if (pe_ratio and pb_ratio) else None
-            criteria.append(f"❌ P/E × P/B < 22.5 ({pe_pb_product:.2f if pe_pb_product else 'N/A'})")
+            pe_pb_product = f"{pe_ratio * pb_ratio:.2f}" if (pe_ratio and pb_ratio) else "N/A"
+            criteria.append(f"❌ P/E × P/B < 22.5 ({pe_pb_product})")
         
         # 4. Debt-to-Equity < 0.5 (50%)
         if debt_to_equity is not None:
@@ -1499,9 +1555,17 @@ class VWVTradingSystem:
             # Calculate market correlations
             market_correlations = calculate_market_correlations(working_data, symbol, show_debug=show_debug)
 
-            # Calculate fundamental analysis scores
-            graham_score = calculate_graham_score(symbol, show_debug)
-            piotroski_score = calculate_piotroski_score(symbol, show_debug)
+            # Calculate fundamental analysis scores (skip for ETFs)
+            is_etf_symbol = is_etf(symbol)
+            
+            if is_etf_symbol:
+                graham_score = {'score': 0, 'total_possible': 10, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
+                piotroski_score = {'score': 0, 'total_possible': 9, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
+                if show_debug:
+                    st.write(f"📊 Skipping fundamental analysis for ETF: {symbol}")
+            else:
+                graham_score = calculate_graham_score(symbol, show_debug)
+                piotroski_score = calculate_piotroski_score(symbol, show_debug)
 
             # Calculate VWV components with corrected WVF
             components = {
@@ -2127,102 +2191,113 @@ def main():
                 st.metric("ATR (14)", f"${atr:.2f}")
             
             # ============================================================
-            # SECTION 1.5: FUNDAMENTAL ANALYSIS
+            # SECTION 1.5: FUNDAMENTAL ANALYSIS (Skip for ETFs)
             # ============================================================
-            st.header("📊 Fundamental Analysis - Value Investment Scores")
             
+            # Check if symbol is ETF
+            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
             graham_data = enhanced_indicators.get('graham_score', {})
             piotroski_data = enhanced_indicators.get('piotroski_score', {})
             
-            # Display scores overview
-            col1, col2, col3, col4 = st.columns(4)
+            # Only show fundamental analysis for stocks, not ETFs
+            is_etf_symbol = ('ETF' in graham_data.get('error', '') or 
+                           'ETF' in piotroski_data.get('error', ''))
             
-            with col1:
-                if 'error' not in graham_data:
-                    st.metric(
-                        "Graham Score", 
-                        f"{graham_data.get('score', 0)}/10",
-                        f"Grade: {graham_data.get('grade', 'N/A')}"
-                    )
-                else:
-                    st.metric("Graham Score", "N/A", "Data Limited")
-            
-            with col2:
-                if 'error' not in piotroski_data:
-                    st.metric(
-                        "Piotroski F-Score", 
-                        f"{piotroski_data.get('score', 0)}/9",
-                        f"Grade: {piotroski_data.get('grade', 'N/A')}"
-                    )
-                else:
-                    st.metric("Piotroski F-Score", "N/A", "Data Limited")
-            
-            with col3:
-                if 'error' not in graham_data:
-                    st.metric(
-                        "Graham %", 
-                        f"{graham_data.get('percentage', 0):.0f}%",
-                        graham_data.get('interpretation', '')[:20] + "..."
-                    )
-                else:
-                    st.metric("Graham %", "0%", "No Data")
-            
-            with col4:
-                if 'error' not in piotroski_data:
-                    st.metric(
-                        "Piotroski %", 
-                        f"{piotroski_data.get('percentage', 0):.0f}%",
-                        piotroski_data.get('interpretation', '')[:20] + "..."
-                    )
-                else:
-                    st.metric("Piotroski %", "0%", "No Data")
-            
-            # Detailed breakdown
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("🏛️ Benjamin Graham Value Score")
-                if 'error' not in graham_data and graham_data.get('criteria'):
-                    st.write(f"**Overall Assessment:** {graham_data.get('interpretation', 'N/A')}")
-                    st.write("**Criteria Breakdown:**")
-                    for criterion in graham_data['criteria']:
-                        st.write(f"• {criterion}")
-                else:
-                    st.warning(f"⚠️ Graham analysis unavailable: {graham_data.get('error', 'Unknown error')}")
-                    st.info("💡 **Graham Score evaluates:**\n"
-                           "• P/E and P/B ratios\n"
-                           "• Debt levels and liquidity\n" 
-                           "• Earnings and revenue growth\n"
-                           "• Dividend policy")
-            
-            with col2:
-                st.subheader("🏆 Piotroski F-Score Quality")
-                if 'error' not in piotroski_data and piotroski_data.get('criteria'):
-                    st.write(f"**Overall Assessment:** {piotroski_data.get('interpretation', 'N/A')}")
-                    st.write("**Criteria Breakdown:**")
-                    for criterion in piotroski_data['criteria']:
-                        st.write(f"• {criterion}")
-                else:
-                    st.warning(f"⚠️ Piotroski analysis unavailable: {piotroski_data.get('error', 'Unknown error')}")
-                    st.info("💡 **Piotroski F-Score evaluates:**\n"
-                           "• Profitability trends\n"
-                           "• Leverage and liquidity changes\n"
-                           "• Operating efficiency improvements\n"
-                           "• Overall financial quality")
-            
-            # Combined interpretation
-            if 'error' not in graham_data and 'error' not in piotroski_data:
-                combined_score = (graham_data.get('percentage', 0) + piotroski_data.get('percentage', 0)) / 2
+            if not is_etf_symbol and ('error' not in graham_data or 'error' not in piotroski_data):
+                st.header("📊 Fundamental Analysis - Value Investment Scores")
                 
-                if combined_score >= 75:
-                    st.success(f"🟢 **Strong Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                    st.write("Both value and quality metrics indicate a fundamentally sound investment candidate.")
-                elif combined_score >= 50:
-                    st.info(f"🟡 **Moderate Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                    st.write("Mixed fundamental signals - some strengths and weaknesses present.")
-                else:
-                    st.error(f"🔴 **Weak Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                    st.write("Fundamental analysis suggests caution - multiple areas of concern identified.")
+                # Display scores overview
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    if 'error' not in graham_data:
+                        st.metric(
+                            "Graham Score", 
+                            f"{graham_data.get('score', 0)}/10",
+                            f"Grade: {graham_data.get('grade', 'N/A')}"
+                        )
+                    else:
+                        st.metric("Graham Score", "N/A", "Data Limited")
+                
+                with col2:
+                    if 'error' not in piotroski_data:
+                        st.metric(
+                            "Piotroski F-Score", 
+                            f"{piotroski_data.get('score', 0)}/9",
+                            f"Grade: {piotroski_data.get('grade', 'N/A')}"
+                        )
+                    else:
+                        st.metric("Piotroski F-Score", "N/A", "Data Limited")
+                
+                with col3:
+                    if 'error' not in graham_data:
+                        st.metric(
+                            "Graham %", 
+                            f"{graham_data.get('percentage', 0):.0f}%",
+                            graham_data.get('interpretation', '')[:20] + "..."
+                        )
+                    else:
+                        st.metric("Graham %", "0%", "No Data")
+                
+                with col4:
+                    if 'error' not in piotroski_data:
+                        st.metric(
+                            "Piotroski %", 
+                            f"{piotroski_data.get('percentage', 0):.0f}%",
+                            piotroski_data.get('interpretation', '')[:20] + "..."
+                        )
+                    else:
+                        st.metric("Piotroski %", "0%", "No Data")
+                
+                # Detailed breakdown
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.subheader("🏛️ Benjamin Graham Value Score")
+                    if 'error' not in graham_data and graham_data.get('criteria'):
+                        st.write(f"**Overall Assessment:** {graham_data.get('interpretation', 'N/A')}")
+                        st.write("**Criteria Breakdown:**")
+                        for criterion in graham_data['criteria']:
+                            st.write(f"• {criterion}")
+                    else:
+                        st.warning(f"⚠️ Graham analysis unavailable: {graham_data.get('error', 'Unknown error')}")
+                        st.info("💡 **Graham Score evaluates:**\n"
+                               "• P/E and P/B ratios\n"
+                               "• Debt levels and liquidity\n" 
+                               "• Earnings and revenue growth\n"
+                               "• Dividend policy")
+                
+                with col2:
+                    st.subheader("🏆 Piotroski F-Score Quality")
+                    if 'error' not in piotroski_data and piotroski_data.get('criteria'):
+                        st.write(f"**Overall Assessment:** {piotroski_data.get('interpretation', 'N/A')}")
+                        st.write("**Criteria Breakdown:**")
+                        for criterion in piotroski_data['criteria']:
+                            st.write(f"• {criterion}")
+                    else:
+                        st.warning(f"⚠️ Piotroski analysis unavailable: {piotroski_data.get('error', 'Unknown error')}")
+                        st.info("💡 **Piotroski F-Score evaluates:**\n"
+                               "• Profitability trends\n"
+                               "• Leverage and liquidity changes\n"
+                               "• Operating efficiency improvements\n"
+                               "• Overall financial quality")
+                
+                # Combined interpretation
+                if 'error' not in graham_data and 'error' not in piotroski_data:
+                    combined_score = (graham_data.get('percentage', 0) + piotroski_data.get('percentage', 0)) / 2
+                    
+                    if combined_score >= 75:
+                        st.success(f"🟢 **Strong Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                        st.write("Both value and quality metrics indicate a fundamentally sound investment candidate.")
+                    elif combined_score >= 50:
+                        st.info(f"🟡 **Moderate Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                        st.write("Mixed fundamental signals - some strengths and weaknesses present.")
+                    else:
+                        st.error(f"🔴 **Weak Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                        st.write("Fundamental analysis suggests caution - multiple areas of concern identified.")
+            
+            elif is_etf_symbol:
+                st.info(f"ℹ️ **{symbol} is an ETF** - Fundamental analysis (Graham Score & Piotroski F-Score) is not applicable to Exchange-Traded Funds. ETFs represent baskets of securities and don't have individual company financials to analyze.")
 
             # ============================================================
             # SECTION 2: MARKET COMPARISON ANALYSIS

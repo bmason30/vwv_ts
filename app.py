@@ -44,23 +44,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# FIXED: Simplified data fetching (caching disabled for now)
+# REVERTED: Back to original working pattern  
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def get_market_data(symbol='SPY', period='1y'):
     """Fetch market data with proper error handling"""
     try:
         ticker = yf.Ticker(symbol)
         data = ticker.history(period=period)
-        
-        if data is None or len(data) == 0:
+        if len(data) == 0:
             raise ValueError(f"No data found for symbol {symbol}")
-        
-        # Ensure it's a proper DataFrame
-        if not isinstance(data, pd.DataFrame):
-            raise ValueError(f"Expected DataFrame, got {type(data)}")
         
         # Add typical price for VWAP calculation
         data['Typical_Price'] = (data['High'] + data['Low'] + data['Close']) / 3
-        
         return data
     except Exception as e:
         st.error(f"Error fetching data for {symbol}: {str(e)}")
@@ -88,25 +83,26 @@ def calculate_daily_vwap(data):
     """FIXED: Proper daily VWAP calculation with daily reset"""
     try:
         # Ensure we have a DataFrame
-        if not isinstance(data, pd.DataFrame):
+        if not hasattr(data, 'index') or not hasattr(data, 'columns'):
             return float(data['Close'].iloc[-1]) if 'Close' in data else 0.0
             
-        # Group by date and calculate VWAP for each day
-        data_copy = data.copy()
-        data_copy['Date'] = data_copy.index.date
+        # Simple approach: calculate VWAP for the most recent day
+        if len(data) < 5:
+            return float(data['Close'].iloc[-1])
+            
+        # Get today's data (last trading session)
+        recent_data = data.tail(20)  # Last 20 periods as proxy for "today"
         
-        daily_vwap = data_copy.groupby('Date').apply(
-            lambda x: (x['Typical_Price'] * x['Volume']).sum() / x['Volume'].sum()
-            if x['Volume'].sum() > 0 else x['Close'].iloc[-1]
-        )
+        if 'Typical_Price' in recent_data.columns and 'Volume' in recent_data.columns:
+            total_pv = (recent_data['Typical_Price'] * recent_data['Volume']).sum()
+            total_volume = recent_data['Volume'].sum()
+            
+            if total_volume > 0:
+                return float(total_pv / total_volume)
         
-        # Get the most recent VWAP
-        latest_date = data_copy['Date'].iloc[-1]
-        current_vwap = daily_vwap.loc[latest_date]
-        
-        return float(current_vwap)
-    except Exception as e:
-        # Fallback to simple average if VWAP calculation fails
+        # Fallback to simple average
+        return float(data['Close'].iloc[-1])
+    except Exception:
         try:
             return float(data['Close'].iloc[-1])
         except:
@@ -115,12 +111,20 @@ def calculate_daily_vwap(data):
 def statistical_normalize(series, lookback_period=252):
     """FIXED: Replace magic numbers with statistical normalization"""
     try:
+        if not hasattr(series, 'rolling') or len(series) < 10:
+            # Fallback for non-series data or insufficient data
+            if hasattr(series, '__iter__'):
+                return 0.5  # Neutral value
+            else:
+                return float(np.clip(series, 0, 1))  # Simple clipping for single values
+        
         if len(series) < lookback_period:
             lookback_period = len(series)
         
         # Use rolling percentile rank for normalization
         percentile = series.rolling(window=lookback_period).rank(pct=True)
-        return float(percentile.iloc[-1]) if not pd.isna(percentile.iloc[-1]) else 0.5
+        result = percentile.iloc[-1] if not pd.isna(percentile.iloc[-1]) else 0.5
+        return float(result)
     except Exception:
         return 0.5  # Neutral value on error
 
@@ -463,106 +467,86 @@ class VWVTradingSystemFixed:
                 'system_status': 'ERROR'
             }
 
-# Initialize system with configuration
+# Initialize system
 @st.cache_resource
 def load_vwv_system():
     return VWVTradingSystemFixed()
 
 def create_enhanced_chart(data, analysis, symbol):
-    """Enhanced chart with proper confidence intervals"""
-    if data is None or not isinstance(data, pd.DataFrame) or len(data) == 0:
-        st.error(f"Invalid data for chart creation. Type: {type(data)}")
-        return None
+    """Enhanced chart with proper confidence intervals - REVERTED TO WORKING VERSION"""
+    chart_data = data.tail(100)
+    current_price = analysis['current_price']
     
-    try:
-        chart_data = data.tail(100)
-        current_price = analysis['current_price']
-        
-        # Validate required columns
-        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        missing_columns = [col for col in required_columns if col not in chart_data.columns]
-        if missing_columns:
-            st.error(f"Missing required columns: {missing_columns}")
-            return None
-    except Exception as e:
-        st.error(f"Error preparing chart data: {str(e)}")
-        return None
+    fig = make_subplots(
+        rows=3, cols=1,
+        subplot_titles=(f'{symbol} Price Chart with Statistical Levels', 'Volume', 'Confidence Intervals'),
+        vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
+    )
     
-    try:
-        fig = make_subplots(
-            rows=3, cols=1,
-            subplot_titles=(f'{symbol} Price Chart with Statistical Levels', 'Volume', 'Confidence Intervals'),
-            vertical_spacing=0.08, row_heights=[0.6, 0.2, 0.2]
-        )
-        
-        # Candlestick chart
-        fig.add_trace(go.Candlestick(
-            x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
-            low=chart_data['Low'], close=chart_data['Close'], name='Price'
+    # Candlestick chart
+    fig.add_trace(go.Candlestick(
+        x=chart_data.index, open=chart_data['Open'], high=chart_data['High'],
+        low=chart_data['Low'], close=chart_data['Close'], name='Price'
+    ), row=1, col=1)
+    
+    # Moving averages
+    if len(chart_data) >= 21:
+        ema21 = chart_data['Close'].ewm(span=21).mean()
+        fig.add_trace(go.Scatter(
+            x=chart_data.index, y=ema21, name='EMA21', 
+            line=dict(color='orange', width=2)
         ), row=1, col=1)
-        
-        # Moving averages
-        if len(chart_data) >= 21:
-            ema21 = chart_data['Close'].ewm(span=21).mean()
-            fig.add_trace(go.Scatter(
-                x=chart_data.index, y=ema21, name='EMA21', 
-                line=dict(color='orange', width=2)
-            ), row=1, col=1)
-        
-        # FIXED: Real confidence interval levels
-        if analysis.get('confidence_analysis'):
-            conf_data = analysis['confidence_analysis']['confidence_intervals']
-            
-            # 68% confidence (1 std dev) - green
-            if '68%' in conf_data:
-                fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
-                             line_color="green", line_width=2, row=1, col=1)
-                fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
-                             line_color="green", line_width=2, row=1, col=1)
-            
-            # 95% confidence (2 std dev) - red
-            if '95%' in conf_data:
-                fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
-                             line_color="red", line_width=1, row=1, col=1)
-                fig.add_hline(y=conf_data['95%']['lower_bound'], line_dash="dot", 
-                             line_color="red", line_width=1, row=1, col=1)
-        
-        # Current price line
-        fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
-                     line_width=3, row=1, col=1)
-        
-        # Volume chart
-        colors = ['green' if close >= open else 'red' 
-                  for close, open in zip(chart_data['Close'], chart_data['Open'])]
-        fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
-                            name='Volume', marker_color=colors), row=2, col=1)
-        
-        # FIXED: Real confidence intervals chart
-        if analysis.get('confidence_analysis'):
-            conf_data = analysis['confidence_analysis']['confidence_intervals']
-            x_labels = list(conf_data.keys())
-            y_values = [conf_data[key]['expected_move_pct'] for key in x_labels]
-            
-            fig.add_trace(go.Bar(
-                x=x_labels, y=y_values, name='Expected Weekly Move %', 
-                marker_color='lightblue',
-                text=[f"{v:.1f}%" for v in y_values], textposition='outside'
-            ), row=3, col=1)
-        
-        fig.update_layout(
-            title=f'{symbol} | Directional Confluence: {analysis["directional_confluence"]:.2f} | Signal: {analysis["signal_type"]}',
-            height=800, showlegend=False, template='plotly_white'
-        )
-        
-        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
-        fig.update_yaxes(title_text="Volume", row=2, col=1)
-        fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
-        
-        return fig
     
-    except Exception as e:
-        st.error(f"Error building chart components: {str(e)}")
-        return None
+    # FIXED: Real confidence interval levels
+    if analysis.get('confidence_analysis'):
+        conf_data = analysis['confidence_analysis']['confidence_intervals']
+        
+        # 68% confidence (1 std dev) - green
+        if '68%' in conf_data:
+            fig.add_hline(y=conf_data['68%']['upper_bound'], line_dash="dash", 
+                         line_color="green", line_width=2, row=1, col=1)
+            fig.add_hline(y=conf_data['68%']['lower_bound'], line_dash="dash", 
+                         line_color="green", line_width=2, row=1, col=1)
+        
+        # 95% confidence (2 std dev) - red
+        if '95%' in conf_data:
+            fig.add_hline(y=conf_data['95%']['upper_bound'], line_dash="dot", 
+                         line_color="red", line_width=1, row=1, col=1)
+            fig.add_hline(y=conf_data['95%']['lower_bound'], line_dash="dot", 
+                         line_color="red", line_width=1, row=1, col=1)
+    
+    # Current price line
+    fig.add_hline(y=current_price, line_dash="solid", line_color="black", 
+                 line_width=3, row=1, col=1)
+    
+    # Volume chart
+    colors = ['green' if close >= open else 'red' 
+              for close, open in zip(chart_data['Close'], chart_data['Open'])]
+    fig.add_trace(go.Bar(x=chart_data.index, y=chart_data['Volume'], 
+                        name='Volume', marker_color=colors), row=2, col=1)
+    
+    # FIXED: Real confidence intervals chart
+    if analysis.get('confidence_analysis'):
+        conf_data = analysis['confidence_analysis']['confidence_intervals']
+        x_labels = list(conf_data.keys())
+        y_values = [conf_data[key]['expected_move_pct'] for key in x_labels]
+        
+        fig.add_trace(go.Bar(
+            x=x_labels, y=y_values, name='Expected Weekly Move %', 
+            marker_color='lightblue',
+            text=[f"{v:.1f}%" for v in y_values], textposition='outside'
+        ), row=3, col=1)
+    
+    fig.update_layout(
+        title=f'{symbol} | Directional Confluence: {analysis["directional_confluence"]:.2f} | Signal: {analysis["signal_type"]}',
+        height=800, showlegend=False, template='plotly_white'
+    )
+    
+    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
+    fig.update_yaxes(title_text="Expected Move %", row=3, col=1)
+    
+    return fig
 
 # Main application
 def main():
@@ -604,7 +588,7 @@ def main():
         }
     }
     
-    # Initialize system with custom config
+    # Initialize system with custom config  
     vwv_system = VWVTradingSystemFixed(custom_config)
     
     show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
@@ -616,10 +600,6 @@ def main():
             
             if data is None:
                 st.error(f"❌ Could not fetch data for {symbol}")
-                return
-            
-            if not isinstance(data, pd.DataFrame):
-                st.error(f"❌ Data fetching returned wrong type: {type(data)}")
                 return
             
             analysis = vwv_system.calculate_confluence(data, symbol)

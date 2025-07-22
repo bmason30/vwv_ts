@@ -374,21 +374,17 @@ class VWVTradingSystemFixed:
     def calculate_confluence(self, data, symbol='SPY'):
         """FIXED: Main confluence calculation with directional bias"""
         try:
-            # IMPORTANT: Don't modify the original data - make a copy if needed
             if not isinstance(data, pd.DataFrame):
                 raise ValueError(f"Expected DataFrame, got {type(data)}")
             
-            # Make a copy to avoid modifying original
-            data_copy = data.copy()
-            
-            # Calculate all components using the copy
+            # Use original data directly (it's safe now)
             components = {
-                'wvf': self.calculate_williams_vix_fix(data_copy),
-                'ma': self.calculate_ma_confluence(data_copy),
-                'volume': self.calculate_volume_confluence(data_copy),
-                'vwap': self.calculate_vwap_analysis(data_copy),
-                'momentum': self.calculate_momentum(data_copy),
-                'volatility': self.calculate_volatility_filter(data_copy)
+                'wvf': self.calculate_williams_vix_fix(data),
+                'ma': self.calculate_ma_confluence(data),
+                'volume': self.calculate_volume_confluence(data),
+                'vwap': self.calculate_vwap_analysis(data),
+                'momentum': self.calculate_momentum(data),
+                'volatility': self.calculate_volatility_filter(data)
             }
             
             # Calculate raw confluence
@@ -396,7 +392,7 @@ class VWVTradingSystemFixed:
             base_confluence = raw_confluence * self.scaling_multiplier
             
             # FIXED: Incorporate trend direction into confluence
-            trend_analysis = self.calculate_trend_analysis(data_copy)
+            trend_analysis = self.calculate_trend_analysis(data)
             trend_bias = trend_analysis['trend_bias'] if trend_analysis else 0
             
             # Apply directional bias
@@ -419,11 +415,11 @@ class VWVTradingSystemFixed:
             if signal_type != 'NONE':
                 signal_type = f"{signal_type}_{signal_direction}"
             
-            current_price = round(float(data_copy['Close'].iloc[-1]), 2)
-            current_date = data_copy.index[-1].strftime('%Y-%m-%d')
+            current_price = round(float(data['Close'].iloc[-1]), 2)
+            current_date = data.index[-1].strftime('%Y-%m-%d')
             
             # Calculate confidence intervals
-            confidence_analysis = self.calculate_real_confidence_intervals(data_copy)
+            confidence_analysis = self.calculate_real_confidence_intervals(data)
             
             # Entry information
             entry_info = {}
@@ -474,13 +470,8 @@ def load_vwv_system():
 
 def create_enhanced_chart(data, analysis, symbol):
     """Enhanced chart with proper confidence intervals"""
-    # FIXED: Add data validation and type checking
-    if data is None:
-        st.error("No data available for chart creation")
-        return None
-    
-    if not isinstance(data, pd.DataFrame) or len(data) == 0:
-        st.error(f"Invalid data format for chart creation. Got {type(data)}")
+    if data is None or not isinstance(data, pd.DataFrame) or len(data) == 0:
+        st.error(f"Invalid data for chart creation. Type: {type(data)}")
         return None
     
     try:
@@ -493,7 +484,6 @@ def create_enhanced_chart(data, analysis, symbol):
         if missing_columns:
             st.error(f"Missing required columns: {missing_columns}")
             return None
-            
     except Exception as e:
         st.error(f"Error preparing chart data: {str(e)}")
         return None
@@ -622,24 +612,17 @@ def main():
     
     if analyze_button and symbol:
         with st.spinner(f"Analyzing {symbol} with fixed logic..."):
-            # Step 1: Fetch data
             data = get_market_data(symbol, period)
-            st.write(f"DEBUG 1 - After fetch, data type: {type(data)}")
             
             if data is None:
                 st.error(f"❌ Could not fetch data for {symbol}")
                 return
             
-            # Step 2: Ensure it's a DataFrame
             if not isinstance(data, pd.DataFrame):
                 st.error(f"❌ Data fetching returned wrong type: {type(data)}")
                 return
             
-            st.write(f"DEBUG 2 - Before analysis, data type: {type(data)}, shape: {data.shape}")
-            
-            # Step 3: Analysis
             analysis = vwv_system.calculate_confluence(data, symbol)
-            st.write(f"DEBUG 3 - After analysis, data type: {type(data)}")
             
             if 'error' in analysis:
                 st.error(f"❌ Analysis failed: {analysis['error']}")

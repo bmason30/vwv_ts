@@ -1677,20 +1677,19 @@ def main():
                     ("BB Lower", f"${bb_lower:.2f}", "📊 Volatility", lower_distance, lower_status, lower_signal),
                 ])
             
-            # Convert to DataFrame and display
+            # Convert to DataFrame and display with emoji indicators for signals
+            for i, row in enumerate(indicators_data):
+                if len(row) == 6:  # Has signal column
+                    signal = row[5]
+                    if signal == 'Bullish':
+                        indicators_data[i] = row[:5] + ('🟢 Bullish',)
+                    elif signal == 'Bearish':
+                        indicators_data[i] = row[:5] + ('🔴 Bearish',)
+                    else:
+                        indicators_data[i] = row[:5] + ('🟡 Neutral',)
+            
             df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status', 'Signal'])
-            
-            # Apply color coding to the Signal column
-            def color_signal(val):
-                if val == 'Bullish':
-                    return 'background-color: #d4edda; color: #155724'  # Green
-                elif val == 'Bearish':
-                    return 'background-color: #f8d7da; color: #721c24'  # Red
-                else:
-                    return 'background-color: #fff3cd; color: #856404'  # Yellow
-            
-            styled_df = df_technical.style.applymap(color_signal, subset=['Signal'])
-            st.dataframe(styled_df, use_container_width=True, hide_index=True)
+            st.dataframe(df_technical, use_container_width=True, hide_index=True)
             
             # Oscillators and Momentum
             st.subheader("📈 Momentum & Oscillator Analysis")

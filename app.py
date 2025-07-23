@@ -1972,8 +1972,68 @@ def main():
     </div>
     """, unsafe_allow_html=True)
 
+    # Initialize session state for recently viewed and watchlist
+    if 'recently_viewed' not in st.session_state:
+        st.session_state.recently_viewed = []
+    if 'custom_watchlist' not in st.session_state:
+        st.session_state.custom_watchlist = []
+
+    # Function to add symbol to recently viewed
+    def add_to_recently_viewed(symbol):
+        if symbol and symbol != "":
+            # Remove if already exists to avoid duplicates
+            if symbol in st.session_state.recently_viewed:
+                st.session_state.recently_viewed.remove(symbol)
+            # Add to front of list
+            st.session_state.recently_viewed.insert(0, symbol)
+            # Keep only last 5
+            st.session_state.recently_viewed = st.session_state.recently_viewed[:5]
+
     # Sidebar controls
     st.sidebar.title("📊 Trading Analysis")
+    
+    # Basic controls - use session state for symbol if set by quick links
+    if 'selected_symbol' in st.session_state:
+        default_symbol = st.session_state.selected_symbol
+        # Clear the selected symbol from session state after using it
+        del st.session_state.selected_symbol
+    else:
+        default_symbol = "SPY"
+        
+    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
+    period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
+    
+    # Main analyze button - positioned right after data period
+    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
+
+    # Debug toggle
+    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
+    
+    # Test button - only show if debug is enabled
+    if show_debug:
+        test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
+    else:
+        test_button = False
+    
+    # Check if auto-analyze was triggered by quick link
+    auto_analyze = st.session_state.get('auto_analyze', False)
+    if auto_analyze:
+        # Clear the auto-analyze flag
+        st.session_state.auto_analyze = False
+        # Set analyze_button to True to trigger analysis
+        analyze_button = True
+
+    # Recently Viewed section
+    if len(st.session_state.recently_viewed) > 0:
+        with st.sidebar.expander("🕒 Recently Viewed", expanded=False):
+            st.write("**Last 5 Analyzed Symbols**")
+            
+            # Display recently viewed symbols as buttons
+            for i, recent_symbol in enumerate(st.session_state.recently_viewed):
+                if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{i}", use_container_width=True, help=f"Re-analyze {recent_symbol}"):
+                    st.session_state.selected_symbol = recent_symbol
+                    st.session_state.auto_analyze = True
+                    st.rerun()
     
     # Quick Links section
     with st.sidebar.expander("🔗 Quick Links"):
@@ -2036,36 +2096,59 @@ def main():
                                 st.rerun()
             st.write("")  # Add spacing between categories
 
-    # Basic controls - use session state for symbol if set by quick links
-    if 'selected_symbol' in st.session_state:
-        default_symbol = st.session_state.selected_symbol
-        # Clear the selected symbol from session state after using it
-        del st.session_state.selected_symbol
-    else:
-        default_symbol = "SPY"
+    # Custom Watchlist section
+    with st.sidebar.expander("⭐ Custom Watchlist"):
+        st.write("**Personal Watch List**")
         
-    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
-    period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
-    
-    # Main analyze button - positioned right after data period
-    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
-
-    # Debug toggle
-    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
-    
-    # Test button - only show if debug is enabled
-    if show_debug:
-        test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
-    else:
-        test_button = False
-    
-    # Check if auto-analyze was triggered by quick link
-    auto_analyze = st.session_state.get('auto_analyze', False)
-    if auto_analyze:
-        # Clear the auto-analyze flag
-        st.session_state.auto_analyze = False
-        # Set analyze_button to True to trigger analysis
-        analyze_button = True
+        # Add symbol to watchlist
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            new_watchlist_symbol = st.text_input("", placeholder="Add symbol...", key="watchlist_input", label_visibility="collapsed")
+        with col2:
+            if st.button("➕", help="Add to watchlist", key="add_watchlist"):
+                if new_watchlist_symbol and new_watchlist_symbol.upper() not in st.session_state.custom_watchlist:
+                    st.session_state.custom_watchlist.append(new_watchlist_symbol.upper())
+                    st.rerun()
+        
+        # Display watchlist symbols
+        if len(st.session_state.custom_watchlist) > 0:
+            # Create rows of 2 buttons each (symbol + remove)
+            for i, watchlist_symbol in enumerate(st.session_state.custom_watchlist):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    if st.button(f"{watchlist_symbol}", key=f"watchlist_{watchlist_symbol}_{i}", use_container_width=True, help=f"Analyze {watchlist_symbol}"):
+                        st.session_state.selected_symbol = watchlist_symbol
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+                with col2:
+                    if st.button("❌", key=f"remove_{watchlist_symbol}_{i}", help=f"Remove {watchlist_symbol}"):
+                        st.session_state.custom_watchlist.remove(watchlist_symbol)
+                        st.rerun()
+            
+            # Clear all button
+            if st.button("🗑️ Clear All", key="clear_watchlist", help="Clear entire watchlist"):
+                st.session_state.custom_watchlist = []
+                st.rerun()
+                
+            # Export/Import functionality for persistence
+            st.write("---")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📥 Export", key="export_watchlist", help="Export watchlist as text"):
+                    watchlist_text = ",".join(st.session_state.custom_watchlist)
+                    st.code(watchlist_text, language=None)
+            with col2:
+                export_text = st.text_input("Import:", placeholder="AAPL,MSFT,TSLA", key="import_watchlist", label_visibility="collapsed")
+                if st.button("📤", key="import_watchlist_btn", help="Import watchlist from text"):
+                    if export_text:
+                        import_symbols = [s.strip().upper() for s in export_text.split(",") if s.strip()]
+                        # Add unique symbols only
+                        for sym in import_symbols:
+                            if sym not in st.session_state.custom_watchlist:
+                                st.session_state.custom_watchlist.append(sym)
+                        st.rerun()
+        else:
+            st.info("Add symbols to create your personal watchlist")
 
     # Position sizing controls
     with st.sidebar.expander("💰 Position Sizing"):
@@ -2105,6 +2188,9 @@ def main():
 
     # Test data fetch
     if test_button and symbol:
+        # Add symbol to recently viewed when testing
+        add_to_recently_viewed(symbol)
+        
         if show_debug:
             st.write("## 🧪 Data Fetch Test")
         else:
@@ -2133,6 +2219,9 @@ def main():
 
     # Full analysis
     elif analyze_button and symbol:
+        # Add symbol to recently viewed when analysis starts
+        add_to_recently_viewed(symbol)
+        
         st.write("## 📊 VWV Trading Analysis")
         
         with st.spinner(f"Analyzing {symbol}..."):

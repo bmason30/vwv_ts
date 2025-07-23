@@ -2716,86 +2716,86 @@ def main():
         point_of_control = enhanced_indicators.get('point_of_control', 0)
         
         # Build comprehensive indicators table
-            indicators_data = []
+        indicators_data = []
+        
+        # Current Price
+        indicators_data.append(("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current", 
+                              determine_signal("Current Price", current_price, current_price, "0.0%")))
+        
+        # Daily VWAP
+        vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A"
+        vwap_status = "Above" if current_price > daily_vwap else "Below"
+        indicators_data.append(("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", vwap_distance, vwap_status,
+                              determine_signal("Daily VWAP", current_price, daily_vwap, vwap_distance)))
+        
+        # Point of Control
+        poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A"
+        poc_status = "Above" if current_price > point_of_control else "Below"
+        indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status,
+                              determine_signal("Point of Control", current_price, point_of_control, poc_distance)))
+        
+        # Previous Week High
+        prev_high = comprehensive_technicals.get('prev_week_high', 0)
+        high_distance = f"{((current_price - prev_high) / prev_high * 100):+.2f}%" if prev_high > 0 else "N/A"
+        high_status = "Above" if current_price > prev_high else "Below"
+        indicators_data.append(("Prev Week High", f"${prev_high:.2f}", "📈 Resistance", high_distance, high_status,
+                              determine_signal("Prev Week High", current_price, prev_high, high_distance)))
+        
+        # Previous Week Low
+        prev_low = comprehensive_technicals.get('prev_week_low', 0)
+        low_distance = f"{((current_price - prev_low) / prev_low * 100):+.2f}%" if prev_low > 0 else "N/A"
+        low_status = "Above" if current_price > prev_low else "Below"
+        indicators_data.append(("Prev Week Low", f"${prev_low:.2f}", "📉 Support", low_distance, low_status,
+                              determine_signal("Prev Week Low", current_price, prev_low, low_distance)))
             
-            # Current Price
-            indicators_data.append(("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current", 
-                                  determine_signal("Current Price", current_price, current_price, "0.0%")))
+        # Add Fibonacci EMAs
+        for ema_name, ema_value in fibonacci_emas.items():
+            period = ema_name.split('_')[1]
+            distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
+            status = "Above" if current_price > ema_value else "Below"
+            signal = determine_signal(f"EMA {period}", current_price, ema_value, distance_pct)
+            indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status, signal))
+        
+        # Add Bollinger Bands
+        bb_data = comprehensive_technicals.get('bollinger_bands', {})
+        if bb_data:
+            # BB Upper
+            bb_upper = bb_data.get('upper', 0)
+            upper_distance = f"{((current_price - bb_upper) / bb_upper * 100):+.2f}%" if bb_upper > 0 else "N/A"
+            upper_status = f"Position: {bb_data.get('position', 50):.1f}%"
+            upper_signal = determine_signal("BB Upper", current_price, bb_upper, upper_distance, bb_data)
             
-            # Daily VWAP
-            vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A"
-            vwap_status = "Above" if current_price > daily_vwap else "Below"
-            indicators_data.append(("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", vwap_distance, vwap_status,
-                                  determine_signal("Daily VWAP", current_price, daily_vwap, vwap_distance)))
+            # BB Middle
+            bb_middle = bb_data.get('middle', 0)
+            middle_distance = f"{((current_price - bb_middle) / bb_middle * 100):+.2f}%" if bb_middle > 0 else "N/A"
+            middle_status = "Above" if current_price > bb_middle else "Below"
+            middle_signal = determine_signal("BB Middle", current_price, bb_middle, middle_distance, bb_data)
             
-            # Point of Control
-            poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A"
-            poc_status = "Above" if current_price > point_of_control else "Below"
-            indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status,
-                                  determine_signal("Point of Control", current_price, point_of_control, poc_distance)))
+            # BB Lower
+            bb_lower = bb_data.get('lower', 0)
+            lower_distance = f"{((current_price - bb_lower) / bb_lower * 100):+.2f}%" if bb_lower > 0 else "N/A"
+            lower_status = "Above" if current_price > bb_lower else "Below"
+            lower_signal = determine_signal("BB Lower", current_price, bb_lower, lower_distance, bb_data)
             
-            # Previous Week High
-            prev_high = comprehensive_technicals.get('prev_week_high', 0)
-            high_distance = f"{((current_price - prev_high) / prev_high * 100):+.2f}%" if prev_high > 0 else "N/A"
-            high_status = "Above" if current_price > prev_high else "Below"
-            indicators_data.append(("Prev Week High", f"${prev_high:.2f}", "📈 Resistance", high_distance, high_status,
-                                  determine_signal("Prev Week High", current_price, prev_high, high_distance)))
-            
-            # Previous Week Low
-            prev_low = comprehensive_technicals.get('prev_week_low', 0)
-            low_distance = f"{((current_price - prev_low) / prev_low * 100):+.2f}%" if prev_low > 0 else "N/A"
-            low_status = "Above" if current_price > prev_low else "Below"
-            indicators_data.append(("Prev Week Low", f"${prev_low:.2f}", "📉 Support", low_distance, low_status,
-                                  determine_signal("Prev Week Low", current_price, prev_low, low_distance)))
-            
-            # Add Fibonacci EMAs
-            for ema_name, ema_value in fibonacci_emas.items():
-                period = ema_name.split('_')[1]
-                distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
-                status = "Above" if current_price > ema_value else "Below"
-                signal = determine_signal(f"EMA {period}", current_price, ema_value, distance_pct)
-                indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status, signal))
-            
-            # Add Bollinger Bands
-            bb_data = comprehensive_technicals.get('bollinger_bands', {})
-            if bb_data:
-                # BB Upper
-                bb_upper = bb_data.get('upper', 0)
-                upper_distance = f"{((current_price - bb_upper) / bb_upper * 100):+.2f}%" if bb_upper > 0 else "N/A"
-                upper_status = f"Position: {bb_data.get('position', 50):.1f}%"
-                upper_signal = determine_signal("BB Upper", current_price, bb_upper, upper_distance, bb_data)
-                
-                # BB Middle
-                bb_middle = bb_data.get('middle', 0)
-                middle_distance = f"{((current_price - bb_middle) / bb_middle * 100):+.2f}%" if bb_middle > 0 else "N/A"
-                middle_status = "Above" if current_price > bb_middle else "Below"
-                middle_signal = determine_signal("BB Middle", current_price, bb_middle, middle_distance, bb_data)
-                
-                # BB Lower
-                bb_lower = bb_data.get('lower', 0)
-                lower_distance = f"{((current_price - bb_lower) / bb_lower * 100):+.2f}%" if bb_lower > 0 else "N/A"
-                lower_status = "Above" if current_price > bb_lower else "Below"
-                lower_signal = determine_signal("BB Lower", current_price, bb_lower, lower_distance, bb_data)
-                
-                indicators_data.extend([
-                    ("BB Upper", f"${bb_upper:.2f}", "📊 Volatility", upper_distance, upper_status, upper_signal),
-                    ("BB Middle", f"${bb_middle:.2f}", "📊 SMA 20", middle_distance, middle_status, middle_signal),
-                    ("BB Lower", f"${bb_lower:.2f}", "📊 Volatility", lower_distance, lower_status, lower_signal),
-                ])
-            
-            # Convert to DataFrame and display with emoji indicators for signals
-            for i, row in enumerate(indicators_data):
-                if len(row) == 6:  # Has signal column
-                    signal = row[5]
-                    if signal == 'Bullish':
-                        indicators_data[i] = row[:5] + ('🟢 Bullish',)
-                    elif signal == 'Bearish':
-                        indicators_data[i] = row[:5] + ('🔴 Bearish',)
-                    else:
-                        indicators_data[i] = row[:5] + ('🟡 Neutral',)
-            
-            df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status', 'Signal'])
-            st.dataframe(df_technical, use_container_width=True, hide_index=True)
+            indicators_data.extend([
+                ("BB Upper", f"${bb_upper:.2f}", "📊 Volatility", upper_distance, upper_status, upper_signal),
+                ("BB Middle", f"${bb_middle:.2f}", "📊 SMA 20", middle_distance, middle_status, middle_signal),
+                ("BB Lower", f"${bb_lower:.2f}", "📊 Volatility", lower_distance, lower_status, lower_signal),
+            ])
+        
+        # Convert to DataFrame and display with emoji indicators for signals
+        for i, row in enumerate(indicators_data):
+            if len(row) == 6:  # Has signal column
+                signal = row[5]
+                if signal == 'Bullish':
+                    indicators_data[i] = row[:5] + ('🟢 Bullish',)
+                elif signal == 'Bearish':
+                    indicators_data[i] = row[:5] + ('🔴 Bearish',)
+                else:
+                    indicators_data[i] = row[:5] + ('🟡 Neutral',)
+        
+        df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status', 'Signal'])
+        st.dataframe(df_technical, use_container_width=True, hide_index=True)
             
             # Oscillators and Momentum
             st.subheader("📈 Momentum & Oscillator Analysis")

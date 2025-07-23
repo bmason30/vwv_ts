@@ -79,24 +79,49 @@ st.markdown("""
             100% 100%;
     }
     
-    /* Bitcoin sun */
-    .bitcoin-sun {
+    /* Candlestick chart background */
+    .candlestick-chart {
         position: absolute;
-        top: 20px;
-        right: 50px;
-        width: 40px;
-        height: 40px;
-        background: radial-gradient(circle, #FFD700 0%, #FFA500 100%);
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        color: #8B4513;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
-        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
-        z-index: 2;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 1;
+        opacity: 0.3;
     }
+    
+    .candle {
+        position: absolute;
+        width: 6px;
+        background: #28a745;
+        border-radius: 1px;
+        transform: translateX(-50%);
+    }
+    
+    .candle::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: -8px;
+        width: 1px;
+        height: calc(100% + 16px);
+        background: currentColor;
+        transform: translateX(-50%);
+    }
+    
+    .candle-green {
+        background: #28a745;
+        color: #28a745;
+        box-shadow: 0 0 3px rgba(40, 167, 69, 0.4);
+    }
+    
+    .candle-red {
+        background: #dc3545;
+        color: #dc3545;
+        box-shadow: 0 0 3px rgba(220, 53, 69, 0.4);
+    }
+    
+    /* Remove bitcoin sun styling */
     
     /* Dollar signs in foam */
     .foam-dollars {
@@ -1927,7 +1952,17 @@ def main():
     # Header
     st.markdown("""
     <div class="main-header">
-        <div class="bitcoin-sun">₿</div>
+        <div class="candlestick-chart">
+            <div class="candle candle-green" style="left: 10%; height: 30px; top: 45%;"></div>
+            <div class="candle candle-red" style="left: 20%; height: 40px; top: 40%;"></div>
+            <div class="candle candle-green" style="left: 30%; height: 25px; top: 50%;"></div>
+            <div class="candle candle-green" style="left: 40%; height: 35px; top: 42%;"></div>
+            <div class="candle candle-red" style="left: 50%; height: 45px; top: 38%;"></div>
+            <div class="candle candle-green" style="left: 60%; height: 20px; top: 52%;"></div>
+            <div class="candle candle-green" style="left: 70%; height: 50px; top: 35%;"></div>
+            <div class="candle candle-red" style="left: 80%; height: 30px; top: 45%;"></div>
+            <div class="candle candle-green" style="left: 90%; height: 35px; top: 42%;"></div>
+        </div>
         <div class="foam-dollars">$ $ $ $ $ $ $</div>
         <div class="header-content">
             <h1>VWV Professional Trading System</h1>

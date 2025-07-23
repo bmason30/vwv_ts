@@ -307,6 +307,19 @@ def generate_cache_key(symbol: str, analysis_config: dict) -> str:
 def is_etf(symbol):
     """Detect if a symbol is an ETF"""
     try:
+        # Known individual stocks that should never be considered ETFs
+        known_stocks = {
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
+            'JPM', 'JNJ', 'UNH', 'V', 'PG', 'HD', 'MA', 'BAC', 'ABBV', 'PFE',
+            'KO', 'ADBE', 'PEP', 'TMO', 'COST', 'AVGO', 'NKE', 'MRK', 'ABT', 'CRM',
+            'LLY', 'ACN', 'TXN', 'DHR', 'WMT', 'NEE', 'VZ', 'ORCL', 'CMCSA', 'PM',
+            'DIS', 'BMY', 'RTX', 'HON', 'QCOM', 'UPS', 'T', 'AIG', 'LOW', 'MDT'
+        }
+        
+        # If it's a known individual stock, it's definitely not an ETF
+        if symbol.upper() in known_stocks:
+            return False
+        
         # Common ETF patterns and known ETFs
         etf_suffixes = ['ETF', 'FUND']
         common_etfs = {
@@ -314,7 +327,8 @@ def is_etf(symbol):
             'GLD', 'SLV', 'USO', 'UNG', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP',
             'XLY', 'XLU', 'XLRE', 'XLB', 'EFA', 'EEM', 'FXI', 'EWJ', 'EWG', 'EWU',
             'ARKK', 'ARKQ', 'ARKW', 'ARKG', 'ARKF', 'FNGU', 'FNGD', 'MAGS', 'SOXX',
-            'SMH', 'IBB', 'XBI', 'JETS', 'HACK', 'ESPO', 'ICLN', 'PBW', 'KWEB'
+            'SMH', 'IBB', 'XBI', 'JETS', 'HACK', 'ESPO', 'ICLN', 'PBW', 'KWEB',
+            'SPHB', 'SOXL', 'QQI', 'DIVO', 'URNM', 'GDX', 'FETH'
         }
         
         # Check if symbol is in known ETFs list
@@ -331,27 +345,40 @@ def is_etf(symbol):
             ticker = yf.Ticker(symbol)
             info = ticker.info
             
-            # Check various fields that might indicate ETF
-            security_type = info.get('quoteType', '').upper()
-            category = info.get('category', '').upper() 
-            fund_family = info.get('fundFamily', '').upper()
+            # More specific checks for ETF identification
+            quote_type = info.get('quoteType', '').upper()
             
-            if 'ETF' in security_type or 'ETF' in category or 'ETF' in fund_family:
+            # Only consider it an ETF if quoteType is specifically "ETF"
+            if quote_type == 'ETF':
                 return True
                 
-            # Check long name for ETF indicators
+            # Check category field but be more specific
+            category = info.get('category', '').upper()
+            if 'ETF' in category and ('EXCHANGE' in category or 'TRADED' in category):
+                return True
+                
+            # Check fund family but only if other indicators suggest ETF
+            fund_family = info.get('fundFamily', '').upper()
+            if fund_family and ('ETF' in fund_family or 'FUND' in fund_family):
+                # Double-check with security type
+                if quote_type in ['ETF', 'MUTUALFUND']:
+                    return True
+                    
+            # Be very specific about name checks to avoid false positives
             long_name = info.get('longName', '').upper()
             short_name = info.get('shortName', '').upper()
             
-            etf_keywords = ['ETF', 'EXCHANGE TRADED', 'INDEX FUND', 'TRUST']
-            for keyword in etf_keywords:
-                if keyword in long_name or keyword in short_name:
+            # Only flag as ETF if name explicitly contains ETF-specific terms
+            etf_name_indicators = ['EXCHANGE TRADED FUND', 'ETF']
+            for indicator in etf_name_indicators:
+                if indicator in long_name and quote_type != 'EQUITY':
                     return True
                     
-        except:
-            # If yfinance lookup fails, use pattern matching
-            pass
+        except Exception as e:
+            # If yfinance lookup fails, use conservative pattern matching
+            logger.debug(f"yfinance lookup failed for {symbol}: {e}")
         
+        # Default to False (assume it's a stock) if uncertain
         return False
         
     except Exception as e:

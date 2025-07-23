@@ -1319,44 +1319,6 @@ def calculate_options_levels_enhanced(current_price, volatility, days_to_expiry=
         return []
 
 @safe_calculation_wrapper
-def calculate_position_sizing(account_balance, risk_per_trade_pct=2.0, entry_price=None, stop_loss=None):
-    """Professional position sizing based on risk management principles"""
-    try:
-        if not entry_price or not stop_loss or account_balance <= 0:
-            return None
-            
-        risk_amount = account_balance * (risk_per_trade_pct / 100)
-        price_risk_per_share = abs(entry_price - stop_loss)
-        
-        if price_risk_per_share == 0:
-            return None
-            
-        position_size = risk_amount / price_risk_per_share
-        position_value = position_size * entry_price
-        
-        # Maximum position size (typically 10-20% of account)
-        max_position_pct = 15.0
-        max_position_value = account_balance * (max_position_pct / 100)
-        
-        if position_value > max_position_value:
-            position_size = max_position_value / entry_price
-            actual_risk = position_size * price_risk_per_share
-            actual_risk_pct = (actual_risk / account_balance) * 100
-        else:
-            actual_risk_pct = risk_per_trade_pct
-            
-        return {
-            'position_size': round(position_size, 0),
-            'position_value': round(position_value, 2),
-            'risk_amount': round(risk_amount, 2),
-            'actual_risk_pct': round(actual_risk_pct, 2),
-            'max_position_limited': position_value > max_position_value
-        }
-    except Exception as e:
-        logger.error(f"Position sizing calculation error: {e}")
-        return None
-
-@safe_calculation_wrapper
 def calculate_weekly_deviations(data):
     """Calculate weekly 1, 2, 3 standard deviation levels"""
     try:
@@ -2228,11 +2190,6 @@ def main():
         else:
             st.info("Add symbols to create your personal watchlist")
 
-    # Position sizing controls
-    with st.sidebar.expander("💰 Position Sizing"):
-        account_balance = st.number_input("Account Balance ($)", min_value=1000, value=100000, step=1000)
-        risk_per_trade = st.slider("Risk per Trade (%)", min_value=0.5, max_value=5.0, value=2.0, step=0.1)
-
     # System parameters
     with st.sidebar.expander("⚙️ System Parameters"):
         st.write("**Williams VIX Fix**")
@@ -2260,6 +2217,24 @@ def main():
 
     # Controls
     show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
+    
+    # Check for URL parameters for shareable links
+    try:
+        query_params = st.query_params
+        url_symbol = query_params.get("symbol", None)
+        url_period = query_params.get("period", None)
+        
+        if url_symbol and url_symbol != symbol:
+            # Update symbol and trigger analysis if URL parameter is different
+            symbol = url_symbol.upper()
+            st.session_state.selected_symbol = symbol
+            st.session_state.auto_analyze = True
+            if url_period and url_period in ['1mo', '3mo', '6mo', '1y', '2y']:
+                period = url_period
+            st.rerun()
+    except:
+        # If query params don't work in this Streamlit version, ignore
+        pass
 
     # Data manager
     data_manager = st.session_state.data_manager
@@ -2592,6 +2567,9 @@ def main():
             # SECTION 1.5: FUNDAMENTAL ANALYSIS (Skip for ETFs)
             # ============================================================
             
+            # Back to top link
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
             # Check if symbol is ETF
             enhanced_indicators = analysis_results.get('enhanced_indicators', {})
             graham_data = enhanced_indicators.get('graham_score', {})
@@ -2702,6 +2680,9 @@ def main():
             # ============================================================
             st.header("🌐 Market Correlation & Comparison Analysis")
             
+            # Back to top link
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
             market_correlations = enhanced_indicators.get('market_correlations', {})
             
             if market_correlations:
@@ -2759,6 +2740,9 @@ def main():
             # ============================================================
             st.header("🎯 Options Trading Analysis")
             
+            # Back to top link
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
             options_levels = enhanced_indicators.get('options_levels', [])
             
             if options_levels:
@@ -2803,14 +2787,6 @@ def main():
                 entry_info = analysis_results['entry_info']
                 direction = entry_info['direction']
                 
-                # Calculate position sizing
-                position_info = calculate_position_sizing(
-                    account_balance, 
-                    risk_per_trade, 
-                    entry_info['entry_price'], 
-                    entry_info['stop_loss']
-                )
-                
                 st.success(f"""
                 🚨 **VWV {direction} SIGNAL DETECTED**
                 
@@ -2823,24 +2799,25 @@ def main():
                 **Directional Confluence:** {analysis_results['directional_confluence']:.2f}
                 """)
                 
-                # Position sizing information
-                if position_info:
-                    st.subheader("💰 Position Sizing")
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Position Size", f"{position_info['position_size']:.0f} shares")
-                    with col2:
-                        st.metric("Position Value", f"${position_info['position_value']:,.2f}")
-                    with col3:
-                        st.metric("Risk Amount", f"${position_info['risk_amount']:,.2f}")
-                    with col4:
-                        st.metric("Risk %", f"{position_info['actual_risk_pct']:.2f}%")
-                    
-                    if position_info['max_position_limited']:
-                        st.warning("⚠️ Position size limited by maximum position rules (15% of account)")
+                # Generate shareable link
+                try:
+                    base_url = st.get_option("server.baseUrlPath") or ""
+                    if not base_url:
+                        # Fallback - create a simple shareable format
+                        shareable_params = f"?symbol={symbol}&period={period}"
+                        st.info(f"🔗 **Shareable Link:** Add `{shareable_params}` to your app URL to share this analysis")
+                    else:
+                        full_url = f"{base_url}?symbol={symbol}&period={period}"
+                        st.info(f"🔗 **Shareable Link:** {full_url}")
+                except:
+                    st.info(f"🔗 **Share this analysis:** Symbol={symbol}, Period={period}")
                     
             else:
                 st.info("⚪ **No VWV Signal** - Market conditions do not meet signal criteria")
+            
+            # Back to top link
+            st.markdown("---")
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
             
             # Show confluence components only if debug is on
             if show_debug:
@@ -2864,6 +2841,9 @@ def main():
             # ============================================================
             if show_chart:
                 st.header("📈 Technical Analysis Chart")
+                
+                # Back to top link
+                st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
                 
                 chart_market_data = data_manager.get_market_data_for_chart(symbol)
                 
@@ -2904,6 +2884,10 @@ def main():
                 
                 df_intervals = pd.DataFrame(final_intervals_data)
                 st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+            
+            # Final back to top link
+            st.markdown("---")
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
     
     else:
         st.markdown("""
@@ -2933,6 +2917,7 @@ def main():
         
         3. **🎯 Options Trading Analysis**
            - Enhanced premium selling strike levels (Black-Scholes)
+           - **Greeks**: Delta, Theta, and Beta for each strike
            - Probability of touch calculations
            - Put and call selling strategies
            - Risk-adjusted option levels for multiple expiries
@@ -2943,25 +2928,27 @@ def main():
            - Weekly standard deviation bands
            - Comprehensive visual analysis
         
-        ### 🔧 **Enhanced Features:**
+        ### 🚀 **Enhanced Features:**
         
         **📊 Technical Analysis**
         - **Williams VIX Fix**: ✅ **CORRECTED** - Proper formula implementation
-        - **Options Pricing**: ✅ **ENHANCED** - Black-Scholes approximation  
-        - **Signal Analysis**: New bullish/neutral/bearish column in indicators table
+        - **Options Pricing**: ✅ **ENHANCED** - Black-Scholes approximation with Greeks
+        - **Signal Analysis**: Bullish/neutral/bearish column in indicators table
         
         **💰 Fundamental Analysis**
         - **Graham Score**: Benjamin Graham's value investing criteria
         - **Piotroski F-Score**: 9-point financial quality assessment
         - **Combined Rating**: Integrated fundamental strength evaluation
         
-        **🚀 Risk Management**
-        - **Position Sizing**: Professional risk-based calculations
-        - **Account Integration**: Real position sizes with P&L projections
+        **🔗 Sharing & Navigation**
+        - **Shareable Links**: URL parameters preserve symbol and analysis settings
+        - **Back to Top Links**: Easy navigation throughout long analysis
+        - **Recently Viewed**: Track your last 5 analyzed symbols
+        - **Custom Watchlist**: Create and manage your personal symbol list
         
         **Start analyzing: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA, or any major symbol**
         
-        **System Status: ✅ ENHANCED WITH FUNDAMENTAL ANALYSIS**
+        **System Status: ✅ ENHANCED WITH SHARING & GREEKS**
         """)
 
 if __name__ == "__main__":

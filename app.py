@@ -2032,13 +2032,14 @@ def main():
                         with col:
                             if st.button(sym, help=symbol_descriptions[sym], key=f"quick_link_{sym}", use_container_width=True):
                                 st.session_state.selected_symbol = sym
+                                st.session_state.auto_analyze = True
                                 st.rerun()
             st.write("")  # Add spacing between categories
 
     # Basic controls - use session state for symbol if set by quick links
     if 'selected_symbol' in st.session_state:
         default_symbol = st.session_state.selected_symbol
-        # Clear the session state after using it
+        # Clear the selected symbol from session state after using it
         del st.session_state.selected_symbol
     else:
         default_symbol = "SPY"
@@ -2057,6 +2058,14 @@ def main():
         test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
     else:
         test_button = False
+    
+    # Check if auto-analyze was triggered by quick link
+    auto_analyze = st.session_state.get('auto_analyze', False)
+    if auto_analyze:
+        # Clear the auto-analyze flag
+        st.session_state.auto_analyze = False
+        # Set analyze_button to True to trigger analysis
+        analyze_button = True
 
     # Position sizing controls
     with st.sidebar.expander("💰 Position Sizing"):

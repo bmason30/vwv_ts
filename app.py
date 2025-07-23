@@ -758,6 +758,7 @@ def get_piotroski_interpretation(score):
     elif score >= 4: return "Average fundamental quality"
     elif score >= 2: return "Weak fundamental quality"
     else: return "Very weak fundamental quality"
+
 def get_market_data_enhanced(symbol='SPY', period='1y', show_debug=False):
     """Enhanced market data fetching with debug control"""
     try:
@@ -2971,355 +2972,355 @@ def main():
             elif is_etf_symbol:
                 st.info(f"ℹ️ **{symbol} is an ETF** - Fundamental analysis (Graham Score & Piotroski F-Score) is not applicable to Exchange-Traded Funds. ETFs represent baskets of securities and don't have individual company financials to analyze.")
 
-                # ============================================================
-                # SECTION 2: MARKET COMPARISON ANALYSIS
-                # ============================================================
-                st.header("🌐 Market Correlation & Comparison Analysis")
+            # ============================================================
+            # SECTION 2: MARKET COMPARISON ANALYSIS
+            # ============================================================
+            st.header("🌐 Market Correlation & Comparison Analysis")
+            
+            # Back to top link
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
+            market_correlations = enhanced_indicators.get('market_correlations', {})
+            
+            if market_correlations:
+                st.subheader("📊 ETF Correlation Analysis")
                 
-                # Back to top link
-                st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+                correlation_table_data = []
+                for etf, etf_data in market_correlations.items():
+                    correlation_table_data.append({
+                        'ETF': etf,
+                        'Correlation': f"{etf_data.get('correlation', 0):.3f}",
+                        'Beta': f"{etf_data.get('beta', 0):.3f}",
+                        'Relationship': etf_data.get('relationship', 'Unknown'),
+                        'Description': get_etf_description(etf)
+                    })
                 
-                market_correlations = enhanced_indicators.get('market_correlations', {})
+                df_correlations = pd.DataFrame(correlation_table_data)
+                st.dataframe(df_correlations, use_container_width=True, hide_index=True)
                 
-                if market_correlations:
-                    st.subheader("📊 ETF Correlation Analysis")
-                    
-                    correlation_table_data = []
-                    for etf, etf_data in market_correlations.items():
-                        correlation_table_data.append({
-                            'ETF': etf,
-                            'Correlation': f"{etf_data.get('correlation', 0):.3f}",
-                            'Beta': f"{etf_data.get('beta', 0):.3f}",
-                            'Relationship': etf_data.get('relationship', 'Unknown'),
-                            'Description': get_etf_description(etf)
-                        })
-                    
-                    df_correlations = pd.DataFrame(correlation_table_data)
-                    st.dataframe(df_correlations, use_container_width=True, hide_index=True)
-                    
-                    # Correlation interpretation
-                    st.write("**Correlation Interpretation:**")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.write("• **FNGD**: 🐻 3x Inverse Tech ETF")
-                        st.write("• Negative correlation expected")
-                    with col2:
-                        st.write("• **FNGU**: 🚀 3x Leveraged Tech ETF") 
-                        st.write("• Positive correlation for tech stocks")
-                    with col3:
-                        st.write("• **MAGS**: 🏛️ Mega-cap Growth ETF")
-                        st.write("• Broad market correlation")
-                else:
-                    st.warning("⚠️ Market correlation data not available")
+                # Correlation interpretation
+                st.write("**Correlation Interpretation:**")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.write("• **FNGD**: 🐻 3x Inverse Tech ETF")
+                    st.write("• Negative correlation expected")
+                with col2:
+                    st.write("• **FNGU**: 🚀 3x Leveraged Tech ETF") 
+                    st.write("• Positive correlation for tech stocks")
+                with col3:
+                    st.write("• **MAGS**: 🏛️ Mega-cap Growth ETF")
+                    st.write("• Broad market correlation")
+            else:
+                st.warning("⚠️ Market correlation data not available")
+            
+            # Broader market context
+            st.subheader("📈 Market Context")
+            trend_analysis = analysis_results.get('trend_analysis', {})
+            if trend_analysis:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    trend_dir = trend_analysis.get('trend_direction', 'N/A')
+                    trend_strength = trend_analysis.get('trend_strength', 0)
+                    st.metric("Trend Direction", trend_dir, f"Strength: {trend_strength:.1f}")
                 
-                # Broader market context
-                st.subheader("📈 Market Context")
-                trend_analysis = analysis_results.get('trend_analysis', {})
-                if trend_analysis:
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        trend_dir = trend_analysis.get('trend_direction', 'N/A')
-                        trend_strength = trend_analysis.get('trend_strength', 0)
-                        st.metric("Trend Direction", trend_dir, f"Strength: {trend_strength:.1f}")
-                    
-                    with col2:
-                        price_vs_ema21 = trend_analysis.get('price_vs_ema21', 0)
-                        st.metric("Price vs EMA21", f"{price_vs_ema21:+.2f}%")
-                    
-                    with col3:
-                        ema21_slope = trend_analysis.get('ema21_slope', 0)
-                        slope_trend = "📈 Rising" if ema21_slope > 0 else "📉 Falling"
-                        st.metric("EMA21 Slope", f"{ema21_slope:+.2f}%", slope_trend)
+                with col2:
+                    price_vs_ema21 = trend_analysis.get('price_vs_ema21', 0)
+                    st.metric("Price vs EMA21", f"{price_vs_ema21:+.2f}%")
                 
-                # ============================================================
-                # SECTION 3: OPTIONS ANALYSIS
-                # ============================================================
-                st.header("🎯 Options Trading Analysis")
+                with col3:
+                    ema21_slope = trend_analysis.get('ema21_slope', 0)
+                    slope_trend = "📈 Rising" if ema21_slope > 0 else "📉 Falling"
+                    st.metric("EMA21 Slope", f"{ema21_slope:+.2f}%", slope_trend)
+            
+            # ============================================================
+            # SECTION 3: OPTIONS ANALYSIS
+            # ============================================================
+            st.header("🎯 Options Trading Analysis")
+            
+            # Back to top link
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
+            options_levels = enhanced_indicators.get('options_levels', [])
+            
+            if options_levels:
+                st.subheader("💰 Premium Selling Levels with Greeks")
+                st.write("**Enhanced option strike levels with Delta, Theta, and Beta**")
                 
-                # Back to top link
-                st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+                df_options = pd.DataFrame(options_levels)
                 
-                options_levels = enhanced_indicators.get('options_levels', [])
+                # Style the dataframe for better readability
+                st.dataframe(df_options, use_container_width=True, hide_index=True)
                 
-                if options_levels:
-                    st.subheader("💰 Premium Selling Levels with Greeks")
-                    st.write("**Enhanced option strike levels with Delta, Theta, and Beta**")
-                    
-                    df_options = pd.DataFrame(options_levels)
-                    
-                    # Style the dataframe for better readability
-                    st.dataframe(df_options, use_container_width=True, hide_index=True)
-                    
-                    # Options context with Greeks explanation
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.info("**Put Selling Strategy:**\n"
-                               "• Sell puts below current price\n"
-                               "• Collect premium if stock stays above strike\n"
-                               "• Delta: Price sensitivity (~-0.16)\n"
-                               "• Theta: Daily time decay")
-                    
-                    with col2:
-                        st.info("**Call Selling Strategy:**\n"
-                               "• Sell calls above current price\n" 
-                               "• Collect premium if stock stays below strike\n"
-                               "• Delta: Price sensitivity (~+0.16)\n"
-                               "• Theta: Daily time decay")
-                    
-                    with col3:
-                        st.info("**Greeks Explained:**\n"
-                               "• **Delta**: Price sensitivity per $1 move\n"
-                               "• **Theta**: Daily time decay in option value\n"
-                               "• **Beta**: Underlying's market sensitivity\n"
-                               "• **PoT**: Probability of Touch %")
-                else:
-                    st.warning("⚠️ Options analysis not available - insufficient data")
+                # Options context with Greeks explanation
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.info("**Put Selling Strategy:**\n"
+                           "• Sell puts below current price\n"
+                           "• Collect premium if stock stays above strike\n"
+                           "• Delta: Price sensitivity (~-0.16)\n"
+                           "• Theta: Daily time decay")
                 
-                # VWV Signal Analysis
-                st.subheader("🎯 VWV Trading Signal")
+                with col2:
+                    st.info("**Call Selling Strategy:**\n"
+                           "• Sell calls above current price\n" 
+                           "• Collect premium if stock stays below strike\n"
+                           "• Delta: Price sensitivity (~+0.16)\n"
+                           "• Theta: Daily time decay")
                 
-                # Signal display
-                if analysis_results['signal_type'] != 'NONE':
-                    entry_info = analysis_results['entry_info']
-                    direction = entry_info['direction']
-                    
-                    st.success(f"""
-                    🚨 **VWV {direction} SIGNAL DETECTED**
-                    
-                    **Signal Strength:** {analysis_results['signal_type']}  
-                    **Direction:** {direction}  
-                    **Entry Price:** ${entry_info['entry_price']}  
-                    **Stop Loss:** ${entry_info['stop_loss']}  
-                    **Take Profit:** ${entry_info['take_profit']}  
-                    **Risk/Reward Ratio:** {entry_info['risk_reward']}:1  
-                    **Directional Confluence:** {analysis_results['directional_confluence']:.2f}
-                    """)
-                    
-                    # Generate shareable link
-                    try:
-                        base_url = st.get_option("server.baseUrlPath") or ""
-                        if not base_url:
-                            # Fallback - create a simple shareable format
-                            shareable_params = f"?symbol={symbol}&period={period}"
-                            st.info(f"🔗 **Shareable Link:** Add `{shareable_params}` to your app URL to share this analysis")
-                        else:
-                            full_url = f"{base_url}?symbol={symbol}&period={period}"
-                            st.info(f"🔗 **Shareable Link:** {full_url}")
-                    except:
-                        st.info(f"🔗 **Share this analysis:** Symbol={symbol}, Period={period}")
-                        
-                else:
-                    st.info("⚪ **No VWV Signal** - Market conditions do not meet signal criteria")
+                with col3:
+                    st.info("**Greeks Explained:**\n"
+                           "• **Delta**: Price sensitivity per $1 move\n"
+                           "• **Theta**: Daily time decay in option value\n"
+                           "• **Beta**: Underlying's market sensitivity\n"
+                           "• **PoT**: Probability of Touch %")
+            else:
+                st.warning("⚠️ Options analysis not available - insufficient data")
+            
+            # VWV Signal Analysis
+            st.subheader("🎯 VWV Trading Signal")
+            
+            # Signal display
+            if analysis_results['signal_type'] != 'NONE':
+                entry_info = analysis_results['entry_info']
+                direction = entry_info['direction']
                 
-                # Back to top link
-                st.markdown("---")
-                st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+                st.success(f"""
+                🚨 **VWV {direction} SIGNAL DETECTED**
                 
-                # Show confluence components and market regime analysis if debug is on
-                if show_debug:
-                    st.subheader("🔧 Enhanced VWV Analysis Breakdown")
-                    
-                    # Market Regime Analysis
-                    market_regime = analysis_results.get('market_regime', {})
-                    if market_regime:
-                        st.write("**📊 Market Regime Detection:**")
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Overall Regime", market_regime.get('regime', 'NORMAL'))
-                        with col2:
-                            st.metric("Volatility Regime", market_regime.get('volatility_regime', 'NORMAL'))
-                        with col3:
-                            st.metric("Trend Regime", market_regime.get('trend_regime', 'SIDEWAYS'))
-                    
-                    # Dynamic Weights vs Static Weights
-                    dynamic_weights = analysis_results.get('dynamic_weights', {})
-                    static_weights = vwv_system.weights
-                    
-                    if dynamic_weights:
-                        st.write("**⚖️ Dynamic Weight Adjustments:**")
-                        weight_comparison = []
-                        for component in dynamic_weights.keys():
-                            static_weight = static_weights.get(component, 0)
-                            dynamic_weight = dynamic_weights.get(component, 0)
-                            change = dynamic_weight - static_weight
-                            change_pct = (change / static_weight * 100) if static_weight != 0 else 0
-                            
-                            weight_comparison.append({
-                                'Component': component.upper(),
-                                'Static Weight': f"{static_weight:.3f}",
-                                'Dynamic Weight': f"{dynamic_weight:.3f}",
-                                'Change': f"{change:+.3f}",
-                                'Change %': f"{change_pct:+.1f}%"
-                            })
-                        
-                        df_weights = pd.DataFrame(weight_comparison)
-                        st.dataframe(df_weights, use_container_width=True, hide_index=True)
-                    
-                    # Enhanced WVF Details
-                    wvf_details = analysis_results.get('wvf_details', {})
-                    if wvf_details:
-                        st.write("**🎯 Enhanced Williams VIX Fix:**")
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Binary Signal", "🟢 ACTIVE" if wvf_details.get('binary_signal', 0) == 1 else "🔴 INACTIVE")
-                        with col2:
-                            st.metric("WVF Value", f"{wvf_details.get('wvf_value', 0):.2f}")
-                        with col3:
-                            st.metric("Upper Band", f"{wvf_details.get('upper_band', 0):.2f}")
-                        with col4:
-                            strength = wvf_details.get('normalized_strength', 0)
-                            st.metric("Signal Strength", f"{strength:+.3f}")
-                    
-                    # Component Breakdown
-                    st.write("**🔧 Component Analysis:**")
-                    comp_data = []
-                    for comp, value in analysis_results['components'].items():
-                        weight = dynamic_weights.get(comp, static_weights.get(comp, 0))
-                        contribution = round(value * weight, 3)
-                        comp_data.append({
-                            'Component': comp.upper(),
-                            'Normalized Value': f"{value:.3f}",
-                            'Dynamic Weight': f"{weight:.3f}",
-                            'Contribution': f"{contribution:.3f}"
-                        })
-                    
-                    df_components = pd.DataFrame(comp_data)
-                    st.dataframe(df_components, use_container_width=True, hide_index=True)
+                **Signal Strength:** {analysis_results['signal_type']}  
+                **Direction:** {direction}  
+                **Entry Price:** ${entry_info['entry_price']}  
+                **Stop Loss:** ${entry_info['stop_loss']}  
+                **Take Profit:** ${entry_info['take_profit']}  
+                **Risk/Reward Ratio:** {entry_info['risk_reward']}:1  
+                **Directional Confluence:** {analysis_results['directional_confluence']:.2f}
+                """)
                 
-                # ============================================================
-                # SECTION 4: INTERACTIVE CHART
-                # ============================================================
-                if show_chart:
-                    st.header("📈 Technical Analysis Chart")
-                    
-                    # Back to top link
-                    st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
-                    
-                    chart_market_data = data_manager.get_market_data_for_chart(symbol)
-                    
-                    if chart_market_data is None:
-                        st.error("❌ Could not get chart data")
-                        return
-                    
-                    chart = create_enhanced_chart(chart_market_data, analysis_results, symbol)
-                    
-                    if chart is not None:
-                        st.plotly_chart(chart, use_container_width=True)
-                        if show_debug:
-                            st.success("✅ Chart created successfully")
+                # Generate shareable link
+                try:
+                    base_url = st.get_option("server.baseUrlPath") or ""
+                    if not base_url:
+                        # Fallback - create a simple shareable format
+                        shareable_params = f"?symbol={symbol}&period={period}"
+                        st.info(f"🔗 **Shareable Link:** Add `{shareable_params}` to your app URL to share this analysis")
                     else:
-                        st.error("❌ Chart creation failed")
-                
-                # Statistical confidence intervals (if available)
-                if analysis_results.get('confidence_analysis'):
-                    st.subheader("📊 Statistical Confidence Intervals")
-                    confidence_data = analysis_results['confidence_analysis']
+                        full_url = f"{base_url}?symbol={symbol}&period={period}"
+                        st.info(f"🔗 **Shareable Link:** {full_url}")
+                except:
+                    st.info(f"🔗 **Share this analysis:** Symbol={symbol}, Period={period}")
                     
+            else:
+                st.info("⚪ **No VWV Signal** - Market conditions do not meet signal criteria")
+            
+            # Back to top link
+            st.markdown("---")
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+            
+            # Show confluence components and market regime analysis if debug is on
+            if show_debug:
+                st.subheader("🔧 Enhanced VWV Analysis Breakdown")
+                
+                # Market Regime Analysis
+                market_regime = analysis_results.get('market_regime', {})
+                if market_regime:
+                    st.write("**📊 Market Regime Detection:**")
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        st.metric("Mean Weekly Return", f"{confidence_data['mean_weekly_return']:.3f}%")
+                        st.metric("Overall Regime", market_regime.get('regime', 'NORMAL'))
                     with col2:
-                        st.metric("Weekly Volatility", f"{confidence_data['weekly_volatility']:.2f}%")
+                        st.metric("Volatility Regime", market_regime.get('volatility_regime', 'NORMAL'))
                     with col3:
-                        st.metric("Sample Size", f"{confidence_data['sample_size']} weeks")
-                    
-                    final_intervals_data = []
-                    for level, level_data in confidence_data['confidence_intervals'].items():
-                        final_intervals_data.append({
-                            'Confidence Level': level,
-                            'Upper Bound': f"${level_data['upper_bound']}",
-                            'Lower Bound': f"${level_data['lower_bound']}",
-                            'Expected Move': f"±{level_data['expected_move_pct']:.2f}%"
+                        st.metric("Trend Regime", market_regime.get('trend_regime', 'SIDEWAYS'))
+                
+                # Dynamic Weights vs Static Weights
+                dynamic_weights = analysis_results.get('dynamic_weights', {})
+                static_weights = vwv_system.weights
+                
+                if dynamic_weights:
+                    st.write("**⚖️ Dynamic Weight Adjustments:**")
+                    weight_comparison = []
+                    for component in dynamic_weights.keys():
+                        static_weight = static_weights.get(component, 0)
+                        dynamic_weight = dynamic_weights.get(component, 0)
+                        change = dynamic_weight - static_weight
+                        change_pct = (change / static_weight * 100) if static_weight != 0 else 0
+                        
+                        weight_comparison.append({
+                            'Component': component.upper(),
+                            'Static Weight': f"{static_weight:.3f}",
+                            'Dynamic Weight': f"{dynamic_weight:.3f}",
+                            'Change': f"{change:+.3f}",
+                            'Change %': f"{change_pct:+.1f}%"
                         })
                     
-                    df_intervals = pd.DataFrame(final_intervals_data)
-                    st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+                    df_weights = pd.DataFrame(weight_comparison)
+                    st.dataframe(df_weights, use_container_width=True, hide_index=True)
                 
-                # Final back to top link
-                st.markdown("---")
+                # Enhanced WVF Details
+                wvf_details = analysis_results.get('wvf_details', {})
+                if wvf_details:
+                    st.write("**🎯 Enhanced Williams VIX Fix:**")
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Binary Signal", "🟢 ACTIVE" if wvf_details.get('binary_signal', 0) == 1 else "🔴 INACTIVE")
+                    with col2:
+                        st.metric("WVF Value", f"{wvf_details.get('wvf_value', 0):.2f}")
+                    with col3:
+                        st.metric("Upper Band", f"{wvf_details.get('upper_band', 0):.2f}")
+                    with col4:
+                        strength = wvf_details.get('normalized_strength', 0)
+                        st.metric("Signal Strength", f"{strength:+.3f}")
+                
+                # Component Breakdown
+                st.write("**🔧 Component Analysis:**")
+                comp_data = []
+                for comp, value in analysis_results['components'].items():
+                    weight = dynamic_weights.get(comp, static_weights.get(comp, 0))
+                    contribution = round(value * weight, 3)
+                    comp_data.append({
+                        'Component': comp.upper(),
+                        'Normalized Value': f"{value:.3f}",
+                        'Dynamic Weight': f"{weight:.3f}",
+                        'Contribution': f"{contribution:.3f}"
+                    })
+                
+                df_components = pd.DataFrame(comp_data)
+                st.dataframe(df_components, use_container_width=True, hide_index=True)
+            
+            # ============================================================
+            # SECTION 4: INTERACTIVE CHART
+            # ============================================================
+            if show_chart:
+                st.header("📈 Technical Analysis Chart")
+                
+                # Back to top link
                 st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+                
+                chart_market_data = data_manager.get_market_data_for_chart(symbol)
+                
+                if chart_market_data is None:
+                    st.error("❌ Could not get chart data")
+                    return
+                
+                chart = create_enhanced_chart(chart_market_data, analysis_results, symbol)
+                
+                if chart is not None:
+                    st.plotly_chart(chart, use_container_width=True)
+                    if show_debug:
+                        st.success("✅ Chart created successfully")
+                else:
+                    st.error("❌ Chart creation failed")
+            
+            # Statistical confidence intervals (if available)
+            if analysis_results.get('confidence_analysis'):
+                st.subheader("📊 Statistical Confidence Intervals")
+                confidence_data = analysis_results['confidence_analysis']
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Mean Weekly Return", f"{confidence_data['mean_weekly_return']:.3f}%")
+                with col2:
+                    st.metric("Weekly Volatility", f"{confidence_data['weekly_volatility']:.2f}%")
+                with col3:
+                    st.metric("Sample Size", f"{confidence_data['sample_size']} weeks")
+                
+                final_intervals_data = []
+                for level, level_data in confidence_data['confidence_intervals'].items():
+                    final_intervals_data.append({
+                        'Confidence Level': level,
+                        'Upper Bound': f"${level_data['upper_bound']}",
+                        'Lower Bound': f"${level_data['lower_bound']}",
+                        'Expected Move': f"±{level_data['expected_move_pct']:.2f}%"
+                    })
+                
+                df_intervals = pd.DataFrame(final_intervals_data)
+                st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+            
+            # Final back to top link
+            st.markdown("---")
+            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+    
+    else:
+        st.markdown("""
+        ## 🛠️ VWV Professional Trading System - Enhanced with AI Feedback
         
-        else:
-            st.markdown("""
-            ## 🛠️ VWV Professional Trading System - Enhanced with AI Feedback
-            
-            ### ✅ **Recently Enhanced Based on AI Analysis:**
-            
-            **🎯 Williams VIX Fix Improvements:**
-            - **Binary Signal Logic**: Now uses proper binary signals (above/below Bollinger Band)
-            - **Enhanced Strength**: Combines binary signal + normalized strength for confluence
-            - **True to Design**: Faithful to Larry Williams' original indicator methodology
-            
-            **📊 Point of Control Refinements:**
-            - **Better Volume Weighting**: Intelligent volume distribution based on bar direction
-            - **Bullish Bars**: More weight to close (45%) and high (30%) prices
-            - **Bearish Bars**: More weight to close (45%) and low (30%) prices
-            - **Improved Accuracy**: More realistic volume profile approximation
-            
-            **⚖️ Dynamic Weight System:**
-            - **Market Regime Detection**: Automatically detects volatility and trend regimes
-            - **Adaptive Weights**: Component weights adjust based on market conditions
-            - **High Volatility**: Increases WVF and volatility indicator weights
-            - **Trending Markets**: Increases MA confluence and momentum weights
-            - **Low Volatility**: Increases volume and VWAP weights
-            
-            **🚀 Performance Optimizations:**
-            - **Correlation Caching**: Eliminates redundant API calls for market correlations
-            - **10-Minute Cache**: ETF correlation data cached for improved performance
-            - **Smart Data Management**: Efficient memory usage and faster analysis
-            
-            ### 📊 **Comprehensive Analysis Structure:**
-            
-            1. **📊 Individual Symbol Analysis**
-               - Enhanced technical indicators with improved calculations
-               - Dynamic signal weighting based on market regime
-               - Professional-grade volume and price analysis
-            
-            1.5. **📊 Fundamental Analysis**
-               - **Benjamin Graham Score**: Classic value investing criteria (0-10)
-               - **Piotroski F-Score**: Financial quality assessment (0-9)
-               - Intelligent ETF detection skips fundamental analysis appropriately
-            
-            2. **🌐 Market Correlation Analysis**
-               - Cached correlation calculations for better performance
-               - Beta analysis with major market ETFs
-               - Market relationship strength assessment
-            
-            3. **🎯 Options Trading Analysis**
-               - Black-Scholes approximation for accurate strike levels
-               - **Complete Greeks**: Delta, Theta, and Beta for each option
-               - Multiple expiration analysis with probability of touch
-            
-            4. **📈 Interactive Technical Chart**
-               - All Fibonacci EMAs with enhanced POC calculations
-               - VWAP and enhanced Point of Control levels
-               - Weekly standard deviation bands for key levels
-            
-            ### 🎛️ **Advanced Features:**
-            
-            **🧠 Market Intelligence**
-            - **Regime Detection**: Automatically adapts to market conditions
-            - **Dynamic Optimization**: Weights adjust for optimal performance
-            - **Binary Signal Logic**: True professional indicator methodology
-            
-            **⚡ Performance & Reliability**
-            - **Smart Caching**: Eliminates redundant data fetching
-            - **Enhanced Calculations**: More accurate financial mathematics
-            - **Professional Grade**: Institutional-quality analysis methods
-            
-            **🔗 User Experience**
-            - **80+ Quick Link Symbols**: Organized in 11 expandable categories
-            - **Recently Viewed**: 9-symbol grid with your analysis history
-            - **Custom Watchlist**: Personal symbol management with import/export
-            - **Shareable Links**: URL parameters preserve analysis settings
-            - **Reset to Defaults**: One-click parameter restoration
-            
-            **Start analyzing with enhanced AI-optimized calculations: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA**
-            
-            **System Status: ✅ ENHANCED WITH AI-DRIVEN OPTIMIZATIONS**
-            
-            *Latest improvements based on advanced AI analysis for maximum accuracy and performance.*
-            """)
+        ### ✅ **Recently Enhanced Based on AI Analysis:**
+        
+        **🎯 Williams VIX Fix Improvements:**
+        - **Binary Signal Logic**: Now uses proper binary signals (above/below Bollinger Band)
+        - **Enhanced Strength**: Combines binary signal + normalized strength for confluence
+        - **True to Design**: Faithful to Larry Williams' original indicator methodology
+        
+        **📊 Point of Control Refinements:**
+        - **Better Volume Weighting**: Intelligent volume distribution based on bar direction
+        - **Bullish Bars**: More weight to close (45%) and high (30%) prices
+        - **Bearish Bars**: More weight to close (45%) and low (30%) prices
+        - **Improved Accuracy**: More realistic volume profile approximation
+        
+        **⚖️ Dynamic Weight System:**
+        - **Market Regime Detection**: Automatically detects volatility and trend regimes
+        - **Adaptive Weights**: Component weights adjust based on market conditions
+        - **High Volatility**: Increases WVF and volatility indicator weights
+        - **Trending Markets**: Increases MA confluence and momentum weights
+        - **Low Volatility**: Increases volume and VWAP weights
+        
+        **🚀 Performance Optimizations:**
+        - **Correlation Caching**: Eliminates redundant API calls for market correlations
+        - **10-Minute Cache**: ETF correlation data cached for improved performance
+        - **Smart Data Management**: Efficient memory usage and faster analysis
+        
+        ### 📊 **Comprehensive Analysis Structure:**
+        
+        1. **📊 Individual Symbol Analysis**
+           - Enhanced technical indicators with improved calculations
+           - Dynamic signal weighting based on market regime
+           - Professional-grade volume and price analysis
+        
+        1.5. **📊 Fundamental Analysis**
+           - **Benjamin Graham Score**: Classic value investing criteria (0-10)
+           - **Piotroski F-Score**: Financial quality assessment (0-9)
+           - Intelligent ETF detection skips fundamental analysis appropriately
+        
+        2. **🌐 Market Correlation Analysis**
+           - Cached correlation calculations for better performance
+           - Beta analysis with major market ETFs
+           - Market relationship strength assessment
+        
+        3. **🎯 Options Trading Analysis**
+           - Black-Scholes approximation for accurate strike levels
+           - **Complete Greeks**: Delta, Theta, and Beta for each option
+           - Multiple expiration analysis with probability of touch
+        
+        4. **📈 Interactive Technical Chart**
+           - All Fibonacci EMAs with enhanced POC calculations
+           - VWAP and enhanced Point of Control levels
+           - Weekly standard deviation bands for key levels
+        
+        ### 🎛️ **Advanced Features:**
+        
+        **🧠 Market Intelligence**
+        - **Regime Detection**: Automatically adapts to market conditions
+        - **Dynamic Optimization**: Weights adjust for optimal performance
+        - **Binary Signal Logic**: True professional indicator methodology
+        
+        **⚡ Performance & Reliability**
+        - **Smart Caching**: Eliminates redundant data fetching
+        - **Enhanced Calculations**: More accurate financial mathematics
+        - **Professional Grade**: Institutional-quality analysis methods
+        
+        **🔗 User Experience**
+        - **80+ Quick Link Symbols**: Organized in 11 expandable categories
+        - **Recently Viewed**: 9-symbol grid with your analysis history
+        - **Custom Watchlist**: Personal symbol management with import/export
+        - **Shareable Links**: URL parameters preserve analysis settings
+        - **Reset to Defaults**: One-click parameter restoration
+        
+        **Start analyzing with enhanced AI-optimized calculations: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA**
+        
+        **System Status: ✅ ENHANCED WITH AI-DRIVEN OPTIMIZATIONS**
+        
+        *Latest improvements based on advanced AI analysis for maximum accuracy and performance.*
+        """)
 
 if __name__ == "__main__":
     main()

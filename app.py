@@ -2177,22 +2177,20 @@ def main():
             '📺 Other Stocks': ['AIG', 'GOOG']
         }
         
-        # Display symbols by category
+        # Display symbols by category using nested expanders
         for category, symbols in categories.items():
-            st.write(f"**{category}**")
-            
-            # Create rows of 3 buttons each
-            for i in range(0, len(symbols), 3):
-                cols = st.columns(3)
-                for j, col in enumerate(cols):
-                    if i + j < len(symbols):
-                        sym = symbols[i + j]
-                        with col:
-                            if st.button(sym, help=symbol_descriptions.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
-                                st.session_state.selected_symbol = sym
-                                st.session_state.auto_analyze = True
-                                st.rerun()
-            st.write("")  # Add spacing between categories
+            with st.expander(f"{category} ({len(symbols)} symbols)", expanded=False):
+                # Create rows of 3 buttons each
+                for i in range(0, len(symbols), 3):
+                    cols = st.columns(3)
+                    for j, col in enumerate(cols):
+                        if i + j < len(symbols):
+                            sym = symbols[i + j]
+                            with col:
+                                if st.button(sym, help=symbol_descriptions.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
+                                    st.session_state.selected_symbol = sym
+                                    st.session_state.auto_analyze = True
+                                    st.rerun()
 
     # Custom Watchlist section
     with st.sidebar.expander("⭐ Custom Watchlist"):
@@ -2250,14 +2248,72 @@ def main():
 
     # System parameters
     with st.sidebar.expander("⚙️ System Parameters"):
+        # Default values
+        defaults = {
+            'wvf_period': 22,
+            'wvf_multiplier': 2.0,
+            'good_threshold': 3.5,
+            'strong_threshold': 4.5,
+            'very_strong_threshold': 5.5
+        }
+        
+        # Reset to defaults button
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            st.write("**System Configuration**")
+        with col2:
+            if st.button("🔄 Reset", help="Reset to recommended defaults", key="reset_defaults"):
+                # Set reset flag to trigger slider resets
+                for key in defaults.keys():
+                    st.session_state[f"param_{key}"] = defaults[key]
+                st.rerun()
+        
         st.write("**Williams VIX Fix**")
-        wvf_period = st.slider("WVF Period", 10, 50, 22)
-        wvf_multiplier = st.slider("WVF Multiplier", 0.5, 3.0, 2.0, 0.1)
+        wvf_period = st.slider(
+            "WVF Period", 
+            10, 50, 
+            value=st.session_state.get('param_wvf_period', defaults['wvf_period']),
+            key='param_wvf_period'
+        )
+        wvf_multiplier = st.slider(
+            "WVF Multiplier", 
+            0.5, 3.0, 
+            value=st.session_state.get('param_wvf_multiplier', defaults['wvf_multiplier']), 
+            step=0.1,
+            key='param_wvf_multiplier'
+        )
 
         st.write("**Signal Thresholds**")
-        good_threshold = st.slider("Good Signal", 2.0, 5.0, 3.5, 0.1)
-        strong_threshold = st.slider("Strong Signal", 3.0, 6.0, 4.5, 0.1)
-        very_strong_threshold = st.slider("Very Strong Signal", 4.0, 7.0, 5.5, 0.1)
+        good_threshold = st.slider(
+            "Good Signal", 
+            2.0, 5.0, 
+            value=st.session_state.get('param_good_threshold', defaults['good_threshold']), 
+            step=0.1,
+            key='param_good_threshold'
+        )
+        strong_threshold = st.slider(
+            "Strong Signal", 
+            3.0, 6.0, 
+            value=st.session_state.get('param_strong_threshold', defaults['strong_threshold']), 
+            step=0.1,
+            key='param_strong_threshold'
+        )
+        very_strong_threshold = st.slider(
+            "Very Strong Signal", 
+            4.0, 7.0, 
+            value=st.session_state.get('param_very_strong_threshold', defaults['very_strong_threshold']), 
+            step=0.1,
+            key='param_very_strong_threshold'
+        )
+        
+        # Show current vs default indicator
+        current_values = [wvf_period, wvf_multiplier, good_threshold, strong_threshold, very_strong_threshold]
+        default_values = list(defaults.values())
+        
+        if current_values != default_values:
+            st.info("⚙️ Settings modified from defaults")
+        else:
+            st.success("✅ Using recommended defaults")
 
     # Controls
     show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
@@ -3018,8 +3074,10 @@ def main():
         **🔗 Sharing & Navigation**
         - **Shareable Links**: URL parameters preserve symbol and analysis settings
         - **Back to Top Links**: Easy navigation throughout long analysis
-        - **Recently Viewed**: Track your last 5 analyzed symbols
+        - **Recently Viewed**: Track your last 9 analyzed symbols (3x3 grid)
         - **Custom Watchlist**: Create and manage your personal symbol list
+        - **Nested Quick Links**: 80+ symbols organized in 11 expandable categories
+        - **Reset to Defaults**: One-click parameter reset in system settings
         
         **Start analyzing: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA, or any major symbol**
         

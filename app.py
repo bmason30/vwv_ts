@@ -1974,9 +1974,76 @@ def main():
 
     # Sidebar controls
     st.sidebar.title("📊 Trading Analysis")
+    
+    # Quick Links section
+    with st.sidebar.expander("🔗 Quick Links"):
+        st.write("**Popular Symbols**")
+        
+        # Symbol descriptions dictionary
+        symbol_descriptions = {
+            'QQQ': 'Invesco QQQ Trust - Nasdaq-100 ETF',
+            'SPY': 'SPDR S&P 500 ETF - Large Cap US Stocks',
+            'IWM': 'iShares Russell 2000 ETF - Small Cap US Stocks',
+            'GLD': 'SPDR Gold Shares - Physical Gold ETF',
+            'GDX': 'VanEck Gold Miners ETF - Gold Mining Stocks',
+            'SLV': 'iShares Silver Trust - Physical Silver ETF',
+            'URNM': 'North Shore Global Uranium Mining ETF',
+            'TSLA': 'Tesla Inc - Electric Vehicles & Clean Energy',
+            'AAPL': 'Apple Inc - Consumer Electronics & Technology',
+            'AMZN': 'Amazon.com Inc - E-commerce & Cloud Computing',
+            'NVDA': 'NVIDIA Corporation - Graphics & AI Chips',
+            'NFLX': 'Netflix Inc - Streaming Entertainment',
+            'MSFT': 'Microsoft Corporation - Software & Cloud Services',
+            'META': 'Meta Platforms Inc - Social Media & Metaverse',
+            'GOOG': 'Alphabet Inc - Google Search & Cloud',
+            'AIG': 'American International Group - Insurance',
+            'DIVO': 'Amplify CWP Enhanced Dividend Income ETF',
+            'UNH': 'UnitedHealth Group - Healthcare & Insurance',
+            'FNGD': 'MicroSectors FANG+ 3X Inverse Leveraged ETN',
+            'FNGU': 'MicroSectors FANG+ 3X Leveraged ETN',
+            'SPHB': 'Invesco S&P 500 High Beta ETF',
+            'TLT': 'iShares 20+ Year Treasury Bond ETF',
+            'SOXL': 'Direxion Semiconductor Bull 3X ETF',
+            'QQI': 'Invesco QQQ Trust Series I',
+            'MAGS': 'Roundhill Magnificent Seven ETF',
+            'DIS': 'The Walt Disney Company - Entertainment',
+            'FETH': 'Fidelity Ethereum ETF - Crypto Exposure'
+        }
+        
+        # Organize symbols by category
+        categories = {
+            '📈 Major ETFs': ['QQQ', 'SPY', 'IWM', 'MAGS', 'SPHB', 'TLT'],
+            '🥇 Commodities': ['GLD', 'GDX', 'SLV', 'URNM', 'FETH'],
+            '🚀 Tech Giants': ['TSLA', 'AAPL', 'AMZN', 'NVDA', 'MSFT', 'META', 'GOOG'],
+            '📺 Other Stocks': ['NFLX', 'AIG', 'DIVO', 'UNH', 'DIS'],
+            '⚡ Leveraged': ['FNGD', 'FNGU', 'SOXL', 'QQI']
+        }
+        
+        # Display symbols by category
+        for category, symbols in categories.items():
+            st.write(f"**{category}**")
+            
+            # Create rows of 3 buttons each
+            for i in range(0, len(symbols), 3):
+                cols = st.columns(3)
+                for j, col in enumerate(cols):
+                    if i + j < len(symbols):
+                        sym = symbols[i + j]
+                        with col:
+                            if st.button(sym, help=symbol_descriptions[sym], key=f"quick_link_{sym}", use_container_width=True):
+                                st.session_state.selected_symbol = sym
+                                st.rerun()
+            st.write("")  # Add spacing between categories
 
-    # Basic controls
-    symbol = st.sidebar.text_input("Symbol", value="SPY", help="Enter stock symbol").upper()
+    # Basic controls - use session state for symbol if set by quick links
+    if 'selected_symbol' in st.session_state:
+        default_symbol = st.session_state.selected_symbol
+        # Clear the session state after using it
+        del st.session_state.selected_symbol
+    else:
+        default_symbol = "SPY"
+        
+    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
     period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
     
     # Main analyze button - positioned right after data period

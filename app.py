@@ -1180,8 +1180,8 @@ def get_correlation_description(corr):
         return "Very Weak"
 
 @safe_calculation_wrapper
-def calculate_options_levels_enhanced(current_price, volatility, days_to_expiry=[7, 14, 30, 45], risk_free_rate=0.05):
-    """Enhanced options levels with proper Black-Scholes approximation"""
+def calculate_options_levels_enhanced(current_price, volatility, days_to_expiry=[7, 14, 30, 45], risk_free_rate=0.05, underlying_beta=1.0):
+    """Enhanced options levels with proper Black-Scholes approximation and Greeks"""
     try:
         from scipy.stats import norm
         import math
@@ -1207,19 +1207,43 @@ def calculate_options_levels_enhanced(current_price, volatility, days_to_expiry=
             call_strike = current_price * math.exp(drift - z_score * vol_term)
             
             # Probability of Touch (more accurate)
-            # PoT ≈ 2 * N(d) for puts, 2 * (1 - N(-d)) for calls
             prob_touch_put = 2 * norm.cdf(z_score) * 100
             prob_touch_call = 2 * (1 - norm.cdf(-z_score)) * 100
             
             # Expected move (1 standard deviation)
             expected_move = current_price * vol_annual * math.sqrt(T)
+            
+            # Calculate Greeks
+            # Delta calculation (approximate for 16-delta options)
+            put_delta = -0.16  # Put delta is negative
+            call_delta = 0.16   # Call delta is positive
+            
+            # Theta calculation (time decay per day)
+            # Simplified theta estimation: higher for ATM, lower for OTM
+            put_moneyness = put_strike / current_price
+            call_moneyness = call_strike / current_price
+            
+            # Theta increases as expiration approaches and decreases for OTM options
+            time_factor = math.sqrt(T)
+            
+            # Simplified theta calculation (option value / days remaining * time decay factor)
+            put_theta = -(current_price * vol_annual * 0.4 * put_moneyness) / math.sqrt(dte) if dte > 0 else 0
+            call_theta = -(current_price * vol_annual * 0.4 * call_moneyness) / math.sqrt(dte) if dte > 0 else 0
+            
+            # Beta (underlying's market beta - same for all options on same underlying)
+            option_beta = underlying_beta
 
             options_data.append({
                 'DTE': dte,
                 'Put Strike': round(put_strike, 2),
                 'Put PoT': f"{prob_touch_put:.1f}%",
+                'Put Delta': f"{put_delta:.2f}",
+                'Put Theta': f"{put_theta:.2f}",
                 'Call Strike': round(call_strike, 2),
-                'Call PoT': f"{prob_touch_call:.1f}%",
+                'Call PoT': f"{prob_touch_call:.1f}%", 
+                'Call Delta': f"{call_delta:.2f}",
+                'Call Theta': f"{call_theta:.2f}",
+                'Beta': f"{option_beta:.2f}",
                 'Expected Move': f"±{expected_move:.2f}"
             })
 
@@ -1237,13 +1261,25 @@ def calculate_options_levels_enhanced(current_price, volatility, days_to_expiry=
             
             prob_touch_put = min(32, 32 * (std_move / current_price) * 100)
             prob_touch_call = prob_touch_put
+            
+            # Simplified Greeks for fallback
+            put_delta = -0.16
+            call_delta = 0.16
+            put_theta = -(std_move * 0.1) / dte if dte > 0 else 0
+            call_theta = put_theta
+            option_beta = underlying_beta
 
             options_data.append({
                 'DTE': dte,
                 'Put Strike': round(put_strike, 2),
                 'Put PoT': f"{prob_touch_put:.1f}%",
+                'Put Delta': f"{put_delta:.2f}",
+                'Put Theta': f"{put_theta:.2f}",
                 'Call Strike': round(call_strike, 2),
                 'Call PoT': f"{prob_touch_call:.1f}%",
+                'Call Delta': f"{call_delta:.2f}",
+                'Call Theta': f"{call_theta:.2f}",
+                'Beta': f"{option_beta:.2f}",
                 'Expected Move': f"±{std_move:.2f}"
             })
         
@@ -1741,9 +1777,22 @@ class VWVTradingSystem:
             current_price = round(float(working_data['Close'].iloc[-1]), 2)
             current_date = working_data.index[-1].strftime('%Y-%m-%d')
 
-            # Calculate options levels
+            # Calculate options levels with Greeks
             volatility = comprehensive_technicals.get('volatility_20d', 20)
-            options_levels = calculate_options_levels_enhanced(current_price, volatility)
+            
+            # Get beta from market correlations (use SPY-equivalent or average)
+            underlying_beta = 1.0  # Default market beta
+            if market_correlations:
+                # Try to get beta from correlations, prefer broad market ETF
+                for etf in ['SPY', 'QQQ', 'MAGS']:  # Prefer broader market ETFs
+                    if etf in market_correlations and 'beta' in market_correlations[etf]:
+                        try:
+                            underlying_beta = abs(float(market_correlations[etf]['beta']))  # Use absolute value
+                            break
+                        except:
+                            continue
+            
+            options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
 
             # Confidence intervals
             confidence_analysis = self.calculate_real_confidence_intervals(working_data)
@@ -2684,25 +2733,36 @@ def main():
             options_levels = enhanced_indicators.get('options_levels', [])
             
             if options_levels:
-                st.subheader("💰 Premium Selling Levels")
-                st.write("**Enhanced option strike levels with Black-Scholes approximation**")
+                st.subheader("💰 Premium Selling Levels with Greeks")
+                st.write("**Enhanced option strike levels with Delta, Theta, and Beta**")
                 
                 df_options = pd.DataFrame(options_levels)
+                
+                # Style the dataframe for better readability
                 st.dataframe(df_options, use_container_width=True, hide_index=True)
                 
-                # Options context
-                col1, col2 = st.columns(2)
+                # Options context with Greeks explanation
+                col1, col2, col3 = st.columns(3)
                 with col1:
                     st.info("**Put Selling Strategy:**\n"
                            "• Sell puts below current price\n"
                            "• Collect premium if stock stays above strike\n"
-                           "• PoT = Probability of Touch")
+                           "• Delta: Price sensitivity (~-0.16)\n"
+                           "• Theta: Daily time decay")
                 
                 with col2:
                     st.info("**Call Selling Strategy:**\n"
                            "• Sell calls above current price\n" 
                            "• Collect premium if stock stays below strike\n"
-                           "• Lower PoT = Higher probability of profit")
+                           "• Delta: Price sensitivity (~+0.16)\n"
+                           "• Theta: Daily time decay")
+                
+                with col3:
+                    st.info("**Greeks Explained:**\n"
+                           "• **Delta**: Price sensitivity per $1 move\n"
+                           "• **Theta**: Daily time decay in option value\n"
+                           "• **Beta**: Underlying's market sensitivity\n"
+                           "• **PoT**: Probability of Touch %")
             else:
                 st.warning("⚠️ Options analysis not available - insufficient data")
             

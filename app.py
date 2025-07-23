@@ -30,13 +30,94 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        position: relative;
         padding: 2rem;
         border-radius: 10px;
         margin-bottom: 2rem;
         text-align: center;
-        color: white;
+        color: #ffffff;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        overflow: hidden;
+        
+        /* Great Wave inspired background */
+        background: 
+            /* Bitcoin sun */
+            radial-gradient(circle at 75% 25%, #FFD700 8%, transparent 12%),
+            /* Wave layers - multiple gradients to create wave effect */
+            radial-gradient(ellipse 200% 100% at 50% 90%, transparent 20%, #1a5f3f 21%, #1a5f3f 25%, transparent 26%),
+            radial-gradient(ellipse 250% 120% at 30% 85%, transparent 15%, #2d7a4f 16%, #2d7a4f 20%, transparent 21%),
+            radial-gradient(ellipse 300% 140% at 70% 80%, transparent 10%, #0f4229 11%, #0f4229 15%, transparent 16%),
+            radial-gradient(ellipse 180% 80% at 20% 75%, transparent 25%, #3a8f63 26%, #3a8f63 30%, transparent 31%),
+            radial-gradient(ellipse 220% 100% at 80% 70%, transparent 20%, #225c42 21%, #225c42 25%, transparent 26%),
+            /* Foam and froth effects with dollar signs */
+            radial-gradient(circle at 25% 60%, #7fb069 2%, transparent 3%),
+            radial-gradient(circle at 45% 65%, #8bc56a 1.5%, transparent 2.5%),
+            radial-gradient(circle at 65% 55%, #6fa054 2.5%, transparent 3.5%),
+            radial-gradient(circle at 85% 70%, #7fb069 1.8%, transparent 2.8%),
+            /* Base gradient */
+            linear-gradient(135deg, #0d3821 0%, #1a5f3f 30%, #2d7a4f  60%, #0f4229 100%);
+        
+        /* Animated wave effect */
+        background-size: 
+            20px 20px,  /* Bitcoin sun */
+            100% 100%,  /* Wave layers */
+            100% 100%,
+            100% 100%,
+            100% 100%,
+            100% 100%,
+            40px 40px,  /* Foam effects */
+            35px 35px,
+            45px 45px,
+            38px 38px,
+            100% 100%;  /* Base gradient */
     }
+    
+    /* Bitcoin symbol in the sun */
+    .main-header::before {
+        content: "₿";
+        position: absolute;
+        top: 25%;
+        right: 25%;
+        font-size: 24px;
+        color: #FF8C00;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        font-weight: bold;
+        transform: translate(50%, -50%);
+    }
+    
+    /* Dollar signs in the foam */
+    .main-header::after {
+        content: "$ $ $ $ $ $ $ $";
+        position: absolute;
+        top: 55%;
+        left: 0;
+        right: 0;
+        font-size: 12px;
+        color: rgba(255,255,255,0.6);
+        text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+        letter-spacing: 15px;
+        opacity: 0.7;
+    }
+    
+    .main-header h1 {
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
+        color: #ffffff;
+        text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
+        font-weight: bold;
+    }
+    
+    .main-header p {
+        color: #e8f5e8;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
+        margin: 0.3rem 0;
+    }
+    
+    .main-header em {
+        color: #d0e8d0;
+        font-style: italic;
+    }
+    
     .metric-card {
         background: white;
         padding: 1rem;
@@ -1818,7 +1899,7 @@ def main():
     # Header
     st.markdown("""
     <div class="main-header">
-        <h1>🚀 VWV Professional Trading System</h1>
+        <h1>VWV Professional Trading System</h1>
         <p>Advanced market analysis with enhanced technical indicators</p>
         <p><em>Features: Daily VWAP, Fibonacci EMAs, Point of Control, Weekly Deviations</em></p>
     </div>

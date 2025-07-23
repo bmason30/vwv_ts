@@ -2018,17 +2018,6 @@ def main():
     if 'custom_watchlist' not in st.session_state:
         st.session_state.custom_watchlist = []
 
-    # Function to add symbol to recently viewed
-    def add_to_recently_viewed(symbol):
-        if symbol and symbol != "":
-            # Remove if already exists to avoid duplicates
-            if symbol in st.session_state.recently_viewed:
-                st.session_state.recently_viewed.remove(symbol)
-            # Add to front of list
-            st.session_state.recently_viewed.insert(0, symbol)
-            # Keep only last 5
-            st.session_state.recently_viewed = st.session_state.recently_viewed[:5]
-
     # Sidebar controls
     st.sidebar.title("📊 Trading Analysis")
     
@@ -2046,77 +2035,146 @@ def main():
     # Main analyze button - positioned right after data period
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
 
-    # Debug toggle
-    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
-    
-    # Test button - only show if debug is enabled
-    if show_debug:
-        test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
-    else:
-        test_button = False
-    
-    # Check if auto-analyze was triggered by quick link
-    auto_analyze = st.session_state.get('auto_analyze', False)
-    if auto_analyze:
-        # Clear the auto-analyze flag
-        st.session_state.auto_analyze = False
-        # Set analyze_button to True to trigger analysis
-        analyze_button = True
-
-    # Recently Viewed section
+    # Recently Viewed section - now holds 9 symbols in 3x3 grid
     if len(st.session_state.recently_viewed) > 0:
         with st.sidebar.expander("🕒 Recently Viewed", expanded=False):
-            st.write("**Last 5 Analyzed Symbols**")
+            st.write("**Last 9 Analyzed Symbols**")
             
-            # Display recently viewed symbols as buttons
-            for i, recent_symbol in enumerate(st.session_state.recently_viewed):
-                if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{i}", use_container_width=True, help=f"Re-analyze {recent_symbol}"):
-                    st.session_state.selected_symbol = recent_symbol
-                    st.session_state.auto_analyze = True
-                    st.rerun()
+            # Display recently viewed symbols in 3x3 grid
+            recent_symbols = st.session_state.recently_viewed[:9]  # Take first 9
+            
+            # Create 3 rows of 3 columns each
+            for row in range(0, len(recent_symbols), 3):
+                cols = st.columns(3)
+                for col_idx, col in enumerate(cols):
+                    symbol_idx = row + col_idx
+                    if symbol_idx < len(recent_symbols):
+                        recent_symbol = recent_symbols[symbol_idx]
+                        with col:
+                            if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True, help=f"Re-analyze {recent_symbol}"):
+                                st.session_state.selected_symbol = recent_symbol
+                                st.session_state.auto_analyze = True
+                                st.rerun()
+
+    # Function to add symbol to recently viewed - updated for 9 symbols
+    def add_to_recently_viewed(symbol):
+        if symbol and symbol != "":
+            # Remove if already exists to avoid duplicates
+            if symbol in st.session_state.recently_viewed:
+                st.session_state.recently_viewed.remove(symbol)
+            # Add to front of list
+            st.session_state.recently_viewed.insert(0, symbol)
+            # Keep only last 9
+            st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
     
-    # Quick Links section
+    # Quick Links section with organized categories
     with st.sidebar.expander("🔗 Quick Links"):
-        st.write("**Popular Symbols**")
+        st.write("**Popular Symbols by Category**")
         
-        # Symbol descriptions dictionary
+        # Comprehensive symbol descriptions dictionary
         symbol_descriptions = {
-            'QQQ': 'Invesco QQQ Trust - Nasdaq-100 ETF',
+            # Index ETFs
             'SPY': 'SPDR S&P 500 ETF - Large Cap US Stocks',
+            'VOO': 'Vanguard S&P 500 ETF - Low Cost S&P 500',
+            'QQQ': 'Invesco QQQ Trust - Nasdaq-100 ETF',
             'IWM': 'iShares Russell 2000 ETF - Small Cap US Stocks',
+            'MAGS': 'Roundhill Magnificent Seven ETF',
+            'SPHB': 'Invesco S&P 500 High Beta ETF',
+            'TLT': 'iShares 20+ Year Treasury Bond ETF',
+            
+            # International
+            'EWW': 'iShares MSCI Mexico ETF',
+            'FXI': 'iShares China Large-Cap ETF',
+            'INDA': 'iShares MSCI India ETF',
+            'UUP': 'Invesco DB US Dollar Bullish ETF',
+            'UDN': 'Invesco DB US Dollar Bearish ETF',
+            
+            # Commodities
             'GLD': 'SPDR Gold Shares - Physical Gold ETF',
             'GDX': 'VanEck Gold Miners ETF - Gold Mining Stocks',
             'SLV': 'iShares Silver Trust - Physical Silver ETF',
             'URNM': 'North Shore Global Uranium Mining ETF',
+            'PHYS': 'Sprott Physical Gold Trust',
+            
+            # Income ETFs
+            'JEPI': 'JPMorgan Equity Premium Income ETF',
+            'DIVO': 'Amplify CWP Enhanced Dividend Income ETF',
+            'SCHD': 'Schwab US Dividend Equity ETF',
+            'SPYI': 'NEOS S&P 500 High Income ETF',
+            'HYG': 'iShares iBoxx High Yield Corporate Bond ETF',
+            'JNK': 'SPDR Bloomberg High Yield Bond ETF',
+            
+            # Tech Giants
             'TSLA': 'Tesla Inc - Electric Vehicles & Clean Energy',
             'AAPL': 'Apple Inc - Consumer Electronics & Technology',
-            'AMZN': 'Amazon.com Inc - E-commerce & Cloud Computing',
-            'NVDA': 'NVIDIA Corporation - Graphics & AI Chips',
-            'NFLX': 'Netflix Inc - Streaming Entertainment',
             'MSFT': 'Microsoft Corporation - Software & Cloud Services',
+            'NVDA': 'NVIDIA Corporation - Graphics & AI Chips',
+            'AMZN': 'Amazon.com Inc - E-commerce & Cloud Computing',
+            'GOOGL': 'Alphabet Inc - Google Search & Cloud',
+            'NFLX': 'Netflix Inc - Streaming Entertainment',
             'META': 'Meta Platforms Inc - Social Media & Metaverse',
-            'GOOG': 'Alphabet Inc - Google Search & Cloud',
-            'AIG': 'American International Group - Insurance',
-            'DIVO': 'Amplify CWP Enhanced Dividend Income ETF',
+            
+            # Semiconductors
+            'CHIPS': 'SPDR S&P Semiconductor ETF',
+            'SMCI': 'Super Micro Computer Inc - AI Server Hardware',
+            'INTC': 'Intel Corporation - Semiconductor Chips',
+            'MU': 'Micron Technology - Memory & Storage',
+            'AVGO': 'Broadcom Inc - Semiconductor Solutions',
+            'AMD': 'Advanced Micro Devices - CPU & GPU',
+            'LRCX': 'Lam Research - Semiconductor Equipment',
+            'QCOM': 'Qualcomm Inc - Mobile Chip Technology',
+            'SOXL': 'Direxion Semiconductor Bull 3X ETF',
+            
+            # Software & AI
+            'NET': 'Cloudflare Inc - Web Infrastructure & Security',
+            'PLTR': 'Palantir Technologies - Big Data Analytics',
+            'SNOW': 'Snowflake Inc - Cloud Data Platform',
+            'PANW': 'Palo Alto Networks - Cybersecurity',
+            'ORCL': 'Oracle Corporation - Database Software',
+            'AI': 'C3.ai Inc - Enterprise AI Software',
+            
+            # Blue Chips
             'UNH': 'UnitedHealth Group - Healthcare & Insurance',
+            'HD': 'The Home Depot - Home Improvement Retail',
+            'COST': 'Costco Wholesale - Membership Retail',
+            'WMT': 'Walmart Inc - Retail & E-commerce',
+            'V': 'Visa Inc - Payment Processing',
+            'GS': 'Goldman Sachs Group - Investment Banking',
+            'DIS': 'The Walt Disney Company - Entertainment',
+            'CAT': 'Caterpillar Inc - Heavy Machinery',
+            'BA': 'Boeing Company - Aerospace & Defense',
+            'XOM': 'Exxon Mobil Corporation - Oil & Gas',
+            
+            # Leveraged ETFs
             'FNGD': 'MicroSectors FANG+ 3X Inverse Leveraged ETN',
             'FNGU': 'MicroSectors FANG+ 3X Leveraged ETN',
-            'SPHB': 'Invesco S&P 500 High Beta ETF',
-            'TLT': 'iShares 20+ Year Treasury Bond ETF',
-            'SOXL': 'Direxion Semiconductor Bull 3X ETF',
-            'QQI': 'Invesco QQQ Trust Series I',
-            'MAGS': 'Roundhill Magnificent Seven ETF',
-            'DIS': 'The Walt Disney Company - Entertainment',
-            'FETH': 'Fidelity Ethereum ETF - Crypto Exposure'
+            'TZA': 'Direxion Small Cap Bear 3X ETF',
+            
+            # Crypto & Digital Assets
+            'FETH': 'Fidelity Ethereum ETF - Crypto Exposure',
+            'BTC': 'Bitcoin ETF - Digital Asset Exposure',
+            'IBIT': 'iShares Bitcoin Trust ETF',
+            'COIN': 'Coinbase Global Inc - Crypto Exchange',
+            'MARA': 'Marathon Digital Holdings - Bitcoin Mining',
+            
+            # Others
+            'AIG': 'American International Group - Insurance',
+            'GOOG': 'Alphabet Inc Class C - Google Parent'
         }
         
-        # Organize symbols by category
+        # Organize symbols by category with better groupings
         categories = {
-            '📈 Major ETFs': ['QQQ', 'SPY', 'IWM', 'MAGS', 'SPHB', 'TLT'],
-            '🥇 Commodities': ['GLD', 'GDX', 'SLV', 'URNM', 'FETH'],
-            '🚀 Tech Giants': ['TSLA', 'AAPL', 'AMZN', 'NVDA', 'MSFT', 'META', 'GOOG'],
-            '📺 Other Stocks': ['NFLX', 'AIG', 'DIVO', 'UNH', 'DIS'],
-            '⚡ Leveraged': ['FNGD', 'FNGU', 'SOXL', 'QQI']
+            '📈 Index ETFs': ['SPY', 'VOO', 'QQQ', 'IWM', 'MAGS', 'SPHB', 'TLT'],
+            '🌍 International': ['EWW', 'FXI', 'INDA', 'UUP', 'UDN'],
+            '🥇 Commodities': ['GLD', 'GDX', 'SLV', 'URNM', 'PHYS'],
+            '💰 Income ETFs': ['JEPI', 'DIVO', 'SCHD', 'SPYI', 'HYG', 'JNK'],
+            '🚀 Tech Giants': ['TSLA', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'NFLX', 'META'],
+            '💾 Semiconductors': ['CHIPS', 'SMCI', 'INTC', 'MU', 'AVGO', 'AMD', 'LRCX', 'QCOM', 'SOXL'],
+            '🌐 Software & AI': ['NET', 'PLTR', 'SNOW', 'PANW', 'ORCL', 'AI'],
+            '🏢 Blue Chips': ['UNH', 'HD', 'COST', 'WMT', 'V', 'GS', 'DIS', 'CAT', 'BA', 'XOM'],
+            '⚡ Leveraged': ['FNGD', 'FNGU', 'TZA'],
+            '🪙 Crypto & Digital': ['FETH', 'BTC', 'IBIT', 'COIN', 'MARA'],
+            '📺 Other Stocks': ['AIG', 'GOOG']
         }
         
         # Display symbols by category
@@ -2130,7 +2188,7 @@ def main():
                     if i + j < len(symbols):
                         sym = symbols[i + j]
                         with col:
-                            if st.button(sym, help=symbol_descriptions[sym], key=f"quick_link_{sym}", use_container_width=True):
+                            if st.button(sym, help=symbol_descriptions.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
                                 st.session_state.selected_symbol = sym
                                 st.session_state.auto_analyze = True
                                 st.rerun()
@@ -2201,6 +2259,26 @@ def main():
         strong_threshold = st.slider("Strong Signal", 3.0, 6.0, 4.5, 0.1)
         very_strong_threshold = st.slider("Very Strong Signal", 4.0, 7.0, 5.5, 0.1)
 
+    # Controls
+    show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
+    
+    # Debug toggle - moved to bottom
+    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
+    
+    # Test button - only show if debug is enabled
+    if show_debug:
+        test_button = st.sidebar.button("🧪 Test Data Fetch", use_container_width=True)
+    else:
+        test_button = False
+    
+    # Check if auto-analyze was triggered by quick link
+    auto_analyze = st.session_state.get('auto_analyze', False)
+    if auto_analyze:
+        # Clear the auto-analyze flag
+        st.session_state.auto_analyze = False
+        # Set analyze_button to True to trigger analysis
+        analyze_button = True
+
     # Create configuration
     custom_config = {
         'wvf_period': wvf_period,
@@ -2214,9 +2292,6 @@ def main():
 
     # Initialize system
     vwv_system = VWVTradingSystem(custom_config)
-
-    # Controls
-    show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
     
     # Check for URL parameters for shareable links
     try:

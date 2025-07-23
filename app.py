@@ -2797,178 +2797,178 @@ def main():
         df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status', 'Signal'])
         st.dataframe(df_technical, use_container_width=True, hide_index=True)
             
-            # Oscillators and Momentum
-            st.subheader("📈 Momentum & Oscillator Analysis")
-            
-            col1, col2, col3, col4 = st.columns(4)
+        # Oscillators and Momentum
+        st.subheader("📈 Momentum & Oscillator Analysis")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            rsi = comprehensive_technicals.get('rsi_14', 50)
+            rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "⚪ Neutral"
+            st.metric("RSI (14)", f"{rsi:.1f}", rsi_status)
+        
+        with col2:
+            mfi = comprehensive_technicals.get('mfi_14', 50)
+            mfi_status = "🔴 Overbought" if mfi > 80 else "🟢 Oversold" if mfi < 20 else "⚪ Neutral"
+            st.metric("MFI (14)", f"{mfi:.1f}", mfi_status)
+        
+        with col3:
+            williams_r = comprehensive_technicals.get('williams_r', -50)
+            wr_status = "🔴 Overbought" if williams_r > -20 else "🟢 Oversold" if williams_r < -80 else "⚪ Neutral"
+            st.metric("Williams %R", f"{williams_r:.1f}", wr_status)
+        
+        with col4:
+            stoch_data = comprehensive_technicals.get('stochastic', {})
+            stoch_k = stoch_data.get('k', 50)
+            stoch_status = "🔴 Overbought" if stoch_k > 80 else "🟢 Oversold" if stoch_k < 20 else "⚪ Neutral"
+            st.metric("Stochastic %K", f"{stoch_k:.1f}", stoch_status)
+        
+        # MACD Analysis
+        macd_data = comprehensive_technicals.get('macd', {})
+        if macd_data:
+            col1, col2, col3 = st.columns(3)
             with col1:
-                rsi = comprehensive_technicals.get('rsi_14', 50)
-                rsi_status = "🔴 Overbought" if rsi > 70 else "🟢 Oversold" if rsi < 30 else "⚪ Neutral"
-                st.metric("RSI (14)", f"{rsi:.1f}", rsi_status)
+                macd_line = macd_data.get('macd', 0)
+                st.metric("MACD Line", f"{macd_line:.4f}")
+            with col2:
+                signal_line = macd_data.get('signal', 0)
+                st.metric("Signal Line", f"{signal_line:.4f}")
+            with col3:
+                histogram = macd_data.get('histogram', 0)
+                hist_trend = "📈 Bullish" if histogram > 0 else "📉 Bearish"
+                st.metric("MACD Histogram", f"{histogram:.4f}", hist_trend)
+            
+        # Volume Analysis
+        st.subheader("📊 Volume Analysis")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            current_volume = comprehensive_technicals.get('current_volume', 0)
+            st.metric("Current Volume", f"{current_volume:,.0f}")
+        
+        with col2:
+            avg_volume = comprehensive_technicals.get('volume_sma_20', 0)
+            st.metric("20D Avg Volume", f"{avg_volume:,.0f}")
+        
+        with col3:
+            volume_ratio = comprehensive_technicals.get('volume_ratio', 1)
+            vol_status = "🔴 High" if volume_ratio > 1.5 else "🟢 Low" if volume_ratio < 0.5 else "⚪ Normal"
+            st.metric("Volume Ratio", f"{volume_ratio:.2f}x", vol_status)
+        
+        with col4:
+            atr = comprehensive_technicals.get('atr_14', 0)
+            st.metric("ATR (14)", f"${atr:.2f}")
+            
+        # ============================================================
+        # SECTION 1.5: FUNDAMENTAL ANALYSIS (Skip for ETFs)
+        # ============================================================
+        
+        # Back to top link
+        st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+        
+        # Check if symbol is ETF
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        graham_data = enhanced_indicators.get('graham_score', {})
+        piotroski_data = enhanced_indicators.get('piotroski_score', {})
+        
+        # Only show fundamental analysis for stocks, not ETFs
+        is_etf_symbol = ('ETF' in graham_data.get('error', '') or 
+                       'ETF' in piotroski_data.get('error', ''))
+        
+        if not is_etf_symbol and ('error' not in graham_data or 'error' not in piotroski_data):
+            st.header("📊 Fundamental Analysis - Value Investment Scores")
+            
+            # Display scores overview
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                if 'error' not in graham_data:
+                    st.metric(
+                        "Graham Score", 
+                        f"{graham_data.get('score', 0)}/10",
+                        f"Grade: {graham_data.get('grade', 'N/A')}"
+                    )
+                else:
+                    st.metric("Graham Score", "N/A", "Data Limited")
             
             with col2:
-                mfi = comprehensive_technicals.get('mfi_14', 50)
-                mfi_status = "🔴 Overbought" if mfi > 80 else "🟢 Oversold" if mfi < 20 else "⚪ Neutral"
-                st.metric("MFI (14)", f"{mfi:.1f}", mfi_status)
+                if 'error' not in piotroski_data:
+                    st.metric(
+                        "Piotroski F-Score", 
+                        f"{piotroski_data.get('score', 0)}/9",
+                        f"Grade: {piotroski_data.get('grade', 'N/A')}"
+                    )
+                else:
+                    st.metric("Piotroski F-Score", "N/A", "Data Limited")
             
             with col3:
-                williams_r = comprehensive_technicals.get('williams_r', -50)
-                wr_status = "🔴 Overbought" if williams_r > -20 else "🟢 Oversold" if williams_r < -80 else "⚪ Neutral"
-                st.metric("Williams %R", f"{williams_r:.1f}", wr_status)
+                if 'error' not in graham_data:
+                    st.metric(
+                        "Graham %", 
+                        f"{graham_data.get('percentage', 0):.0f}%",
+                        graham_data.get('interpretation', '')[:20] + "..."
+                    )
+                else:
+                    st.metric("Graham %", "0%", "No Data")
             
             with col4:
-                stoch_data = comprehensive_technicals.get('stochastic', {})
-                stoch_k = stoch_data.get('k', 50)
-                stoch_status = "🔴 Overbought" if stoch_k > 80 else "🟢 Oversold" if stoch_k < 20 else "⚪ Neutral"
-                st.metric("Stochastic %K", f"{stoch_k:.1f}", stoch_status)
+                if 'error' not in piotroski_data:
+                    st.metric(
+                        "Piotroski %", 
+                        f"{piotroski_data.get('percentage', 0):.0f}%",
+                        piotroski_data.get('interpretation', '')[:20] + "..."
+                    )
+                else:
+                    st.metric("Piotroski %", "0%", "No Data")
             
-            # MACD Analysis
-            macd_data = comprehensive_technicals.get('macd', {})
-            if macd_data:
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    macd_line = macd_data.get('macd', 0)
-                    st.metric("MACD Line", f"{macd_line:.4f}")
-                with col2:
-                    signal_line = macd_data.get('signal', 0)
-                    st.metric("Signal Line", f"{signal_line:.4f}")
-                with col3:
-                    histogram = macd_data.get('histogram', 0)
-                    hist_trend = "📈 Bullish" if histogram > 0 else "📉 Bearish"
-                    st.metric("MACD Histogram", f"{histogram:.4f}", hist_trend)
-            
-            # Volume Analysis
-            st.subheader("📊 Volume Analysis")
-            col1, col2, col3, col4 = st.columns(4)
+            # Detailed breakdown
+            col1, col2 = st.columns(2)
             
             with col1:
-                current_volume = comprehensive_technicals.get('current_volume', 0)
-                st.metric("Current Volume", f"{current_volume:,.0f}")
+                st.subheader("🏛️ Benjamin Graham Value Score")
+                if 'error' not in graham_data and graham_data.get('criteria'):
+                    st.write(f"**Overall Assessment:** {graham_data.get('interpretation', 'N/A')}")
+                    st.write("**Criteria Breakdown:**")
+                    for criterion in graham_data['criteria']:
+                        st.write(f"• {criterion}")
+                else:
+                    st.warning(f"⚠️ Graham analysis unavailable: {graham_data.get('error', 'Unknown error')}")
+                    st.info("💡 **Graham Score evaluates:**\n"
+                           "• P/E and P/B ratios\n"
+                           "• Debt levels and liquidity\n" 
+                           "• Earnings and revenue growth\n"
+                           "• Dividend policy")
             
             with col2:
-                avg_volume = comprehensive_technicals.get('volume_sma_20', 0)
-                st.metric("20D Avg Volume", f"{avg_volume:,.0f}")
+                st.subheader("🏆 Piotroski F-Score Quality")
+                if 'error' not in piotroski_data and piotroski_data.get('criteria'):
+                    st.write(f"**Overall Assessment:** {piotroski_data.get('interpretation', 'N/A')}")
+                    st.write("**Criteria Breakdown:**")
+                    for criterion in piotroski_data['criteria']:
+                        st.write(f"• {criterion}")
+                else:
+                    st.warning(f"⚠️ Piotroski analysis unavailable: {piotroski_data.get('error', 'Unknown error')}")
+                    st.info("💡 **Piotroski F-Score evaluates:**\n"
+                           "• Profitability trends\n"
+                           "• Leverage and liquidity changes\n"
+                           "• Operating efficiency improvements\n"
+                           "• Overall financial quality")
             
-            with col3:
-                volume_ratio = comprehensive_technicals.get('volume_ratio', 1)
-                vol_status = "🔴 High" if volume_ratio > 1.5 else "🟢 Low" if volume_ratio < 0.5 else "⚪ Normal"
-                st.metric("Volume Ratio", f"{volume_ratio:.2f}x", vol_status)
-            
-            with col4:
-                atr = comprehensive_technicals.get('atr_14', 0)
-                st.metric("ATR (14)", f"${atr:.2f}")
-            
-            # ============================================================
-            # SECTION 1.5: FUNDAMENTAL ANALYSIS (Skip for ETFs)
-            # ============================================================
-            
-            # Back to top link
-            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
-            
-            # Check if symbol is ETF
-            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-            graham_data = enhanced_indicators.get('graham_score', {})
-            piotroski_data = enhanced_indicators.get('piotroski_score', {})
-            
-            # Only show fundamental analysis for stocks, not ETFs
-            is_etf_symbol = ('ETF' in graham_data.get('error', '') or 
-                           'ETF' in piotroski_data.get('error', ''))
-            
-            if not is_etf_symbol and ('error' not in graham_data or 'error' not in piotroski_data):
-                st.header("📊 Fundamental Analysis - Value Investment Scores")
+            # Combined interpretation
+            if 'error' not in graham_data and 'error' not in piotroski_data:
+                combined_score = (graham_data.get('percentage', 0) + piotroski_data.get('percentage', 0)) / 2
                 
-                # Display scores overview
-                col1, col2, col3, col4 = st.columns(4)
-                
-                with col1:
-                    if 'error' not in graham_data:
-                        st.metric(
-                            "Graham Score", 
-                            f"{graham_data.get('score', 0)}/10",
-                            f"Grade: {graham_data.get('grade', 'N/A')}"
-                        )
-                    else:
-                        st.metric("Graham Score", "N/A", "Data Limited")
-                
-                with col2:
-                    if 'error' not in piotroski_data:
-                        st.metric(
-                            "Piotroski F-Score", 
-                            f"{piotroski_data.get('score', 0)}/9",
-                            f"Grade: {piotroski_data.get('grade', 'N/A')}"
-                        )
-                    else:
-                        st.metric("Piotroski F-Score", "N/A", "Data Limited")
-                
-                with col3:
-                    if 'error' not in graham_data:
-                        st.metric(
-                            "Graham %", 
-                            f"{graham_data.get('percentage', 0):.0f}%",
-                            graham_data.get('interpretation', '')[:20] + "..."
-                        )
-                    else:
-                        st.metric("Graham %", "0%", "No Data")
-                
-                with col4:
-                    if 'error' not in piotroski_data:
-                        st.metric(
-                            "Piotroski %", 
-                            f"{piotroski_data.get('percentage', 0):.0f}%",
-                            piotroski_data.get('interpretation', '')[:20] + "..."
-                        )
-                    else:
-                        st.metric("Piotroski %", "0%", "No Data")
-                
-                # Detailed breakdown
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.subheader("🏛️ Benjamin Graham Value Score")
-                    if 'error' not in graham_data and graham_data.get('criteria'):
-                        st.write(f"**Overall Assessment:** {graham_data.get('interpretation', 'N/A')}")
-                        st.write("**Criteria Breakdown:**")
-                        for criterion in graham_data['criteria']:
-                            st.write(f"• {criterion}")
-                    else:
-                        st.warning(f"⚠️ Graham analysis unavailable: {graham_data.get('error', 'Unknown error')}")
-                        st.info("💡 **Graham Score evaluates:**\n"
-                               "• P/E and P/B ratios\n"
-                               "• Debt levels and liquidity\n" 
-                               "• Earnings and revenue growth\n"
-                               "• Dividend policy")
-                
-                with col2:
-                    st.subheader("🏆 Piotroski F-Score Quality")
-                    if 'error' not in piotroski_data and piotroski_data.get('criteria'):
-                        st.write(f"**Overall Assessment:** {piotroski_data.get('interpretation', 'N/A')}")
-                        st.write("**Criteria Breakdown:**")
-                        for criterion in piotroski_data['criteria']:
-                            st.write(f"• {criterion}")
-                    else:
-                        st.warning(f"⚠️ Piotroski analysis unavailable: {piotroski_data.get('error', 'Unknown error')}")
-                        st.info("💡 **Piotroski F-Score evaluates:**\n"
-                               "• Profitability trends\n"
-                               "• Leverage and liquidity changes\n"
-                               "• Operating efficiency improvements\n"
-                               "• Overall financial quality")
-                
-                # Combined interpretation
-                if 'error' not in graham_data and 'error' not in piotroski_data:
-                    combined_score = (graham_data.get('percentage', 0) + piotroski_data.get('percentage', 0)) / 2
-                    
-                    if combined_score >= 75:
-                        st.success(f"🟢 **Strong Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                        st.write("Both value and quality metrics indicate a fundamentally sound investment candidate.")
-                    elif combined_score >= 50:
-                        st.info(f"🟡 **Moderate Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                        st.write("Mixed fundamental signals - some strengths and weaknesses present.")
-                    else:
-                        st.error(f"🔴 **Weak Fundamental Profile** ({combined_score:.0f}% Combined Score)")
-                        st.write("Fundamental analysis suggests caution - multiple areas of concern identified.")
-            
-            elif is_etf_symbol:
-                st.info(f"ℹ️ **{symbol} is an ETF** - Fundamental analysis (Graham Score & Piotroski F-Score) is not applicable to Exchange-Traded Funds. ETFs represent baskets of securities and don't have individual company financials to analyze.")
+                if combined_score >= 75:
+                    st.success(f"🟢 **Strong Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Both value and quality metrics indicate a fundamentally sound investment candidate.")
+                elif combined_score >= 50:
+                    st.info(f"🟡 **Moderate Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Mixed fundamental signals - some strengths and weaknesses present.")
+                else:
+                    st.error(f"🔴 **Weak Fundamental Profile** ({combined_score:.0f}% Combined Score)")
+                    st.write("Fundamental analysis suggests caution - multiple areas of concern identified.")
+        
+        elif is_etf_symbol:
+            st.info(f"ℹ️ **{symbol} is an ETF** - Fundamental analysis (Graham Score & Piotroski F-Score) is not applicable to Exchange-Traded Funds. ETFs represent baskets of securities and don't have individual company financials to analyze.")
 
             # ============================================================
             # SECTION 2: MARKET COMPARISON ANALYSIS

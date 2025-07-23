@@ -1892,14 +1892,23 @@ class VWVTradingSystem:
                 piotroski_score = calculate_piotroski_score(symbol, show_debug)
 
             # Calculate VWV components with corrected WVF
+            wvf_result = self.calculate_williams_vix_fix_enhanced(working_data)
+            
+            # Ensure all components return numeric values
             components = {
-                'wvf': self.calculate_williams_vix_fix_enhanced(working_data),
-                'ma': self.calculate_ma_confluence(working_data),
-                'volume': self.calculate_volume_confluence(working_data),
-                'vwap': self.calculate_vwap_analysis(working_data),
-                'momentum': self.calculate_momentum(working_data),
-                'volatility': self.calculate_volatility_filter(working_data)
+                'wvf': wvf_result.get('binary_signal', 0) if isinstance(wvf_result, dict) else 0,
+                'ma': self.calculate_ma_confluence(working_data) or 0,
+                'volume': self.calculate_volume_confluence(working_data) or 0,
+                'vwap': self.calculate_vwap_analysis(working_data) or 0,
+                'momentum': self.calculate_momentum(working_data) or 0,
+                'volatility': self.calculate_volatility_filter(working_data) or 0
             }
+            
+            # Ensure all components are numeric
+            for comp_name, comp_value in components.items():
+                if not isinstance(comp_value, (int, float)):
+                    components[comp_name] = 0
+                    logger.warning(f"Component {comp_name} returned non-numeric value, defaulting to 0")
 
             # Calculate confluence
             raw_confluence = sum(components[comp] * self.weights[comp] for comp in components)
@@ -1993,7 +2002,8 @@ class VWVTradingSystem:
                     'market_correlations': market_correlations,
                     'options_levels': options_levels,
                     'graham_score': graham_score,
-                    'piotroski_score': piotroski_score
+                    'piotroski_score': piotroski_score,
+                    'wvf_details': wvf_result  # Store WVF details for debugging
                 },
                 'system_status': 'OPERATIONAL'
             }
@@ -3157,7 +3167,7 @@ def main():
                     st.dataframe(df_weights, use_container_width=True, hide_index=True)
                 
                 # Enhanced WVF Details
-                wvf_details = analysis_results.get('wvf_details', {})
+                wvf_details = analysis_results.get('enhanced_indicators', {}).get('wvf_details', {})
                 if wvf_details:
                     st.write("**🎯 Enhanced Williams VIX Fix:**")
                     col1, col2, col3, col4 = st.columns(4)

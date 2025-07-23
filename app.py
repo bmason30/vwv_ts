@@ -481,14 +481,16 @@ def calculate_graham_score(symbol, show_debug=False):
             score += 1
             criteria.append(f"✅ Current Ratio > 1.5 ({current_ratio:.2f})")
         else:
-            criteria.append(f"❌ Current Ratio > 1.5 ({current_ratio:.2f if current_ratio else 'N/A'})")
+            current_display = f"{current_ratio:.2f}" if current_ratio else "N/A"
+            criteria.append(f"❌ Current Ratio > 1.5 ({current_display})")
         
         # 6. Quick Ratio > 1.0
         if quick_ratio and quick_ratio > 1.0:
             score += 1
             criteria.append(f"✅ Quick Ratio > 1.0 ({quick_ratio:.2f})")
         else:
-            criteria.append(f"❌ Quick Ratio > 1.0 ({quick_ratio:.2f if quick_ratio else 'N/A'})")
+            quick_display = f"{quick_ratio:.2f}" if quick_ratio else "N/A"
+            criteria.append(f"❌ Quick Ratio > 1.0 ({quick_display})")
         
         # 7. Positive earnings growth
         if earnings_growth is not None and earnings_growth > 0:

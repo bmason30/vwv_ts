@@ -2190,6 +2190,20 @@ def main():
         st.session_state.recently_viewed = []
     if 'custom_watchlist' not in st.session_state:
         st.session_state.custom_watchlist = []
+    
+    # Initialize session state for section toggles
+    if 'show_technical_analysis' not in st.session_state:
+        st.session_state.show_technical_analysis = True
+    if 'show_fundamental_analysis' not in st.session_state:
+        st.session_state.show_fundamental_analysis = True
+    if 'show_market_correlation' not in st.session_state:
+        st.session_state.show_market_correlation = True
+    if 'show_options_analysis' not in st.session_state:
+        st.session_state.show_options_analysis = True
+    if 'show_chart' not in st.session_state:
+        st.session_state.show_chart = True
+    if 'show_confidence_intervals' not in st.session_state:
+        st.session_state.show_confidence_intervals = True
 
     # Sidebar controls
     st.sidebar.title("📊 Trading Analysis")
@@ -2205,7 +2219,79 @@ def main():
     symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
     period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
     
-    # Main analyze button - positioned right after data period
+    # Section Control Panel
+    with st.sidebar.expander("📋 Analysis Sections", expanded=False):
+        st.write("**Toggle Analysis Sections:**")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.show_technical_analysis = st.checkbox(
+                "Technical Analysis", 
+                value=st.session_state.show_technical_analysis,
+                key="toggle_technical"
+            )
+            st.session_state.show_fundamental_analysis = st.checkbox(
+                "Fundamental Analysis", 
+                value=st.session_state.show_fundamental_analysis,
+                key="toggle_fundamental"
+            )
+            st.session_state.show_market_correlation = st.checkbox(
+                "Market Correlation", 
+                value=st.session_state.show_market_correlation,
+                key="toggle_correlation"
+            )
+        
+        with col2:
+            st.session_state.show_options_analysis = st.checkbox(
+                "Options Analysis", 
+                value=st.session_state.show_options_analysis,
+                key="toggle_options"
+            )
+            st.session_state.show_chart = st.checkbox(
+                "Interactive Chart", 
+                value=st.session_state.show_chart,
+                key="toggle_chart"
+            )
+            st.session_state.show_confidence_intervals = st.checkbox(
+                "Confidence Intervals", 
+                value=st.session_state.show_confidence_intervals,
+                key="toggle_confidence"
+            )
+        
+        # Quick toggle buttons
+        st.write("---")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("✅ All On", key="all_on", use_container_width=True):
+                st.session_state.show_technical_analysis = True
+                st.session_state.show_fundamental_analysis = True
+                st.session_state.show_market_correlation = True
+                st.session_state.show_options_analysis = True
+                st.session_state.show_chart = True
+                st.session_state.show_confidence_intervals = True
+                st.rerun()
+        
+        with col2:
+            if st.button("❌ All Off", key="all_off", use_container_width=True):
+                st.session_state.show_technical_analysis = False
+                st.session_state.show_fundamental_analysis = False
+                st.session_state.show_market_correlation = False
+                st.session_state.show_options_analysis = False
+                st.session_state.show_chart = False
+                st.session_state.show_confidence_intervals = False
+                st.rerun()
+        
+        with col3:
+            if st.button("🔄 Reset", key="reset_sections", use_container_width=True):
+                st.session_state.show_technical_analysis = True
+                st.session_state.show_fundamental_analysis = True
+                st.session_state.show_market_correlation = True
+                st.session_state.show_options_analysis = True
+                st.session_state.show_chart = True
+                st.session_state.show_confidence_intervals = True
+                st.rerun()
+    
+    # Main analyze button - positioned right after section controls
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
 
     # Recently Viewed section - now holds 9 symbols in 3x3 grid
@@ -2488,9 +2574,6 @@ def main():
         else:
             st.success("✅ Using recommended defaults")
 
-    # Controls
-    show_chart = st.sidebar.checkbox("Show Interactive Chart", value=True)
-    
     # Debug toggle - moved to bottom
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
     
@@ -2618,32 +2701,33 @@ def main():
             # ============================================================
             # SECTION 1: INDIVIDUAL SYMBOL ANALYSIS
             # ============================================================
-            st.header(f"📊 {symbol} - Individual Technical Analysis")
-            
-            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-            comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
-            fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
-            
-            # Primary metrics row
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Current Price", f"${analysis_results['current_price']}")
-            with col2:
-                price_change_1d = comprehensive_technicals.get('price_change_1d', 0)
-                st.metric("1-Day Change", f"{price_change_1d:+.2f}%")
-            with col3:
-                price_change_5d = comprehensive_technicals.get('price_change_5d', 0)
-                st.metric("5-Day Change", f"{price_change_5d:+.2f}%")
-            with col4:
-                volatility = comprehensive_technicals.get('volatility_20d', 0)
-                st.metric("20D Volatility", f"{volatility:.1f}%")
-            
-            # Comprehensive Technical Analysis Table
-            st.subheader("📋 Comprehensive Technical Indicators")
-            
-            current_price = analysis_results['current_price']
-            daily_vwap = enhanced_indicators.get('daily_vwap', 0)
-            point_of_control = enhanced_indicators.get('point_of_control', 0)
+            if st.session_state.show_technical_analysis:
+                with st.expander(f"📊 {symbol} - Individual Technical Analysis", expanded=True):
+                    
+                    enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+                    comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+                    fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+                    
+                    # Primary metrics row
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Current Price", f"${analysis_results['current_price']}")
+                    with col2:
+                        price_change_1d = comprehensive_technicals.get('price_change_1d', 0)
+                        st.metric("1-Day Change", f"{price_change_1d:+.2f}%")
+                    with col3:
+                        price_change_5d = comprehensive_technicals.get('price_change_5d', 0)
+                        st.metric("5-Day Change", f"{price_change_5d:+.2f}%")
+                    with col4:
+                        volatility = comprehensive_technicals.get('volatility_20d', 0)
+                        st.metric("20D Volatility", f"{volatility:.1f}%")
+                    
+                    # Comprehensive Technical Analysis Table
+                    st.subheader("📋 Comprehensive Technical Indicators")
+                    
+                    current_price = analysis_results['current_price']
+                    daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+                    point_of_control = enhanced_indicators.get('point_of_control', 0)
             
             def determine_signal(indicator_name, current_price, indicator_value, distance_pct_str, bb_data=None):
                 """Determine if indicator is Bullish, Neutral, or Bearish"""
@@ -2873,9 +2957,6 @@ def main():
             # ============================================================
             # SECTION 1.5: FUNDAMENTAL ANALYSIS (Skip for ETFs)
             # ============================================================
-            
-            # Back to top link
-            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
             
             # Check if symbol is ETF
             enhanced_indicators = analysis_results.get('enhanced_indicators', {})
@@ -3122,91 +3203,90 @@ def main():
             else:
                 st.info("⚪ **No VWV Signal** - Market conditions do not meet signal criteria")
             
-            # Back to top link
-            st.markdown("---")
-            st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
-            
             # Show confluence components and market regime analysis if debug is on
             if show_debug:
-                st.subheader("🔧 Enhanced VWV Analysis Breakdown")
-                
-                # Market Regime Analysis
-                market_regime = analysis_results.get('market_regime', {})
-                if market_regime:
-                    st.write("**📊 Market Regime Detection:**")
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Overall Regime", market_regime.get('regime', 'NORMAL'))
-                    with col2:
-                        st.metric("Volatility Regime", market_regime.get('volatility_regime', 'NORMAL'))
-                    with col3:
-                        st.metric("Trend Regime", market_regime.get('trend_regime', 'SIDEWAYS'))
-                
-                # Dynamic Weights vs Static Weights
-                dynamic_weights = analysis_results.get('dynamic_weights', {})
-                static_weights = vwv_system.weights
-                
-                if dynamic_weights:
-                    st.write("**⚖️ Dynamic Weight Adjustments:**")
-                    weight_comparison = []
-                    for component in dynamic_weights.keys():
-                        static_weight = static_weights.get(component, 0)
-                        dynamic_weight = dynamic_weights.get(component, 0)
-                        change = dynamic_weight - static_weight
-                        change_pct = (change / static_weight * 100) if static_weight != 0 else 0
+                with st.expander("🔧 Enhanced VWV Analysis Breakdown", expanded=True):
+                    
+                    # Market Regime Analysis
+                    market_regime = analysis_results.get('market_regime', {})
+                    if market_regime:
+                        st.write("**📊 Market Regime Detection:**")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Overall Regime", market_regime.get('regime', 'NORMAL'))
+                        with col2:
+                            st.metric("Volatility Regime", market_regime.get('volatility_regime', 'NORMAL'))
+                        with col3:
+                            st.metric("Trend Regime", market_regime.get('trend_regime', 'SIDEWAYS'))
+                    
+                    # Dynamic Weights vs Static Weights
+                    dynamic_weights = analysis_results.get('dynamic_weights', {})
+                    static_weights = vwv_system.weights
+                    
+                    if dynamic_weights:
+                        st.write("**⚖️ Dynamic Weight Adjustments:**")
+                        weight_comparison = []
+                        for component in dynamic_weights.keys():
+                            static_weight = static_weights.get(component, 0)
+                            dynamic_weight = dynamic_weights.get(component, 0)
+                            change = dynamic_weight - static_weight
+                            change_pct = (change / static_weight * 100) if static_weight != 0 else 0
+                            
+                            weight_comparison.append({
+                                'Component': component.upper(),
+                                'Static Weight': f"{static_weight:.3f}",
+                                'Dynamic Weight': f"{dynamic_weight:.3f}",
+                                'Change': f"{change:+.3f}",
+                                'Change %': f"{change_pct:+.1f}%"
+                            })
                         
-                        weight_comparison.append({
-                            'Component': component.upper(),
-                            'Static Weight': f"{static_weight:.3f}",
-                            'Dynamic Weight': f"{dynamic_weight:.3f}",
-                            'Change': f"{change:+.3f}",
-                            'Change %': f"{change_pct:+.1f}%"
+                        df_weights = pd.DataFrame(weight_comparison)
+                        st.dataframe(df_weights, use_container_width=True, hide_index=True)
+                    
+                    # Enhanced WVF Details
+                    wvf_details = analysis_results.get('enhanced_indicators', {}).get('wvf_details', {})
+                    if wvf_details:
+                        st.write("**🎯 Enhanced Williams VIX Fix:**")
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Binary Signal", "🟢 ACTIVE" if wvf_details.get('binary_signal', 0) == 1 else "🔴 INACTIVE")
+                        with col2:
+                            st.metric("WVF Value", f"{wvf_details.get('wvf_value', 0):.2f}")
+                        with col3:
+                            st.metric("Upper Band", f"{wvf_details.get('upper_band', 0):.2f}")
+                        with col4:
+                            strength = wvf_details.get('normalized_strength', 0)
+                            st.metric("Signal Strength", f"{strength:+.3f}")
+                    
+                    # Component Breakdown
+                    st.write("**🔧 Component Analysis:**")
+                    comp_data = []
+                    for comp, value in analysis_results['components'].items():
+                        weight = dynamic_weights.get(comp, static_weights.get(comp, 0))
+                        contribution = round(value * weight, 3)
+                        comp_data.append({
+                            'Component': comp.upper(),
+                            'Normalized Value': f"{value:.3f}",
+                            'Dynamic Weight': f"{weight:.3f}",
+                            'Contribution': f"{contribution:.3f}"
                         })
                     
-                    df_weights = pd.DataFrame(weight_comparison)
-                    st.dataframe(df_weights, use_container_width=True, hide_index=True)
-                
-                # Enhanced WVF Details
-                wvf_details = analysis_results.get('enhanced_indicators', {}).get('wvf_details', {})
-                if wvf_details:
-                    st.write("**🎯 Enhanced Williams VIX Fix:**")
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Binary Signal", "🟢 ACTIVE" if wvf_details.get('binary_signal', 0) == 1 else "🔴 INACTIVE")
-                    with col2:
-                        st.metric("WVF Value", f"{wvf_details.get('wvf_value', 0):.2f}")
-                    with col3:
-                        st.metric("Upper Band", f"{wvf_details.get('upper_band', 0):.2f}")
-                    with col4:
-                        strength = wvf_details.get('normalized_strength', 0)
-                        st.metric("Signal Strength", f"{strength:+.3f}")
-                
-                # Component Breakdown
-                st.write("**🔧 Component Analysis:**")
-                comp_data = []
-                for comp, value in analysis_results['components'].items():
-                    weight = dynamic_weights.get(comp, static_weights.get(comp, 0))
-                    contribution = round(value * weight, 3)
-                    comp_data.append({
-                        'Component': comp.upper(),
-                        'Normalized Value': f"{value:.3f}",
-                        'Dynamic Weight': f"{weight:.3f}",
-                        'Contribution': f"{contribution:.3f}"
-                    })
-                
-                df_components = pd.DataFrame(comp_data)
-                st.dataframe(df_components, use_container_width=True, hide_index=True)
+                    df_components = pd.DataFrame(comp_data)
+                    st.dataframe(df_components, use_container_width=True, hide_index=True)
+                    
+                    # Back to top link
+                    st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
             
             # ============================================================
             # SECTION 4: INTERACTIVE CHART
             # ============================================================
-            if show_chart:
-                st.header("📈 Technical Analysis Chart")
+            if st.session_state.show_chart:
+                with st.expander("📈 Technical Analysis Chart", expanded=True):
                 
-                # Back to top link
-                st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
-                
-                chart_market_data = data_manager.get_market_data_for_chart(symbol)
+                    # Back to top link
+                    st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
+                    
+                    chart_market_data = data_manager.get_market_data_for_chart(symbol)
                 
                 if chart_market_data is None:
                     st.error("❌ Could not get chart data")
@@ -3245,6 +3325,9 @@ def main():
                 
                 df_intervals = pd.DataFrame(final_intervals_data)
                 st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+            
+                    # Back to top link
+                    st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
             
             # Final back to top link
             st.markdown("---")

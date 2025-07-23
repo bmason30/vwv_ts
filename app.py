@@ -2065,7 +2065,7 @@ def create_enhanced_chart(chart_market_data, analysis_results, symbol):
 
         # Point of Control
         poc = enhanced_indicators.get('point_of_control')
-        if poc:
+        if poc and poc > 0:
             fig.add_hline(y=poc, line_dash="dot",
                           line_color="magenta", line_width=2, row=1, col=1)
 
@@ -2712,7 +2712,10 @@ def main():
                 except:
                     return "Neutral"
 
-            # Build comprehensive indicators table
+            # Get Point of Control from enhanced indicators 
+        point_of_control = enhanced_indicators.get('point_of_control', 0)
+        
+        # Build comprehensive indicators table
             indicators_data = []
             
             # Current Price

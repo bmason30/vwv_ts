@@ -31,91 +31,119 @@ st.markdown("""
 <style>
     .main-header {
         position: relative;
-        padding: 2rem;
-        border-radius: 10px;
+        padding: 3rem 2rem;
+        border-radius: 15px;
         margin-bottom: 2rem;
         text-align: center;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
         overflow: hidden;
+        min-height: 200px;
         
-        /* Great Wave inspired background */
+        /* Great Wave inspired layered background */
         background: 
-            /* Bitcoin sun */
-            radial-gradient(circle at 75% 25%, #FFD700 8%, transparent 12%),
-            /* Wave layers - multiple gradients to create wave effect */
-            radial-gradient(ellipse 200% 100% at 50% 90%, transparent 20%, #1a5f3f 21%, #1a5f3f 25%, transparent 26%),
-            radial-gradient(ellipse 250% 120% at 30% 85%, transparent 15%, #2d7a4f 16%, #2d7a4f 20%, transparent 21%),
-            radial-gradient(ellipse 300% 140% at 70% 80%, transparent 10%, #0f4229 11%, #0f4229 15%, transparent 16%),
-            radial-gradient(ellipse 180% 80% at 20% 75%, transparent 25%, #3a8f63 26%, #3a8f63 30%, transparent 31%),
-            radial-gradient(ellipse 220% 100% at 80% 70%, transparent 20%, #225c42 21%, #225c42 25%, transparent 26%),
-            /* Foam and froth effects with dollar signs */
-            radial-gradient(circle at 25% 60%, #7fb069 2%, transparent 3%),
-            radial-gradient(circle at 45% 65%, #8bc56a 1.5%, transparent 2.5%),
-            radial-gradient(circle at 65% 55%, #6fa054 2.5%, transparent 3.5%),
-            radial-gradient(circle at 85% 70%, #7fb069 1.8%, transparent 2.8%),
-            /* Base gradient */
-            linear-gradient(135deg, #0d3821 0%, #1a5f3f 30%, #2d7a4f  60%, #0f4229 100%);
+            /* Sky gradient */
+            linear-gradient(to bottom, #1a4d3a 0%, #2d6b4f 40%, #1e5540 100%),
+            /* Main wave shape using clip-path technique */
+            radial-gradient(ellipse 120% 60% at 20% 100%, #0a2f1f 0%, #0a2f1f 25%, transparent 26%),
+            radial-gradient(ellipse 150% 80% at 80% 95%, #134a35 0%, #134a35 30%, transparent 31%),
+            radial-gradient(ellipse 200% 100% at 50% 90%, #0f3b28 0%, #0f3b28 20%, transparent 21%);
         
-        /* Animated wave effect */
-        background-size: 
-            20px 20px,  /* Bitcoin sun */
-            100% 100%,  /* Wave layers */
+        /* Wave foam effect */
+        background-image:
+            /* Small foam dots */
+            radial-gradient(circle at 15% 75%, rgba(255,255,255,0.4) 1px, transparent 2px),
+            radial-gradient(circle at 25% 78%, rgba(255,255,255,0.5) 1.5px, transparent 2.5px),
+            radial-gradient(circle at 35% 72%, rgba(255,255,255,0.3) 1px, transparent 2px),
+            radial-gradient(circle at 45% 80%, rgba(255,255,255,0.4) 1.2px, transparent 2.2px),
+            radial-gradient(circle at 55% 76%, rgba(255,255,255,0.3) 1px, transparent 2px),
+            radial-gradient(circle at 65% 82%, rgba(255,255,255,0.5) 1.3px, transparent 2.3px),
+            radial-gradient(circle at 75% 74%, rgba(255,255,255,0.4) 1px, transparent 2px),
+            radial-gradient(circle at 85% 79%, rgba(255,255,255,0.3) 1.4px, transparent 2.4px),
+            /* Wave crest highlights */
+            linear-gradient(135deg, transparent 60%, rgba(255,255,255,0.1) 65%, transparent 70%),
+            linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.05) 45%, transparent 50%);
+        
+        background-size:
+            100% 100%,  /* Sky */
+            100% 100%,  /* Wave shapes */
             100% 100%,
             100% 100%,
-            100% 100%,
-            100% 100%,
-            40px 40px,  /* Foam effects */
+            30px 30px,  /* Foam dots */
             35px 35px,
+            40px 40px,
+            25px 25px,
             45px 45px,
-            38px 38px,
-            100% 100%;  /* Base gradient */
+            50px 50px,
+            30px 30px,
+            35px 35px,
+            100% 100%,  /* Wave highlights */
+            100% 100%;
     }
     
-    /* Bitcoin symbol in the sun */
-    .main-header::before {
-        content: "₿";
+    /* Bitcoin sun */
+    .bitcoin-sun {
         position: absolute;
-        top: 25%;
-        right: 25%;
+        top: 20px;
+        right: 50px;
+        width: 40px;
+        height: 40px;
+        background: radial-gradient(circle, #FFD700 0%, #FFA500 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-size: 24px;
-        color: #FF8C00;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
-        font-weight: bold;
-        transform: translate(50%, -50%);
+        color: #8B4513;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
+        z-index: 2;
     }
     
-    /* Dollar signs in the foam */
-    .main-header::after {
-        content: "$ $ $ $ $ $ $ $";
+    /* Dollar signs in foam */
+    .foam-dollars {
         position: absolute;
-        top: 55%;
-        left: 0;
-        right: 0;
-        font-size: 12px;
+        bottom: 40px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 14px;
         color: rgba(255,255,255,0.6);
-        text-shadow: 1px 1px 1px rgba(0,0,0,0.3);
-        letter-spacing: 15px;
-        opacity: 0.7;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        letter-spacing: 20px;
+        opacity: 0.8;
+        z-index: 1;
     }
     
-    .main-header h1 {
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
+    /* Header content */
+    .header-content {
+        position: relative;
+        z-index: 3;
+        background: rgba(0,0,0,0.2);
+        padding: 1.5rem;
+        border-radius: 10px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .header-content h1 {
+        font-size: 2.8rem;
+        margin-bottom: 1rem;
         color: #ffffff;
-        text-shadow: 3px 3px 6px rgba(0,0,0,0.8);
-        font-weight: bold;
+        text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+        font-weight: 700;
+        letter-spacing: 1px;
     }
     
-    .main-header p {
-        color: #e8f5e8;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
-        margin: 0.3rem 0;
+    .header-content p {
+        color: #f0f8f0;
+        text-shadow: 1px 1px 4px rgba(0,0,0,0.7);
+        margin: 0.5rem 0;
+        font-size: 1.1rem;
+        font-weight: 400;
     }
     
-    .main-header em {
-        color: #d0e8d0;
+    .header-content em {
+        color: #e0f0e0;
         font-style: italic;
+        font-size: 1rem;
     }
     
     .metric-card {
@@ -1899,9 +1927,13 @@ def main():
     # Header
     st.markdown("""
     <div class="main-header">
-        <h1>VWV Professional Trading System</h1>
-        <p>Advanced market analysis with enhanced technical indicators</p>
-        <p><em>Features: Daily VWAP, Fibonacci EMAs, Point of Control, Weekly Deviations</em></p>
+        <div class="bitcoin-sun">₿</div>
+        <div class="foam-dollars">$ $ $ $ $ $ $</div>
+        <div class="header-content">
+            <h1>VWV Professional Trading System</h1>
+            <p>Advanced market analysis with enhanced technical indicators</p>
+            <p><em>Features: Daily VWAP, Fibonacci EMAs, Point of Control, Weekly Deviations</em></p>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 

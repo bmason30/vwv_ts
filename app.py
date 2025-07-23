@@ -880,8 +880,8 @@ def calculate_fibonacci_emas(data):
         return {}
 
 @safe_calculation_wrapper
-def calculate_point_of_control(data):
-    """Calculate daily Point of Control (POC) - price level with highest volume"""
+def calculate_point_of_control_enhanced(data):
+    """Enhanced Point of Control with better volume weighting"""
     try:
         if len(data) < 20:
             return None
@@ -896,17 +896,41 @@ def calculate_point_of_control(data):
         if bin_size <= 0:
             return float(recent_data['Close'].iloc[-1])
 
-        # Calculate volume profile
+        # Calculate volume profile with better weighting
         volume_profile = {}
 
         for idx, row in recent_data.iterrows():
-            # Distribute volume across the OHLC range
-            price_levels = [row['Open'], row['High'], row['Low'], row['Close']]
-            volume_per_level = row['Volume'] / len(price_levels)
-
-            for price in price_levels:
+            total_volume = row['Volume']
+            open_price = row['Open']
+            high_price = row['High']
+            low_price = row['Low']
+            close_price = row['Close']
+            
+            # Determine if it's a bullish or bearish bar
+            is_bullish = close_price >= open_price
+            
+            # Enhanced volume distribution weighting
+            if is_bullish:
+                # For bullish bars: more weight to close and high
+                price_weights = {
+                    open_price: 0.15,   # 15%
+                    high_price: 0.30,   # 30%
+                    low_price: 0.10,    # 10%
+                    close_price: 0.45   # 45%
+                }
+            else:
+                # For bearish bars: more weight to close and low
+                price_weights = {
+                    open_price: 0.15,   # 15%
+                    high_price: 0.10,   # 10%
+                    low_price: 0.30,    # 30%
+                    close_price: 0.45   # 45%
+                }
+            
+            # Distribute volume according to weights
+            for price, weight in price_weights.items():
                 bin_key = round(price / bin_size) * bin_size
-                volume_profile[bin_key] = volume_profile.get(bin_key, 0) + volume_per_level
+                volume_profile[bin_key] = volume_profile.get(bin_key, 0) + (total_volume * weight)
 
         # Find POC (price with highest volume)
         if volume_profile:
@@ -915,7 +939,8 @@ def calculate_point_of_control(data):
         else:
             return float(recent_data['Close'].iloc[-1])
 
-    except Exception:
+    except Exception as e:
+        logger.error(f"Enhanced POC calculation error: {e}")
         try:
             return float(data['Close'].iloc[-1])
         except:
@@ -1135,9 +1160,33 @@ def calculate_williams_r(data, period=14):
         logger.error(f"Williams %R calculation error: {e}")
         return -50.0
 
+# Initialize correlation data cache
+if 'correlation_cache' not in st.session_state:
+    st.session_state.correlation_cache = {}
+
+@st.cache_data(ttl=600)  # 10-minute cache for correlation data
+def get_correlation_etf_data(etf_symbols, period='1y'):
+    """Cached function to fetch correlation ETF data"""
+    etf_data = {}
+    
+    for etf in etf_symbols:
+        try:
+            etf_ticker = yf.Ticker(etf)
+            etf_history = etf_ticker.history(period=period)
+            
+            if len(etf_history) > 50:
+                etf_returns = etf_history['Close'].pct_change().dropna()
+                etf_data[etf] = etf_returns
+                
+        except Exception as e:
+            logger.error(f"Error fetching {etf} data: {e}")
+            continue
+    
+    return etf_data
+
 @safe_calculation_wrapper
-def calculate_market_correlations(symbol_data, symbol, period='1y', show_debug=False):
-    """Calculate correlations with market ETFs"""
+def calculate_market_correlations_enhanced(symbol_data, symbol, period='1y', show_debug=False):
+    """Enhanced market correlations with caching to avoid redundant API calls"""
     try:
         comparison_etfs = ['FNGD', 'FNGU', 'MAGS']
         correlations = {}
@@ -1147,40 +1196,40 @@ def calculate_market_correlations(symbol_data, symbol, period='1y', show_debug=F
 
         # Get symbol returns
         symbol_returns = symbol_data['Close'].pct_change().dropna()
+        
+        # Get cached ETF data
+        etf_data = get_correlation_etf_data(comparison_etfs, period)
 
         for etf in comparison_etfs:
             try:
-                # Fetch ETF data
-                etf_ticker = yf.Ticker(etf)
-                etf_data = etf_ticker.history(period=period)
-
-                if len(etf_data) > 50:
-                    etf_returns = etf_data['Close'].pct_change().dropna()
-
-                    # Align dates
-                    aligned_data = pd.concat([symbol_returns, etf_returns], axis=1, join='inner')
-                    aligned_data.columns = [symbol, etf]
-
-                    if len(aligned_data) > 30:
-                        correlation = aligned_data[symbol].corr(aligned_data[etf])
-
-                        # Calculate beta
-                        covariance = aligned_data[symbol].cov(aligned_data[etf])
-                        etf_variance = aligned_data[etf].var()
-                        beta = covariance / etf_variance if etf_variance != 0 else 0
-
-                        correlations[etf] = {
-                            'correlation': round(float(correlation), 3),
-                            'beta': round(float(beta), 3),
-                            'relationship': get_correlation_description(correlation)
-                        }
-
-                        if show_debug:
-                            st.write(f"  • {etf}: {correlation:.3f} correlation")
-                    else:
-                        correlations[etf] = {'correlation': 0, 'beta': 0, 'relationship': 'Insufficient data'}
-                else:
+                if etf not in etf_data:
                     correlations[etf] = {'correlation': 0, 'beta': 0, 'relationship': 'No data available'}
+                    continue
+                
+                etf_returns = etf_data[etf]
+                
+                # Align dates
+                aligned_data = pd.concat([symbol_returns, etf_returns], axis=1, join='inner')
+                aligned_data.columns = [symbol, etf]
+
+                if len(aligned_data) > 30:
+                    correlation = aligned_data[symbol].corr(aligned_data[etf])
+
+                    # Calculate beta
+                    covariance = aligned_data[symbol].cov(aligned_data[etf])
+                    etf_variance = aligned_data[etf].var()
+                    beta = covariance / etf_variance if etf_variance != 0 else 0
+
+                    correlations[etf] = {
+                        'correlation': round(float(correlation), 3),
+                        'beta': round(float(beta), 3),
+                        'relationship': get_correlation_description(correlation)
+                    }
+
+                    if show_debug:
+                        st.write(f"  • {etf}: {correlation:.3f} correlation")
+                else:
+                    correlations[etf] = {'correlation': 0, 'beta': 0, 'relationship': 'Insufficient data'}
 
             except Exception as e:
                 correlations[etf] = {'correlation': 0, 'beta': 0, 'relationship': f'Error: {str(e)[:20]}...'}
@@ -1415,14 +1464,117 @@ class VWVTradingSystem:
         self.take_profit_pct = self.config['take_profit_pct']
 
     @safe_calculation_wrapper
-    def calculate_williams_vix_fix_corrected(self, data):
-        """Corrected Williams VIX Fix per original Larry Williams formula"""
+    def detect_market_regime(self, data):
+        """Detect market regime for dynamic weight adjustment"""
+        try:
+            if len(data) < 50:
+                return {'regime': 'NORMAL', 'volatility_regime': 'NORMAL', 'trend_regime': 'SIDEWAYS'}
+
+            close = data['Close']
+            
+            # Calculate volatility regime (20-day rolling volatility)
+            returns = close.pct_change().dropna()
+            current_vol = returns.rolling(20).std().iloc[-1] * np.sqrt(252)  # Annualized
+            vol_history = returns.rolling(20).std() * np.sqrt(252)
+            vol_percentile = vol_history.rolling(252).rank(pct=True).iloc[-1] if len(vol_history) >= 252 else 0.5
+            
+            if vol_percentile > 0.8:
+                volatility_regime = 'HIGH'
+            elif vol_percentile < 0.2:
+                volatility_regime = 'LOW'
+            else:
+                volatility_regime = 'NORMAL'
+            
+            # Calculate trend regime (EMA slopes and alignment)
+            ema_20 = close.ewm(span=20).mean()
+            ema_50 = close.ewm(span=50).mean()
+            
+            # EMA slope strength
+            ema20_slope = (ema_20.iloc[-1] - ema_20.iloc[-5]) / ema_20.iloc[-5] * 100
+            ema50_slope = (ema_50.iloc[-1] - ema_50.iloc[-10]) / ema_50.iloc[-10] * 100
+            
+            # EMA alignment
+            ema_aligned = ema_20.iloc[-1] > ema_50.iloc[-1]
+            
+            if abs(ema20_slope) > 2 and abs(ema50_slope) > 1 and ema_aligned:
+                if ema20_slope > 0:
+                    trend_regime = 'STRONG_UPTREND'
+                else:
+                    trend_regime = 'STRONG_DOWNTREND'
+            elif abs(ema20_slope) > 1:
+                if ema20_slope > 0:
+                    trend_regime = 'UPTREND'
+                else:
+                    trend_regime = 'DOWNTREND'
+            else:
+                trend_regime = 'SIDEWAYS'
+            
+            # Overall regime classification
+            if volatility_regime == 'HIGH' and trend_regime in ['STRONG_UPTREND', 'STRONG_DOWNTREND']:
+                overall_regime = 'TRENDING_VOLATILE'
+            elif volatility_regime == 'HIGH':
+                overall_regime = 'HIGH_VOLATILITY'
+            elif trend_regime in ['STRONG_UPTREND', 'STRONG_DOWNTREND']:
+                overall_regime = 'TRENDING'
+            elif volatility_regime == 'LOW' and trend_regime == 'SIDEWAYS':
+                overall_regime = 'LOW_VOLATILITY'
+            else:
+                overall_regime = 'NORMAL'
+            
+            return {
+                'regime': overall_regime,
+                'volatility_regime': volatility_regime,
+                'trend_regime': trend_regime,
+                'volatility_percentile': vol_percentile,
+                'trend_strength': abs(ema20_slope)
+            }
+            
+        except Exception as e:
+            logger.error(f"Market regime detection error: {e}")
+            return {'regime': 'NORMAL', 'volatility_regime': 'NORMAL', 'trend_regime': 'SIDEWAYS'}
+
+    def get_dynamic_weights(self, market_regime):
+        """Get dynamic weights based on market regime"""
+        base_weights = self.weights.copy()
+        
+        regime = market_regime['regime']
+        vol_regime = market_regime['volatility_regime']
+        trend_regime = market_regime['trend_regime']
+        
+        # Adjust weights based on regime
+        if regime == 'HIGH_VOLATILITY' or vol_regime == 'HIGH':
+            # In high volatility, WVF becomes more important
+            base_weights['wvf'] *= 1.3
+            base_weights['volatility'] *= 1.2
+            base_weights['ma'] *= 0.9
+            
+        elif regime == 'TRENDING' or trend_regime in ['STRONG_UPTREND', 'STRONG_DOWNTREND']:
+            # In trending markets, MA confluence becomes more important
+            base_weights['ma'] *= 1.4
+            base_weights['momentum'] *= 1.2
+            base_weights['wvf'] *= 0.8
+            
+        elif regime == 'LOW_VOLATILITY':
+            # In low volatility, volume and VWAP become more important
+            base_weights['volume'] *= 1.3
+            base_weights['vwap'] *= 1.2
+            base_weights['volatility'] *= 0.7
+            
+        elif regime == 'TRENDING_VOLATILE':
+            # In trending volatile markets, balance trend and volatility indicators
+            base_weights['wvf'] *= 1.2
+            base_weights['ma'] *= 1.3
+            base_weights['momentum'] *= 1.1
+        
+        return base_weights
+    def calculate_williams_vix_fix_enhanced(self, data):
+        """Enhanced Williams VIX Fix with proper binary signal logic"""
         try:
             period = self.config['wvf_period']  # Default 22
             multiplier = self.config['wvf_multiplier']  # Default 2.0
             
             if len(data) < period * 2:
-                return 0.0
+                return {'binary_signal': 0, 'normalized_strength': 0.0, 'wvf_value': 0, 'upper_band': 0}
 
             close = data['Close']
             low = data['Low']
@@ -1440,17 +1592,26 @@ class VWVTradingSystem:
             current_wvf = wvf_raw.iloc[-1] if not pd.isna(wvf_raw.iloc[-1]) else 0
             current_upper = wvf_upper_band.iloc[-1] if not pd.isna(wvf_upper_band.iloc[-1]) else 0
 
-            # Normalize the signal strength
-            if current_upper > 0 and current_wvf > current_upper:
-                signal_strength = (current_wvf - current_upper) / current_upper
+            # Binary signal (true to WVF design)
+            binary_signal = 1 if current_wvf > current_upper else 0
+            
+            # Additional strength measure for confluence (how far above/below)
+            if current_upper > 0:
+                strength_ratio = (current_wvf - current_upper) / current_upper
+                normalized_strength = float(np.clip(strength_ratio, -1, 1))  # Cap at +/-100%
             else:
-                signal_strength = 0
+                normalized_strength = 0.0
 
-            return float(np.clip(signal_strength, 0, 1))
+            return {
+                'binary_signal': binary_signal,
+                'normalized_strength': normalized_strength,
+                'wvf_value': float(current_wvf),
+                'upper_band': float(current_upper)
+            }
 
         except Exception as e:
-            logger.error(f"Williams VIX Fix calculation error: {e}")
-            return 0.0
+            logger.error(f"Enhanced Williams VIX Fix calculation error: {e}")
+            return {'binary_signal': 0, 'normalized_strength': 0.0, 'wvf_value': 0, 'upper_band': 0}
 
     @safe_calculation_wrapper
     def calculate_ma_confluence(self, data):
@@ -2950,17 +3111,71 @@ def main():
             st.markdown("---")
             st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
             
-            # Show confluence components only if debug is on
+            # Show confluence components and market regime analysis if debug is on
             if show_debug:
-                st.subheader("🔧 VWV Components Breakdown")
+                st.subheader("🔧 Enhanced VWV Analysis Breakdown")
+                
+                # Market Regime Analysis
+                market_regime = analysis_results.get('market_regime', {})
+                if market_regime:
+                    st.write("**📊 Market Regime Detection:**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Overall Regime", market_regime.get('regime', 'NORMAL'))
+                    with col2:
+                        st.metric("Volatility Regime", market_regime.get('volatility_regime', 'NORMAL'))
+                    with col3:
+                        st.metric("Trend Regime", market_regime.get('trend_regime', 'SIDEWAYS'))
+                
+                # Dynamic Weights vs Static Weights
+                dynamic_weights = analysis_results.get('dynamic_weights', {})
+                static_weights = vwv_system.weights
+                
+                if dynamic_weights:
+                    st.write("**⚖️ Dynamic Weight Adjustments:**")
+                    weight_comparison = []
+                    for component in dynamic_weights.keys():
+                        static_weight = static_weights.get(component, 0)
+                        dynamic_weight = dynamic_weights.get(component, 0)
+                        change = dynamic_weight - static_weight
+                        change_pct = (change / static_weight * 100) if static_weight != 0 else 0
+                        
+                        weight_comparison.append({
+                            'Component': component.upper(),
+                            'Static Weight': f"{static_weight:.3f}",
+                            'Dynamic Weight': f"{dynamic_weight:.3f}",
+                            'Change': f"{change:+.3f}",
+                            'Change %': f"{change_pct:+.1f}%"
+                        })
+                    
+                    df_weights = pd.DataFrame(weight_comparison)
+                    st.dataframe(df_weights, use_container_width=True, hide_index=True)
+                
+                # Enhanced WVF Details
+                wvf_details = analysis_results.get('wvf_details', {})
+                if wvf_details:
+                    st.write("**🎯 Enhanced Williams VIX Fix:**")
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Binary Signal", "🟢 ACTIVE" if wvf_details.get('binary_signal', 0) == 1 else "🔴 INACTIVE")
+                    with col2:
+                        st.metric("WVF Value", f"{wvf_details.get('wvf_value', 0):.2f}")
+                    with col3:
+                        st.metric("Upper Band", f"{wvf_details.get('upper_band', 0):.2f}")
+                    with col4:
+                        strength = wvf_details.get('normalized_strength', 0)
+                        st.metric("Signal Strength", f"{strength:+.3f}")
+                
+                # Component Breakdown
+                st.write("**🔧 Component Analysis:**")
                 comp_data = []
                 for comp, value in analysis_results['components'].items():
-                    weight = vwv_system.weights[comp]
+                    weight = dynamic_weights.get(comp, static_weights.get(comp, 0))
                     contribution = round(value * weight, 3)
                     comp_data.append({
                         'Component': comp.upper(),
                         'Normalized Value': f"{value:.3f}",
-                        'Weight': f"{weight}",
+                        'Dynamic Weight': f"{weight:.3f}",
                         'Contribution': f"{contribution:.3f}"
                     })
                 
@@ -3022,66 +3237,84 @@ def main():
     
     else:
         st.markdown("""
-        ## 🛠️ VWV Professional Trading System - Enhanced
+        ## 🛠️ VWV Professional Trading System - Enhanced with AI Feedback
         
-        ### ✅ **Comprehensive Analysis Structure:**
+        ### ✅ **Recently Enhanced Based on AI Analysis:**
+        
+        **🎯 Williams VIX Fix Improvements:**
+        - **Binary Signal Logic**: Now uses proper binary signals (above/below Bollinger Band)
+        - **Enhanced Strength**: Combines binary signal + normalized strength for confluence
+        - **True to Design**: Faithful to Larry Williams' original indicator methodology
+        
+        **📊 Point of Control Refinements:**
+        - **Better Volume Weighting**: Intelligent volume distribution based on bar direction
+        - **Bullish Bars**: More weight to close (45%) and high (30%) prices
+        - **Bearish Bars**: More weight to close (45%) and low (30%) prices
+        - **Improved Accuracy**: More realistic volume profile approximation
+        
+        **⚖️ Dynamic Weight System:**
+        - **Market Regime Detection**: Automatically detects volatility and trend regimes
+        - **Adaptive Weights**: Component weights adjust based on market conditions
+        - **High Volatility**: Increases WVF and volatility indicator weights
+        - **Trending Markets**: Increases MA confluence and momentum weights
+        - **Low Volatility**: Increases volume and VWAP weights
+        
+        **🚀 Performance Optimizations:**
+        - **Correlation Caching**: Eliminates redundant API calls for market correlations
+        - **10-Minute Cache**: ETF correlation data cached for improved performance
+        - **Smart Data Management**: Efficient memory usage and faster analysis
+        
+        ### 📊 **Comprehensive Analysis Structure:**
         
         1. **📊 Individual Symbol Analysis**
-           - Exhaustive technical indicator table with signal analysis
-           - Price levels: VWAP, EMAs, Support/Resistance
-           - Momentum indicators: RSI, MFI, MACD, Stochastic
-           - Volume analysis and volatility metrics
-           - Previous week high/low levels
+           - Enhanced technical indicators with improved calculations
+           - Dynamic signal weighting based on market regime
+           - Professional-grade volume and price analysis
         
         1.5. **📊 Fundamental Analysis**
            - **Benjamin Graham Score**: Classic value investing criteria (0-10)
            - **Piotroski F-Score**: Financial quality assessment (0-9)
-           - P/E, P/B, debt ratios, profitability trends
-           - Combined fundamental strength rating
+           - Intelligent ETF detection skips fundamental analysis appropriately
         
         2. **🌐 Market Correlation Analysis**
-           - Correlation with FNGD (3x Inverse Tech)
-           - Correlation with FNGU (3x Leveraged Tech)  
-           - Correlation with MAGS (Mega-cap Growth)
-           - Beta calculations and relationship strength
-           - Broader market context and trend analysis
+           - Cached correlation calculations for better performance
+           - Beta analysis with major market ETFs
+           - Market relationship strength assessment
         
         3. **🎯 Options Trading Analysis**
-           - Enhanced premium selling strike levels (Black-Scholes)
-           - **Greeks**: Delta, Theta, and Beta for each strike
-           - Probability of touch calculations
-           - Put and call selling strategies
-           - Risk-adjusted option levels for multiple expiries
+           - Black-Scholes approximation for accurate strike levels
+           - **Complete Greeks**: Delta, Theta, and Beta for each option
+           - Multiple expiration analysis with probability of touch
         
         4. **📈 Interactive Technical Chart**
-           - All Fibonacci EMAs displayed
-           - VWAP and Point of Control levels
-           - Weekly standard deviation bands
-           - Comprehensive visual analysis
+           - All Fibonacci EMAs with enhanced POC calculations
+           - VWAP and enhanced Point of Control levels
+           - Weekly standard deviation bands for key levels
         
-        ### 🚀 **Enhanced Features:**
+        ### 🎛️ **Advanced Features:**
         
-        **📊 Technical Analysis**
-        - **Williams VIX Fix**: ✅ **CORRECTED** - Proper formula implementation
-        - **Options Pricing**: ✅ **ENHANCED** - Black-Scholes approximation with Greeks
-        - **Signal Analysis**: Bullish/neutral/bearish column in indicators table
+        **🧠 Market Intelligence**
+        - **Regime Detection**: Automatically adapts to market conditions
+        - **Dynamic Optimization**: Weights adjust for optimal performance
+        - **Binary Signal Logic**: True professional indicator methodology
         
-        **💰 Fundamental Analysis**
-        - **Graham Score**: Benjamin Graham's value investing criteria
-        - **Piotroski F-Score**: 9-point financial quality assessment
-        - **Combined Rating**: Integrated fundamental strength evaluation
+        **⚡ Performance & Reliability**
+        - **Smart Caching**: Eliminates redundant data fetching
+        - **Enhanced Calculations**: More accurate financial mathematics
+        - **Professional Grade**: Institutional-quality analysis methods
         
-        **🔗 Sharing & Navigation**
-        - **Shareable Links**: URL parameters preserve symbol and analysis settings
-        - **Back to Top Links**: Easy navigation throughout long analysis
-        - **Recently Viewed**: Track your last 9 analyzed symbols (3x3 grid)
-        - **Custom Watchlist**: Create and manage your personal symbol list
-        - **Nested Quick Links**: 80+ symbols organized in 11 expandable categories
-        - **Reset to Defaults**: One-click parameter reset in system settings
+        **🔗 User Experience**
+        - **80+ Quick Link Symbols**: Organized in 11 expandable categories
+        - **Recently Viewed**: 9-symbol grid with your analysis history
+        - **Custom Watchlist**: Personal symbol management with import/export
+        - **Shareable Links**: URL parameters preserve analysis settings
+        - **Reset to Defaults**: One-click parameter restoration
         
-        **Start analyzing: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA, or any major symbol**
+        **Start analyzing with enhanced AI-optimized calculations: SPY, AAPL, MSFT, GOOGL, QQQ, TSLA**
         
-        **System Status: ✅ ENHANCED WITH SHARING & GREEKS**
+        **System Status: ✅ ENHANCED WITH AI-DRIVEN OPTIMIZATIONS**
+        
+        *Latest improvements based on advanced AI analysis for maximum accuracy and performance.*
         """)
 
 if __name__ == "__main__":

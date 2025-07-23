@@ -3333,7 +3333,7 @@ def main():
             st.markdown("---")
             st.markdown("**[⬆️ Back to Top](#vwv-professional-trading-system)**")
     
-    else:
+            else:
         st.markdown("""
         ## 🛠️ VWV Professional Trading System - Enhanced with AI Feedback
         

@@ -1948,4 +1948,4 @@ class VWVTradingSystem:
 
             # Get current values
             current_wvf = wvf_raw.iloc[-1] if not pd.isna(wvf_raw.iloc[-1]) else 0
-            current_upper = wvf_upper_band.iloc[-1] if not pd.isna(wvf_upper_band.iloc[-1]) else 0
+            current_upper = wvf_upper_band.iloc

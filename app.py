@@ -1081,7 +1081,7 @@ def main():
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
                 # Debug information
-                if controls['show_debug']:
+            if controls['show_debug']:
                     st.markdown("---")
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")

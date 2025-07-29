@@ -65,7 +65,7 @@ SCREENER_CONFIG = {
 }
 
 @st.cache_data(ttl=SCREENER_CONFIG['refresh_minutes'] * 60, show_spinner=False)
-def scan_extreme_technical_scores():
+def scan_extreme_technical_scores(analysis_period='1y'):
     """Scan quick links symbols for extreme technical scores with caching"""
     start_time = time.time()
     scores_by_category = {
@@ -89,8 +89,8 @@ def scan_extreme_technical_scores():
             break
             
         try:
-            # Quick analysis for screening (shorter period for speed) - SUPPRESS DEBUG MESSAGES
-            market_data = get_market_data_enhanced(symbol, period='3mo', show_debug=False)
+            # Quick analysis for screening - USE SAME PERIOD AS INDIVIDUAL ANALYSIS
+            market_data = get_market_data_enhanced(symbol, period=analysis_period, show_debug=False)
             
             if market_data is None or len(market_data) < 50:
                 continue
@@ -155,7 +155,7 @@ def scan_extreme_technical_scores():
         'timestamp': datetime.now().strftime('%H:%M:%S')
     }
 
-def show_technical_screener():
+def show_technical_screener(analysis_period='1y'):
     """Display the technical score screener section"""
     st.write("### 🎯 Technical Score Screener")
     st.write(f"**Score Categories**: 0-{SCREENER_CONFIG['very_bearish_threshold']} (Very Bearish) | {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']} (Bearish) | {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']} (Bullish) | {SCREENER_CONFIG['very_bullish_threshold']}-100 (Very Bullish) | Auto-refresh: {SCREENER_CONFIG['refresh_minutes']} min")
@@ -169,7 +169,7 @@ def show_technical_screener():
     
     # Get cached results with consolidated spinner
     with st.spinner("Scanning symbols for technical scores..."):
-        screen_results = scan_extreme_technical_scores()
+        screen_results = scan_extreme_technical_scores(analysis_period)
     
     with col2:
         st.write(f"**Last Scan:** {screen_results['timestamp']}")
@@ -301,7 +301,7 @@ def show_technical_screener():
             st.write(f"• **Bullish:** {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']}")
             st.write(f"• **Very Bullish:** {SCREENER_CONFIG['very_bullish_threshold']}-100")
             st.write(f"• **Max Symbols per Scan:** {SCREENER_CONFIG['max_symbols_per_scan']}")
-            st.write(f"• **Data Period:** 3 months (optimized for speed)")
+            st.write(f"• **Data Period:** {analysis_period} (matches individual analysis)")
 
 def initialize_session_state():
     """Initialize session state variables"""
@@ -805,7 +805,7 @@ def main():
                 
                 # NEW: Technical Score Screener - placed above debug info
                 st.markdown("---")
-                show_technical_screener()
+                show_technical_screener(controls['period'])
                 
                 # Debug information
                 if controls['show_debug']:
@@ -833,7 +833,7 @@ def main():
         
         # NEW: Always show screener on home page
         st.markdown("---")
-        show_technical_screener()
+        show_technical_screener('1y')  # Default to 1 year on home page
         st.markdown("---")
         
         with st.expander("🏗️ Modular Architecture Overview", expanded=False):

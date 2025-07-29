@@ -1,6 +1,6 @@
 """
 VWV Professional Trading System - Complete Modular Version
-Main application with 4-Tier Technical Score Screener and Consolidated Messages
+Main application with repositioned screener and auto-analysis features
 """
 
 import streamlit as st
@@ -202,10 +202,11 @@ def show_technical_screener(analysis_period='1y'):
             df_very_bearish = pd.DataFrame(very_bearish_data)
             st.dataframe(df_very_bearish, use_container_width=True, hide_index=True)
             
-            # Quick analysis buttons
+            # Quick analysis buttons - AUTO ANALYZE
             for idx, item in enumerate(results['very_bearish'][:2]):
                 if st.button(f"📊 {item['symbol']}", key=f"very_bearish_{item['symbol']}", use_container_width=True):
                     st.session_state.selected_symbol = item['symbol']
+                    st.session_state.auto_analyze = True
                     st.rerun()
         else:
             st.info("No very bearish signals")
@@ -224,10 +225,11 @@ def show_technical_screener(analysis_period='1y'):
             df_bearish = pd.DataFrame(bearish_data)
             st.dataframe(df_bearish, use_container_width=True, hide_index=True)
             
-            # Quick analysis buttons
+            # Quick analysis buttons - AUTO ANALYZE
             for idx, item in enumerate(results['bearish'][:2]):
                 if st.button(f"📊 {item['symbol']}", key=f"bearish_{item['symbol']}", use_container_width=True):
                     st.session_state.selected_symbol = item['symbol']
+                    st.session_state.auto_analyze = True
                     st.rerun()
         else:
             st.info("No bearish signals")
@@ -246,10 +248,11 @@ def show_technical_screener(analysis_period='1y'):
             df_bullish = pd.DataFrame(bullish_data)
             st.dataframe(df_bullish, use_container_width=True, hide_index=True)
             
-            # Quick analysis buttons
+            # Quick analysis buttons - AUTO ANALYZE
             for idx, item in enumerate(results['bullish'][:2]):
                 if st.button(f"📊 {item['symbol']}", key=f"bullish_{item['symbol']}", use_container_width=True):
                     st.session_state.selected_symbol = item['symbol']
+                    st.session_state.auto_analyze = True
                     st.rerun()
         else:
             st.info("No bullish signals")
@@ -268,10 +271,11 @@ def show_technical_screener(analysis_period='1y'):
             df_very_bullish = pd.DataFrame(very_bullish_data)
             st.dataframe(df_very_bullish, use_container_width=True, hide_index=True)
             
-            # Quick analysis buttons
+            # Quick analysis buttons - AUTO ANALYZE
             for idx, item in enumerate(results['very_bullish'][:2]):
                 if st.button(f"📊 {item['symbol']}", key=f"very_bullish_{item['symbol']}", use_container_width=True):
                     st.session_state.selected_symbol = item['symbol']
+                    st.session_state.auto_analyze = True
                     st.rerun()
         else:
             st.info("No very bullish signals")
@@ -319,6 +323,10 @@ def initialize_session_state():
         st.session_state.show_confidence_intervals = True
     if 'current_symbol' not in st.session_state:
         st.session_state.current_symbol = UI_SETTINGS['default_symbol']
+    if 'auto_analyze' not in st.session_state:
+        st.session_state.auto_analyze = False
+    if 'previous_symbol' not in st.session_state:
+        st.session_state.previous_symbol = UI_SETTINGS['default_symbol']
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters"""
@@ -336,12 +344,17 @@ def create_sidebar_controls():
         "Symbol", 
         value=st.session_state.current_symbol,
         key="symbol_input",
-        help="Enter stock symbol"
+        help="Enter stock symbol and press Enter to analyze"
     ).upper()
     
-    # Update current_symbol when text input changes
+    # ENTER KEY BEHAVIOR: Check if symbol changed to trigger auto-analysis
+    symbol_changed = False
     if symbol != st.session_state.current_symbol:
         st.session_state.current_symbol = symbol
+        symbol_changed = True
+        if symbol and symbol != st.session_state.previous_symbol:
+            st.session_state.auto_analyze = True
+            st.session_state.previous_symbol = symbol
     
     period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
     
@@ -396,8 +409,10 @@ def create_sidebar_controls():
                     if symbol_idx < len(recent_symbols):
                         recent_symbol = recent_symbols[symbol_idx]
                         with col:
+                            # AUTO ANALYZE FOR RECENTLY VIEWED
                             if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
                                 st.session_state.selected_symbol = recent_symbol
+                                st.session_state.auto_analyze = True
                                 st.rerun()
 
     # Quick Links section
@@ -412,8 +427,10 @@ def create_sidebar_controls():
                         if i + j < len(symbols):
                             sym = symbols[i + j]
                             with col:
+                                # AUTO ANALYZE FOR QUICK LINKS
                                 if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
                                     st.session_state.selected_symbol = sym
+                                    st.session_state.auto_analyze = True
                                     st.rerun()
 
     # Debug toggle
@@ -423,7 +440,9 @@ def create_sidebar_controls():
         'symbol': st.session_state.current_symbol,
         'period': period,
         'analyze_button': analyze_button,
-        'show_debug': show_debug
+        'show_debug': show_debug,
+        'auto_analyze': st.session_state.auto_analyze,
+        'symbol_changed': symbol_changed
     }
 
 def add_to_recently_viewed(symbol):
@@ -781,8 +800,17 @@ def main():
     if controls['symbol']:
         st.write(f"## 📊 VWV Trading Analysis - {controls['symbol']}")
     
-    # Main logic flow
-    if controls['analyze_button'] and controls['symbol']:
+    # AUTO ANALYSIS LOGIC: Run analysis if button clicked, auto_analyze flag set, or symbol changed via Enter
+    should_analyze = (
+        (controls['analyze_button'] and controls['symbol']) or 
+        (controls['auto_analyze'] and controls['symbol']) or
+        (controls['symbol_changed'] and controls['symbol'] and len(controls['symbol']) > 0)
+    )
+    
+    if should_analyze:
+        # Clear auto_analyze flag
+        st.session_state.auto_analyze = False
+        
         # Add symbol to recently viewed
         add_to_recently_viewed(controls['symbol'])
         
@@ -800,12 +828,13 @@ def main():
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
-                show_options_analysis(analysis_results, controls['show_debug'])
-                show_confidence_intervals(analysis_results, controls['show_debug'])
                 
-                # NEW: Technical Score Screener - placed above debug info
+                # MOVED: Technical Score Screener - NOW BELOW Market Correlation
                 st.markdown("---")
                 show_technical_screener(controls['period'])
+                
+                show_options_analysis(analysis_results, controls['show_debug'])
+                show_confidence_intervals(analysis_results, controls['show_debug'])
                 
                 # Debug information
                 if controls['show_debug']:
@@ -823,7 +852,9 @@ def main():
                         st.json({
                             'current_symbol': st.session_state.get('current_symbol', 'Not Set'),
                             'recently_viewed': st.session_state.get('recently_viewed', []),
-                            'selected_symbol': st.session_state.get('selected_symbol', 'Not Set')
+                            'selected_symbol': st.session_state.get('selected_symbol', 'Not Set'),
+                            'auto_analyze': st.session_state.get('auto_analyze', False),
+                            'previous_symbol': st.session_state.get('previous_symbol', 'Not Set')
                         })
     
     else:
@@ -831,7 +862,7 @@ def main():
         st.write("## 🚀 VWV Professional Trading System - Complete Modular Architecture")
         st.write("**All modules active:** Technical, Fundamental, Market, Options, UI Components, **4-Tier Technical Screener**")
         
-        # NEW: Always show screener on home page
+        # Always show screener on home page
         st.markdown("---")
         show_technical_screener('1y')  # Default to 1 year on home page
         st.markdown("---")
@@ -852,9 +883,9 @@ def main():
                 st.write("• **Individual Technical Analysis**")
                 st.write("• **Fundamental Analysis** (Graham & Piotroski)")
                 st.write("• **Market Correlation & Breakouts**")
+                st.write("• **4-Tier Technical Score Screener**")
                 st.write("• **Options Analysis with Greeks**")
                 st.write("• **Statistical Confidence Intervals**")
-                st.write("• **🆕 4-Tier Technical Score Screener**")
         
         # Show current market status
         market_status = get_market_status()
@@ -862,11 +893,11 @@ def main():
         
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=False):
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("2. **Click 'Analyze Symbol'** to run complete analysis")
-            st.write("3. **View all sections:** Technical, Fundamental, Market, Options")
+            st.write("1. **Enter a symbol** and press Enter for instant analysis")
+            st.write("2. **Click any Quick Link** for immediate analysis")
+            st.write("3. **Click screener symbols** for instant detailed analysis")
             st.write("4. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("5. **🆕 Use the 4-tier screener** to find extreme technical scores automatically")
+            st.write("5. **🆕 Auto-analysis** - No need to click Analyze button!")
 
     # Footer
     st.markdown("---")
@@ -874,14 +905,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.3 - 4-Tier Screener")
-        st.write(f"**Architecture:** Full Modular + 4-Tier Screening")
+        st.write(f"**Version:** VWV Professional v3.4 - Auto Analysis")
+        st.write(f"**Architecture:** Full Modular + Auto-Features")
     with col2:
-        st.write(f"**Status:** ✅ All Modules + 4-Tier Screener Active")
+        st.write(f"**Status:** ✅ All Modules + Auto Analysis Active")
         st.write(f"**Current Symbol:** {st.session_state.get('current_symbol', 'SPY')}")
     with col3:
-        st.write(f"**Screener:** Auto-refresh every {SCREENER_CONFIG['refresh_minutes']} min")
-        st.write(f"**Categories:** ≤{SCREENER_CONFIG['very_bearish_threshold']} | {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']} | {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']} | ≥{SCREENER_CONFIG['very_bullish_threshold']}")
+        st.write(f"**Features:** Enter Key + Quick Links Auto-Analyze")
+        st.write(f"**Screener Position:** Below Market Correlation")
 
 if __name__ == "__main__":
     try:

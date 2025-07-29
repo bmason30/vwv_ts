@@ -1,5 +1,5 @@
 """
-VWV Professional Trading System - Complete Modular Version
+VWV Professional Trading System - Complete Version with Interactive Charts
 Main application with enhanced indicators, charts, and collapsible screener
 """
 
@@ -65,6 +65,271 @@ SCREENER_CONFIG = {
     'max_symbols_per_scan': 20,  # Limit to avoid timeouts
     'timeout_per_symbol': 10  # seconds
 }
+
+def create_interactive_chart(data: pd.DataFrame, analysis_results: dict, symbol: str) -> go.Figure:
+    """
+    Create comprehensive interactive chart with all technical indicators
+    Optimized for Streamlit Cloud free tier
+    """
+    try:
+        # Create subplots: Main chart + Volume
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=(f'{symbol} - Price & Technical Analysis', 'Volume'),
+            row_heights=[0.7, 0.3]
+        )
+        
+        # 1. CANDLESTICK CHART
+        fig.add_trace(
+            go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name='Price',
+                increasing_line_color='#00ff88',
+                decreasing_line_color='#ff3366',
+                increasing_fillcolor='#00ff88',
+                decreasing_fillcolor='#ff3366'
+            ),
+            row=1, col=1
+        )
+        
+        # 2. FIBONACCI EMAs
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        
+        # EMA colors and styling
+        ema_colors = {
+            'EMA_21': '#FFD700',   # Gold
+            'EMA_55': '#FF6B6B',   # Red
+            'EMA_89': '#4ECDC4',   # Teal
+            'EMA_144': '#45B7D1',  # Blue
+            'EMA_233': '#FFA07A'   # Light Salmon
+        }
+        
+        # Calculate EMAs for the chart
+        for ema_period in [21, 55, 89, 144, 233]:
+            if len(data) >= ema_period:
+                ema_values = data['Close'].ewm(span=ema_period).mean()
+                ema_name = f'EMA_{ema_period}'
+                
+                fig.add_trace(
+                    go.Scatter(
+                        x=data.index,
+                        y=ema_values,
+                        mode='lines',
+                        name=f'EMA {ema_period}',
+                        line=dict(
+                            color=ema_colors.get(ema_name, '#CCCCCC'),
+                            width=2
+                        ),
+                        opacity=0.8
+                    ),
+                    row=1, col=1
+                )
+        
+        # 3. VWAP LINE
+        daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+        if daily_vwap > 0:
+            fig.add_hline(
+                y=daily_vwap,
+                line_dash="dash",
+                line_color="#FFF700",
+                annotation_text=f"VWAP: ${daily_vwap:.2f}",
+                annotation_position="bottom right",
+                row=1, col=1
+            )
+        
+        # 4. POINT OF CONTROL
+        point_of_control = enhanced_indicators.get('point_of_control', 0)
+        if point_of_control > 0:
+            fig.add_hline(
+                y=point_of_control,
+                line_dash="dot",
+                line_color="#FF69B4",
+                annotation_text=f"POC: ${point_of_control:.2f}",
+                annotation_position="top right",
+                row=1, col=1
+            )
+        
+        # 5. SUPPORT AND RESISTANCE LEVELS
+        comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+        
+        # Previous week high/low
+        prev_week_high = comprehensive_technicals.get('prev_week_high', 0)
+        prev_week_low = comprehensive_technicals.get('prev_week_low', 0)
+        
+        if prev_week_high > 0:
+            fig.add_hline(
+                y=prev_week_high,
+                line_dash="dash",
+                line_color="#FF4500",
+                annotation_text=f"Week High: ${prev_week_high:.2f}",
+                annotation_position="top left",
+                opacity=0.7,
+                row=1, col=1
+            )
+        
+        if prev_week_low > 0:
+            fig.add_hline(
+                y=prev_week_low,
+                line_dash="dash",
+                line_color="#32CD32",
+                annotation_text=f"Week Low: ${prev_week_low:.2f}",
+                annotation_position="bottom left",
+                opacity=0.7,
+                row=1, col=1
+            )
+        
+        # 6. VOLUME CHART
+        volume_colors = [
+            '#00ff88' if close >= open else '#ff3366'
+            for close, open in zip(data['Close'], data['Open'])
+        ]
+        
+        fig.add_trace(
+            go.Bar(
+                x=data.index,
+                y=data['Volume'],
+                name='Volume',
+                marker_color=volume_colors,
+                opacity=0.7
+            ),
+            row=2, col=1
+        )
+        
+        # Add volume moving average
+        if len(data) >= 20:
+            volume_ma = data['Volume'].rolling(20).mean()
+            fig.add_trace(
+                go.Scatter(
+                    x=data.index,
+                    y=volume_ma,
+                    mode='lines',
+                    name='Volume MA(20)',
+                    line=dict(color='#FFA500', width=2),
+                    opacity=0.8
+                ),
+                row=2, col=1
+            )
+        
+        # 7. CURRENT PRICE MARKER
+        current_price = analysis_results.get('current_price', data['Close'].iloc[-1])
+        current_date = data.index[-1]
+        
+        fig.add_trace(
+            go.Scatter(
+                x=[current_date],
+                y=[current_price],
+                mode='markers',
+                name='Current Price',
+                marker=dict(
+                    size=12,
+                    color='#FFFF00',
+                    symbol='diamond',
+                    line=dict(width=2, color='#000000')
+                )
+            ),
+            row=1, col=1
+        )
+        
+        # 8. CHART LAYOUT AND STYLING
+        fig.update_layout(
+            title=dict(
+                text=f"{symbol} - Professional Trading Analysis",
+                font=dict(size=20, color='white'),
+                x=0.5
+            ),
+            template='plotly_dark',
+            height=800,
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=1.01,
+                bgcolor="rgba(0,0,0,0.5)",
+                bordercolor="rgba(255,255,255,0.2)",
+                borderwidth=1
+            ),
+            margin=dict(l=0, r=100, t=50, b=0),
+            hovermode='x unified'
+        )
+        
+        # Update axes
+        fig.update_xaxes(
+            title_text="Date",
+            gridcolor='rgba(128,128,128,0.2)',
+            row=2, col=1
+        )
+        
+        fig.update_yaxes(
+            title_text="Price ($)",
+            gridcolor='rgba(128,128,128,0.2)',
+            row=1, col=1
+        )
+        
+        fig.update_yaxes(
+            title_text="Volume",
+            gridcolor='rgba(128,128,128,0.2)',
+            row=2, col=1
+        )
+        
+        # Remove rangeslider for cleaner look
+        fig.update_layout(xaxis_rangeslider_visible=False)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Error creating chart: {str(e)}")
+        return create_simple_fallback_chart(data, symbol)
+
+def create_simple_fallback_chart(data: pd.DataFrame, symbol: str) -> go.Figure:
+    """
+    Fallback chart in case main chart creation fails
+    """
+    fig = go.Figure()
+    
+    fig.add_trace(
+        go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name=symbol
+        )
+    )
+    
+    fig.update_layout(
+        title=f"{symbol} - Basic Chart",
+        template='plotly_dark',
+        height=600
+    )
+    
+    return fig
+
+def display_interactive_charts(analysis_results: dict, market_data: pd.DataFrame):
+    """
+    Display all interactive charts in the Streamlit app
+    """
+    symbol = analysis_results.get('symbol', 'Unknown')
+    
+    # Main price chart
+    with st.container():
+        st.subheader("📈 Interactive Price Chart")
+        
+        with st.spinner("Generating interactive chart..."):
+            main_chart = create_interactive_chart(market_data, analysis_results, symbol)
+            st.plotly_chart(main_chart, use_container_width=True, config={
+                'displayModeBar': True,
+                'displaylogo': False,
+                'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d']
+            })
 
 @st.cache_data(ttl=SCREENER_CONFIG['refresh_minutes'] * 60, show_spinner=False)
 def scan_extreme_technical_scores(analysis_period='1y'):
@@ -461,6 +726,8 @@ def initialize_session_state():
         st.session_state.show_confidence_intervals = True
     if 'show_technical_screener' not in st.session_state:  # NEW TOGGLE
         st.session_state.show_technical_screener = True
+    if 'show_interactive_charts' not in st.session_state:
+        st.session_state.show_interactive_charts = True
     if 'current_symbol' not in st.session_state:
         st.session_state.current_symbol = UI_SETTINGS['default_symbol']
     if 'auto_analyze' not in st.session_state:
@@ -474,9 +741,6 @@ def create_sidebar_controls():
     
     # Initialize session state
     initialize_session_state()
-
-    if 'show_interactive_charts' not in st.session_state:
-        st.session_state.show_interactive_charts = True
     
     # Better symbol handling - check for quick link selection first
     if 'selected_symbol' in st.session_state:
@@ -501,7 +765,7 @@ def create_sidebar_controls():
     
     period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
     
-   # Section Control Panel
+    # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
         st.write("**Toggle Analysis Sections:**")
         
@@ -601,6 +865,66 @@ def add_to_recently_viewed(symbol):
         st.session_state.recently_viewed.insert(0, symbol)
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
 
+def show_interactive_charts_section(analysis_results, show_debug=False):
+    """Display interactive charts section - NEW FEATURE"""
+    if not st.session_state.get('show_interactive_charts', True):
+        return
+        
+    # Get market data for charts
+    data_manager = get_data_manager()
+    symbol = analysis_results['symbol']
+    chart_data = data_manager.get_market_data_for_chart(symbol)
+    
+    if chart_data is not None and len(chart_data) > 0:
+        with st.expander(f"📈 {symbol} - Interactive Charts & Visualization", expanded=True):
+            try:
+                # Display the interactive charts
+                display_interactive_charts(analysis_results, chart_data)
+                
+                # Chart information panel
+                with st.container():
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.info("""
+                        **📈 Price Chart Features:**
+                        • Candlestick price data
+                        • Fibonacci EMAs (21, 55, 89, 144, 233)
+                        • VWAP & Point of Control levels
+                        • Support/Resistance levels
+                        • Volume analysis
+                        """)
+                    
+                    with col2:
+                        st.info("""
+                        **📊 Volume Analysis:**
+                        • Color-coded volume bars
+                        • 20-period volume moving average
+                        • Volume relationship to price
+                        • Intraday volume patterns
+                        """)
+                    
+                    with col3:
+                        st.info("""
+                        **🎯 Interactive Features:**
+                        • Zoom and pan functionality
+                        • Hover for detailed data
+                        • Download chart as PNG
+                        • Mobile-responsive design
+                        """)
+                
+                if show_debug:
+                    st.write(f"📊 Chart data points: {len(chart_data)}")
+                    st.write(f"📅 Date range: {chart_data.index[0]} to {chart_data.index[-1]}")
+                
+            except Exception as e:
+                st.error(f"❌ Error displaying charts: {str(e)}")
+                if show_debug:
+                    st.exception(e)
+    else:
+        st.warning("⚠️ Chart data not available for visualization")
+
 def show_individual_technical_analysis(analysis_results, show_debug=False):
     """Display individual technical analysis section with ENHANCED indicators"""
     if not st.session_state.show_technical_analysis:
@@ -686,66 +1010,6 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
         st.dataframe(df_technical, use_container_width=True, hide_index=True)
-
-def show_interactive_charts_section(analysis_results, show_debug=False):
-    """Display interactive charts section - NEW FEATURE"""
-    if not st.session_state.get('show_interactive_charts', True):
-        return
-        
-    # Get market data for charts
-    data_manager = get_data_manager()
-    symbol = analysis_results['symbol']
-    chart_data = data_manager.get_market_data_for_chart(symbol)
-    
-    if chart_data is not None and len(chart_data) > 0:
-        with st.expander(f"📈 {symbol} - Interactive Charts & Visualization", expanded=True):
-            try:
-                # Display the interactive charts
-                display_interactive_charts(analysis_results, chart_data)
-                
-                # Chart information panel
-                with st.container():
-                    st.markdown("---")
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        st.info("""
-                        **📈 Price Chart Features:**
-                        • Candlestick price data
-                        • Fibonacci EMAs (21, 55, 89, 144, 233)
-                        • VWAP & Point of Control levels
-                        • Support/Resistance levels
-                        • Volume analysis
-                        """)
-                    
-                    with col2:
-                        st.info("""
-                        **📊 Volume Analysis:**
-                        • Color-coded volume bars
-                        • 20-period volume moving average
-                        • Volume relationship to price
-                        • Intraday volume patterns
-                        """)
-                    
-                    with col3:
-                        st.info("""
-                        **🎯 Interactive Features:**
-                        • Zoom and pan functionality
-                        • Hover for detailed data
-                        • Download chart as PNG
-                        • Mobile-responsive design
-                        """)
-                
-                if show_debug:
-                    st.write(f"📊 Chart data points: {len(chart_data)}")
-                    st.write(f"📅 Date range: {chart_data.index[0]} to {chart_data.index[-1]}")
-                
-            except Exception as e:
-                st.error(f"❌ Error displaying charts: {str(e)}")
-                if show_debug:
-                    st.exception(e)
-    else:
-        st.warning("⚠️ Chart data not available for visualization")
 
 def show_fundamental_analysis(analysis_results, show_debug=False):
     """Display ENHANCED fundamental analysis section"""
@@ -1071,7 +1335,7 @@ def main():
                 controls['show_debug']
             )
             
-           if analysis_results:
+            if analysis_results:
                 # Show all analysis sections - UPDATED ORDER
                 show_interactive_charts_section(analysis_results, controls['show_debug'])  # NEW - FIRST!
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
@@ -1081,7 +1345,7 @@ def main():
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
                 # Debug information
-            if controls['show_debug']:
+                if controls['show_debug']:
                     st.markdown("---")
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")
@@ -1125,7 +1389,7 @@ def main():
                 
             with col2:
                 st.write("### 🎯 **Enhanced Features**")
-                st.write("• **📈 Technical Charts** with indicators overlay")
+                st.write("• **📈 Interactive Charts** with all technical overlays")
                 st.write("• **📊 All Fibonacci EMAs** (21,55,89,144,233)")
                 st.write("• **📅 Previous Week High/Low** levels")
                 st.write("• **📋 Detailed Fundamental** criteria breakdown")
@@ -1142,7 +1406,7 @@ def main():
             st.write("2. **Click any Quick Link** for immediate analysis")
             st.write("3. **View interactive charts** with technical indicators")
             st.write("4. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("5. **🆕 Enhanced indicators** - All EMAs, weekly levels, detailed criteria")
+            st.write("5. **🆕 Interactive charts** - Full Plotly integration")
 
     # Footer
     st.markdown("---")
@@ -1150,14 +1414,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.5 - Enhanced")
-        st.write(f"**Architecture:** Full Modular + Charts + Enhanced Indicators")
+        st.write(f"**Version:** VWV Professional v4.0 - Interactive Charts")
+        st.write(f"**Architecture:** Full Modular + Interactive Charts")
     with col2:
-        st.write(f"**Status:** ✅ All Modules + Chart + Enhanced Features")
+        st.write(f"**Status:** ✅ All Modules + Interactive Charts Active")
         st.write(f"**Current Symbol:** {st.session_state.get('current_symbol', 'SPY')}")
     with col3:
-        st.write(f"**Features:** Charts, All EMAs, Weekly Levels, Detailed Criteria")
-        st.write(f"**Screener:** Collapsible with Toggle Control")
+        st.write(f"**Charts:** Candlestick, EMAs, VWAP, Volume, POC")
+        st.write(f"**Compatible:** Streamlit Cloud Free Tier")
 
 if __name__ == "__main__":
     try:

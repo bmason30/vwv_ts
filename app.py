@@ -474,6 +474,9 @@ def create_sidebar_controls():
     
     # Initialize session state
     initialize_session_state()
+
+    if 'show_interactive_charts' not in st.session_state:
+        st.session_state.show_interactive_charts = True
     
     # Better symbol handling - check for quick link selection first
     if 'selected_symbol' in st.session_state:
@@ -498,12 +501,17 @@ def create_sidebar_controls():
     
     period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
     
-    # Section Control Panel - ADDED SCREENER TOGGLE
+   # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
         st.write("**Toggle Analysis Sections:**")
         
         col1, col2 = st.columns(2)
         with col1:
+            st.session_state.show_interactive_charts = st.checkbox(
+                "Interactive Charts", 
+                value=st.session_state.show_interactive_charts,
+                key="toggle_charts"
+            )
             st.session_state.show_technical_analysis = st.checkbox(
                 "Technical Analysis", 
                 value=st.session_state.show_technical_analysis,
@@ -514,17 +522,12 @@ def create_sidebar_controls():
                 value=st.session_state.show_fundamental_analysis,
                 key="toggle_fundamental"
             )
+        
+        with col2:
             st.session_state.show_market_correlation = st.checkbox(
                 "Market Correlation", 
                 value=st.session_state.show_market_correlation,
                 key="toggle_correlation"
-            )
-        
-        with col2:
-            st.session_state.show_technical_screener = st.checkbox(
-                "Technical Screener", 
-                value=st.session_state.show_technical_screener,
-                key="toggle_screener"
             )
             st.session_state.show_options_analysis = st.checkbox(
                 "Options Analysis", 
@@ -1068,15 +1071,12 @@ def main():
                 controls['show_debug']
             )
             
-            if analysis_results:
-                # Show all analysis sections using modular functions
+           if analysis_results:
+                # Show all analysis sections - UPDATED ORDER
+                show_interactive_charts_section(analysis_results, controls['show_debug'])  # NEW - FIRST!
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
-                
-                # MOVED: Technical Score Screener - NOW COLLAPSIBLE BELOW Market Correlation
-                show_technical_screener(controls['period'])
-                
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 

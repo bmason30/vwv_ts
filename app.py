@@ -1,6 +1,7 @@
 """
 VWV Professional Trading System - Complete Modular Version
 Main application with all sections working properly
+FIXES: Symbol selection persistence and HTML rendering
 """
 
 import streamlit as st
@@ -52,11 +53,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters"""
-    st.sidebar.title("📊 Trading Analysis")
-    
-    # Initialize session state
+def initialize_session_state():
+    """Initialize session state variables"""
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
     if 'show_technical_analysis' not in st.session_state:
@@ -69,15 +67,33 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
+    # FIX: Initialize current_symbol properly
+    if 'current_symbol' not in st.session_state:
+        st.session_state.current_symbol = UI_SETTINGS['default_symbol']
+
+def create_sidebar_controls():
+    """Create sidebar controls and return analysis parameters"""
+    st.sidebar.title("📊 Trading Analysis")
     
-    # Basic controls
+    # Initialize session state
+    initialize_session_state()
+    
+    # FIX: Better symbol handling - check for quick link selection first
     if 'selected_symbol' in st.session_state:
-        default_symbol = st.session_state.selected_symbol
-        del st.session_state.selected_symbol
-    else:
-        default_symbol = UI_SETTINGS['default_symbol']
+        st.session_state.current_symbol = st.session_state.selected_symbol
+        del st.session_state.selected_symbol  # Clear the trigger
         
-    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
+    symbol = st.sidebar.text_input(
+        "Symbol", 
+        value=st.session_state.current_symbol,
+        key="symbol_input",
+        help="Enter stock symbol"
+    ).upper()
+    
+    # FIX: Update current_symbol when text input changes
+    if symbol != st.session_state.current_symbol:
+        st.session_state.current_symbol = symbol
+    
     period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
     
     # Section Control Panel
@@ -155,7 +171,7 @@ def create_sidebar_controls():
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
     
     return {
-        'symbol': symbol,
+        'symbol': st.session_state.current_symbol,  # FIX: Use session state symbol
         'period': period,
         'analyze_button': analyze_button,
         'show_debug': show_debug
@@ -179,7 +195,9 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         # COMPOSITE TECHNICAL SCORE - Use modular component
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
-        st.markdown(score_bar_html, unsafe_allow_html=True)
+        
+        # FIX: Use components directly instead of markdown for better rendering
+        st.components.v1.html(score_bar_html, height=200)
         
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
@@ -510,12 +528,14 @@ def main():
     # Create sidebar and get controls
     controls = create_sidebar_controls()
     
+    # FIX: Show current symbol being analyzed
+    if controls['symbol']:
+        st.write(f"## 📊 VWV Trading Analysis - {controls['symbol']}")
+    
     # Main logic flow
     if controls['analyze_button'] and controls['symbol']:
         # Add symbol to recently viewed
         add_to_recently_viewed(controls['symbol'])
-        
-        st.write("## 📊 VWV Trading Analysis")
         
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             
@@ -544,6 +564,13 @@ def main():
                         data_manager = get_data_manager()
                         summary = data_manager.get_data_summary()
                         st.json(summary)
+                        
+                        st.write("### Current Session State")
+                        st.json({
+                            'current_symbol': st.session_state.get('current_symbol', 'Not Set'),
+                            'recently_viewed': st.session_state.get('recently_viewed', []),
+                            'selected_symbol': st.session_state.get('selected_symbol', 'Not Set')
+                        })
     
     else:
         # Welcome message
@@ -586,11 +613,11 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.0 - Complete")
+        st.write(f"**Version:** VWV Professional v3.1 - Fixed")
         st.write(f"**Architecture:** Full Modular Implementation")
     with col2:
         st.write(f"**Status:** ✅ All Modules Active")
-        st.write(f"**Sections:** Technical, Fundamental, Market, Options")
+        st.write(f"**Current Symbol:** {st.session_state.get('current_symbol', 'SPY')}")
     with col3:
         st.write(f"**Components:** config, data, analysis, ui, utils")
         st.write(f"**Interface:** Complete multi-section experience")

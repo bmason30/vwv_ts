@@ -1,6 +1,6 @@
 """
 VWV Professional Trading System - Complete Modular Version
-Main application with repositioned screener and auto-analysis features
+Main application with enhanced indicators, charts, and collapsible screener
 """
 
 import streamlit as st
@@ -9,6 +9,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import warnings
 import time
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Import our modular components
 from config.settings import DEFAULT_VWV_CONFIG, UI_SETTINGS, PARAMETER_RANGES
@@ -155,157 +157,293 @@ def scan_extreme_technical_scores(analysis_period='1y'):
         'timestamp': datetime.now().strftime('%H:%M:%S')
     }
 
+def create_technical_chart(market_data, analysis_results):
+    """Create comprehensive technical analysis chart with indicators"""
+    try:
+        if market_data is None or len(market_data) < 50:
+            return None
+            
+        # Create subplots with secondary y-axis
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            subplot_titles=(f'{analysis_results["symbol"]} - Price & Technical Indicators', 'Volume'),
+            row_heights=[0.7, 0.3]
+        )
+        
+        # Candlestick chart
+        fig.add_trace(
+            go.Candlestick(
+                x=market_data.index,
+                open=market_data['Open'],
+                high=market_data['High'],
+                low=market_data['Low'],
+                close=market_data['Close'],
+                name='Price',
+                increasing_line_color='#00A86B',
+                decreasing_line_color='#DC143C'
+            ),
+            row=1, col=1
+        )
+        
+        # Add technical indicators
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        
+        # EMAs
+        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        ema_colors = {'EMA_21': '#FF6B6B', 'EMA_55': '#4ECDC4', 'EMA_89': '#45B7D1', 'EMA_144': '#96CEB4', 'EMA_233': '#FFEAA7'}
+        
+        for ema_name, ema_value in fibonacci_emas.items():
+            period = ema_name.split('_')[1]
+            if len(market_data) >= int(period):
+                ema_series = market_data['Close'].ewm(span=int(period)).mean()
+                fig.add_trace(
+                    go.Scatter(
+                        x=market_data.index,
+                        y=ema_series,
+                        mode='lines',
+                        name=f'EMA {period}',
+                        line=dict(color=ema_colors.get(ema_name, '#95A5A6'), width=1.5),
+                        opacity=0.8
+                    ),
+                    row=1, col=1
+                )
+        
+        # VWAP
+        daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+        if daily_vwap > 0:
+            fig.add_hline(
+                y=daily_vwap,
+                line_dash="dash",
+                line_color="#E74C3C",
+                annotation_text=f"VWAP: ${daily_vwap:.2f}",
+                row=1, col=1
+            )
+        
+        # Point of Control
+        poc = enhanced_indicators.get('point_of_control', 0)
+        if poc > 0:
+            fig.add_hline(
+                y=poc,
+                line_dash="dot",
+                line_color="#9B59B6",
+                annotation_text=f"POC: ${poc:.2f}",
+                row=1, col=1
+            )
+        
+        # Previous Week High/Low
+        comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+        prev_week_high = comprehensive_technicals.get('prev_week_high', 0)
+        prev_week_low = comprehensive_technicals.get('prev_week_low', 0)
+        
+        if prev_week_high > 0:
+            fig.add_hline(
+                y=prev_week_high,
+                line_dash="dashdot",
+                line_color="#27AE60",
+                annotation_text=f"Prev Week High: ${prev_week_high:.2f}",
+                row=1, col=1
+            )
+        
+        if prev_week_low > 0:
+            fig.add_hline(
+                y=prev_week_low,
+                line_dash="dashdot", 
+                line_color="#E67E22",
+                annotation_text=f"Prev Week Low: ${prev_week_low:.2f}",
+                row=1, col=1
+            )
+        
+        # Volume
+        colors = ['#00A86B' if close >= open else '#DC143C' 
+                 for close, open in zip(market_data['Close'], market_data['Open'])]
+        
+        fig.add_trace(
+            go.Bar(
+                x=market_data.index,
+                y=market_data['Volume'],
+                name='Volume',
+                marker_color=colors,
+                opacity=0.7
+            ),
+            row=2, col=1
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=f"{analysis_results['symbol']} - Technical Analysis Chart",
+            xaxis_rangeslider_visible=False,
+            height=800,
+            showlegend=True,
+            template='plotly_dark',
+            hovermode='x unified'
+        )
+        
+        fig.update_xaxes(title_text="Date")
+        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        
+        return fig
+        
+    except Exception as e:
+        st.error(f"Chart creation error: {e}")
+        return None
+
 def show_technical_screener(analysis_period='1y'):
-    """Display the technical score screener section"""
-    st.write("### 🎯 Technical Score Screener")
-    st.write(f"**Score Categories**: 0-{SCREENER_CONFIG['very_bearish_threshold']} (Very Bearish) | {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']} (Bearish) | {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']} (Bullish) | {SCREENER_CONFIG['very_bullish_threshold']}-100 (Very Bullish) | Auto-refresh: {SCREENER_CONFIG['refresh_minutes']} min")
-    
-    # Add manual refresh button and summary info
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        if st.button("🔄 Refresh Now", help="Manually refresh screener results"):
-            st.cache_data.clear()
-            st.rerun()
-    
-    # Get cached results with consolidated spinner
-    with st.spinner("Scanning symbols for technical scores..."):
-        screen_results = scan_extreme_technical_scores(analysis_period)
-    
-    with col2:
-        st.write(f"**Last Scan:** {screen_results['timestamp']}")
-    with col3:
-        st.write(f"**Scanned:** {screen_results['scanned_count']} symbols in {screen_results['scan_time']}s")
-    
-    results = screen_results['results']
-    
-    # Consolidated data quality summary
-    total_signals = sum(len(category) for category in results.values())
-    if total_signals > 0:
-        st.success(f"✅ **Data Quality:** All symbols loaded successfully | **Signals Found:** {total_signals} total")
-    else:
-        st.info("ℹ️ **Status:** All symbols in normal range (30-70) - No extreme signals detected")
-    
-    # Display results in four columns with new categories
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.write("#### 🔴 Very Bearish (0-20)")
-        if results['very_bearish']:
-            very_bearish_data = []
-            for item in results['very_bearish']:
-                very_bearish_data.append({
-                    'Symbol': item['symbol'],
-                    'Score': f"{item['score']:.1f}",
-                    'Price': f"${item['price']:.2f}"
-                })
-            
-            df_very_bearish = pd.DataFrame(very_bearish_data)
-            st.dataframe(df_very_bearish, use_container_width=True, hide_index=True)
-            
-            # Quick analysis buttons - AUTO ANALYZE
-            for idx, item in enumerate(results['very_bearish'][:2]):
-                if st.button(f"📊 {item['symbol']}", key=f"very_bearish_{item['symbol']}", use_container_width=True):
-                    st.session_state.selected_symbol = item['symbol']
-                    st.session_state.auto_analyze = True
-                    st.rerun()
-        else:
-            st.info("No very bearish signals")
-    
-    with col2:
-        st.write("#### 🟠 Bearish (20-30)")
-        if results['bearish']:
-            bearish_data = []
-            for item in results['bearish']:
-                bearish_data.append({
-                    'Symbol': item['symbol'],
-                    'Score': f"{item['score']:.1f}",
-                    'Price': f"${item['price']:.2f}"
-                })
-            
-            df_bearish = pd.DataFrame(bearish_data)
-            st.dataframe(df_bearish, use_container_width=True, hide_index=True)
-            
-            # Quick analysis buttons - AUTO ANALYZE
-            for idx, item in enumerate(results['bearish'][:2]):
-                if st.button(f"📊 {item['symbol']}", key=f"bearish_{item['symbol']}", use_container_width=True):
-                    st.session_state.selected_symbol = item['symbol']
-                    st.session_state.auto_analyze = True
-                    st.rerun()
-        else:
-            st.info("No bearish signals")
-    
-    with col3:
-        st.write("#### 🟡 Bullish (70-80)")
-        if results['bullish']:
-            bullish_data = []
-            for item in results['bullish']:
-                bullish_data.append({
-                    'Symbol': item['symbol'],
-                    'Score': f"{item['score']:.1f}",
-                    'Price': f"${item['price']:.2f}"
-                })
-            
-            df_bullish = pd.DataFrame(bullish_data)
-            st.dataframe(df_bullish, use_container_width=True, hide_index=True)
-            
-            # Quick analysis buttons - AUTO ANALYZE
-            for idx, item in enumerate(results['bullish'][:2]):
-                if st.button(f"📊 {item['symbol']}", key=f"bullish_{item['symbol']}", use_container_width=True):
-                    st.session_state.selected_symbol = item['symbol']
-                    st.session_state.auto_analyze = True
-                    st.rerun()
-        else:
-            st.info("No bullish signals")
-    
-    with col4:
-        st.write("#### 🟢 Very Bullish (80-100)")
-        if results['very_bullish']:
-            very_bullish_data = []
-            for item in results['very_bullish']:
-                very_bullish_data.append({
-                    'Symbol': item['symbol'],
-                    'Score': f"{item['score']:.1f}",
-                    'Price': f"${item['price']:.2f}"
-                })
-            
-            df_very_bullish = pd.DataFrame(very_bullish_data)
-            st.dataframe(df_very_bullish, use_container_width=True, hide_index=True)
-            
-            # Quick analysis buttons - AUTO ANALYZE
-            for idx, item in enumerate(results['very_bullish'][:2]):
-                if st.button(f"📊 {item['symbol']}", key=f"very_bullish_{item['symbol']}", use_container_width=True):
-                    st.session_state.selected_symbol = item['symbol']
-                    st.session_state.auto_analyze = True
-                    st.rerun()
-        else:
-            st.info("No very bullish signals")
-    
-    # Enhanced summary stats
-    total_extreme = len(results['very_bearish']) + len(results['bearish']) + len(results['bullish']) + len(results['very_bullish'])
-    if total_extreme > 0:
-        summary_text = f"**Summary:** {total_extreme} signals detected: "
-        signal_parts = []
-        if results['very_bearish']:
-            signal_parts.append(f"{len(results['very_bearish'])} very bearish")
-        if results['bearish']:
-            signal_parts.append(f"{len(results['bearish'])} bearish")
-        if results['bullish']:
-            signal_parts.append(f"{len(results['bullish'])} bullish")
-        if results['very_bullish']:
-            signal_parts.append(f"{len(results['very_bullish'])} very bullish")
+    """Display the technical score screener section - NOW COLLAPSIBLE"""
+    if not st.session_state.show_technical_screener:
+        return
         
-        summary_text += ", ".join(signal_parts)
-        st.write(summary_text)
+    with st.expander("🎯 Technical Score Screener", expanded=True):
+        st.write(f"**Score Categories**: 0-{SCREENER_CONFIG['very_bearish_threshold']} (Very Bearish) | {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']} (Bearish) | {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']} (Bullish) | {SCREENER_CONFIG['very_bullish_threshold']}-100 (Very Bullish) | Auto-refresh: {SCREENER_CONFIG['refresh_minutes']} min")
         
-        # Show configuration
-        with st.expander("⚙️ Screener Configuration", expanded=False):
-            st.write(f"• **Refresh Frequency:** {SCREENER_CONFIG['refresh_minutes']} minutes")
-            st.write(f"• **Very Bearish:** 0-{SCREENER_CONFIG['very_bearish_threshold']}")
-            st.write(f"• **Bearish:** {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']}")
-            st.write(f"• **Bullish:** {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']}")
-            st.write(f"• **Very Bullish:** {SCREENER_CONFIG['very_bullish_threshold']}-100")
-            st.write(f"• **Max Symbols per Scan:** {SCREENER_CONFIG['max_symbols_per_scan']}")
-            st.write(f"• **Data Period:** {analysis_period} (matches individual analysis)")
+        # Add manual refresh button and summary info
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            if st.button("🔄 Refresh Now", help="Manually refresh screener results"):
+                st.cache_data.clear()
+                st.rerun()
+        
+        # Get cached results with consolidated spinner
+        with st.spinner("Scanning symbols for technical scores..."):
+            screen_results = scan_extreme_technical_scores(analysis_period)
+        
+        with col2:
+            st.write(f"**Last Scan:** {screen_results['timestamp']}")
+        with col3:
+            st.write(f"**Scanned:** {screen_results['scanned_count']} symbols in {screen_results['scan_time']}s")
+        
+        results = screen_results['results']
+        
+        # Consolidated data quality summary
+        total_signals = sum(len(category) for category in results.values())
+        if total_signals > 0:
+            st.success(f"✅ **Data Quality:** All symbols loaded successfully | **Signals Found:** {total_signals} total")
+        else:
+            st.info("ℹ️ **Status:** All symbols in normal range (30-70) - No extreme signals detected")
+        
+        # Display results in four columns with new categories
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.write("#### 🔴 Very Bearish (0-20)")
+            if results['very_bearish']:
+                very_bearish_data = []
+                for item in results['very_bearish']:
+                    very_bearish_data.append({
+                        'Symbol': item['symbol'],
+                        'Score': f"{item['score']:.1f}",
+                        'Price': f"${item['price']:.2f}"
+                    })
+                
+                df_very_bearish = pd.DataFrame(very_bearish_data)
+                st.dataframe(df_very_bearish, use_container_width=True, hide_index=True)
+                
+                # Quick analysis buttons - AUTO ANALYZE
+                for idx, item in enumerate(results['very_bearish'][:2]):
+                    if st.button(f"📊 {item['symbol']}", key=f"very_bearish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+            else:
+                st.info("No very bearish signals")
+        
+        with col2:
+            st.write("#### 🟠 Bearish (20-30)")
+            if results['bearish']:
+                bearish_data = []
+                for item in results['bearish']:
+                    bearish_data.append({
+                        'Symbol': item['symbol'],
+                        'Score': f"{item['score']:.1f}",
+                        'Price': f"${item['price']:.2f}"
+                    })
+                
+                df_bearish = pd.DataFrame(bearish_data)
+                st.dataframe(df_bearish, use_container_width=True, hide_index=True)
+                
+                # Quick analysis buttons - AUTO ANALYZE
+                for idx, item in enumerate(results['bearish'][:2]):
+                    if st.button(f"📊 {item['symbol']}", key=f"bearish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+            else:
+                st.info("No bearish signals")
+        
+        with col3:
+            st.write("#### 🟡 Bullish (70-80)")
+            if results['bullish']:
+                bullish_data = []
+                for item in results['bullish']:
+                    bullish_data.append({
+                        'Symbol': item['symbol'],
+                        'Score': f"{item['score']:.1f}",
+                        'Price': f"${item['price']:.2f}"
+                    })
+                
+                df_bullish = pd.DataFrame(bullish_data)
+                st.dataframe(df_bullish, use_container_width=True, hide_index=True)
+                
+                # Quick analysis buttons - AUTO ANALYZE
+                for idx, item in enumerate(results['bullish'][:2]):
+                    if st.button(f"📊 {item['symbol']}", key=f"bullish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+            else:
+                st.info("No bullish signals")
+        
+        with col4:
+            st.write("#### 🟢 Very Bullish (80-100)")
+            if results['very_bullish']:
+                very_bullish_data = []
+                for item in results['very_bullish']:
+                    very_bullish_data.append({
+                        'Symbol': item['symbol'],
+                        'Score': f"{item['score']:.1f}",
+                        'Price': f"${item['price']:.2f}"
+                    })
+                
+                df_very_bullish = pd.DataFrame(very_bullish_data)
+                st.dataframe(df_very_bullish, use_container_width=True, hide_index=True)
+                
+                # Quick analysis buttons - AUTO ANALYZE
+                for idx, item in enumerate(results['very_bullish'][:2]):
+                    if st.button(f"📊 {item['symbol']}", key=f"very_bullish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+            else:
+                st.info("No very bullish signals")
+        
+        # Enhanced summary stats
+        total_extreme = len(results['very_bearish']) + len(results['bearish']) + len(results['bullish']) + len(results['very_bullish'])
+        if total_extreme > 0:
+            summary_text = f"**Summary:** {total_extreme} signals detected: "
+            signal_parts = []
+            if results['very_bearish']:
+                signal_parts.append(f"{len(results['very_bearish'])} very bearish")
+            if results['bearish']:
+                signal_parts.append(f"{len(results['bearish'])} bearish")
+            if results['bullish']:
+                signal_parts.append(f"{len(results['bullish'])} bullish")
+            if results['very_bullish']:
+                signal_parts.append(f"{len(results['very_bullish'])} very bullish")
+            
+            summary_text += ", ".join(signal_parts)
+            st.write(summary_text)
+            
+            # Show configuration
+            with st.expander("⚙️ Screener Configuration", expanded=False):
+                st.write(f"• **Refresh Frequency:** {SCREENER_CONFIG['refresh_minutes']} minutes")
+                st.write(f"• **Very Bearish:** 0-{SCREENER_CONFIG['very_bearish_threshold']}")
+                st.write(f"• **Bearish:** {SCREENER_CONFIG['very_bearish_threshold']}-{SCREENER_CONFIG['bearish_threshold']}")
+                st.write(f"• **Bullish:** {SCREENER_CONFIG['bullish_threshold']}-{SCREENER_CONFIG['very_bullish_threshold']}")
+                st.write(f"• **Very Bullish:** {SCREENER_CONFIG['very_bullish_threshold']}-100")
+                st.write(f"• **Max Symbols per Scan:** {SCREENER_CONFIG['max_symbols_per_scan']}")
+                st.write(f"• **Data Period:** {analysis_period} (matches individual analysis)")
 
 def initialize_session_state():
     """Initialize session state variables"""
@@ -321,6 +459,8 @@ def initialize_session_state():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
+    if 'show_technical_screener' not in st.session_state:  # NEW TOGGLE
+        st.session_state.show_technical_screener = True
     if 'current_symbol' not in st.session_state:
         st.session_state.current_symbol = UI_SETTINGS['default_symbol']
     if 'auto_analyze' not in st.session_state:
@@ -358,7 +498,7 @@ def create_sidebar_controls():
     
     period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
     
-    # Section Control Panel
+    # Section Control Panel - ADDED SCREENER TOGGLE
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
         st.write("**Toggle Analysis Sections:**")
         
@@ -381,6 +521,11 @@ def create_sidebar_controls():
             )
         
         with col2:
+            st.session_state.show_technical_screener = st.checkbox(
+                "Technical Screener", 
+                value=st.session_state.show_technical_screener,
+                key="toggle_screener"
+            )
             st.session_state.show_options_analysis = st.checkbox(
                 "Options Analysis", 
                 value=st.session_state.show_options_analysis,
@@ -454,7 +599,7 @@ def add_to_recently_viewed(symbol):
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
 
 def show_individual_technical_analysis(analysis_results, show_debug=False):
-    """Display individual technical analysis section"""
+    """Display individual technical analysis section with ENHANCED indicators"""
     if not st.session_state.show_technical_analysis:
         return
         
@@ -485,7 +630,17 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
             volatility = comprehensive_technicals.get('volatility_20d', 0)
             st.metric("20D Volatility", f"{volatility:.1f}%")
         
-        # Technical indicators table
+        # ENHANCED CHART SECTION
+        data_manager = get_data_manager()
+        chart_data = data_manager.get_market_data_for_chart(analysis_results['symbol'])
+        
+        if chart_data is not None:
+            st.subheader("📈 Technical Analysis Chart")
+            chart_fig = create_technical_chart(chart_data, analysis_results)
+            if chart_fig:
+                st.plotly_chart(chart_fig, use_container_width=True)
+        
+        # ENHANCED Technical indicators table - ALL EMAs
         st.subheader("📋 Technical Indicators")
         current_price = analysis_results['current_price']
         daily_vwap = enhanced_indicators.get('daily_vwap', 0)
@@ -506,18 +661,31 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         poc_status = "Above" if current_price > point_of_control else "Below"
         indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status))
         
-        # Add Fibonacci EMAs
+        # ALL Fibonacci EMAs (21, 55, 89, 144, 233)
         for ema_name, ema_value in fibonacci_emas.items():
             period = ema_name.split('_')[1]
             distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
             status = "Above" if current_price > ema_value else "Below"
             indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status))
         
+        # ENHANCED - Previous Week High/Low
+        prev_week_high = comprehensive_technicals.get('prev_week_high', 0)
+        prev_week_low = comprehensive_technicals.get('prev_week_low', 0)
+        if prev_week_high > 0:
+            distance_pct = f"{((current_price - prev_week_high) / prev_week_high * 100):+.2f}%"
+            status = "Above" if current_price > prev_week_high else "Below"
+            indicators_data.append(("Prev Week High", f"${prev_week_high:.2f}", "📅 Weekly", distance_pct, status))
+        
+        if prev_week_low > 0:
+            distance_pct = f"{((current_price - prev_week_low) / prev_week_low * 100):+.2f}%"
+            status = "Above" if current_price > prev_week_low else "Below"
+            indicators_data.append(("Prev Week Low", f"${prev_week_low:.2f}", "📅 Weekly", distance_pct, status))
+        
         df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
         st.dataframe(df_technical, use_container_width=True, hide_index=True)
 
 def show_fundamental_analysis(analysis_results, show_debug=False):
-    """Display fundamental analysis section"""
+    """Display ENHANCED fundamental analysis section"""
     if not st.session_state.show_fundamental_analysis:
         return
         
@@ -574,6 +742,23 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                     )
                 else:
                     st.metric("Piotroski %", "0%", "No Data")
+            
+            # ENHANCED - Detailed Criteria Breakdown
+            if 'error' not in graham_data and graham_data.get('criteria'):
+                with st.expander("📋 Graham Score Detailed Criteria", expanded=False):
+                    for criterion in graham_data['criteria']:
+                        if '✅' in criterion:
+                            st.success(criterion)
+                        else:
+                            st.error(criterion)
+            
+            if 'error' not in piotroski_data and piotroski_data.get('criteria'):
+                with st.expander("📋 Piotroski F-Score Detailed Criteria", expanded=False):
+                    for criterion in piotroski_data['criteria']:
+                        if '✅' in criterion:
+                            st.success(criterion)
+                        else:
+                            st.error(criterion)
         
         elif is_etf_symbol:
             st.info(f"ℹ️ **{analysis_results['symbol']} is an ETF** - Fundamental analysis is not applicable to Exchange-Traded Funds.")
@@ -829,8 +1014,7 @@ def main():
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
                 
-                # MOVED: Technical Score Screener - NOW BELOW Market Correlation
-                st.markdown("---")
+                # MOVED: Technical Score Screener - NOW COLLAPSIBLE BELOW Market Correlation
                 show_technical_screener(controls['period'])
                 
                 show_options_analysis(analysis_results, controls['show_debug'])
@@ -859,15 +1043,16 @@ def main():
     
     else:
         # Welcome message
-        st.write("## 🚀 VWV Professional Trading System - Complete Modular Architecture")
-        st.write("**All modules active:** Technical, Fundamental, Market, Options, UI Components, **4-Tier Technical Screener**")
+        st.write("## 🚀 VWV Professional Trading System - Complete Enhanced Architecture")
+        st.write("**All modules active:** Technical + **Chart**, Fundamental + **Detailed Criteria**, Market, Options, UI Components, **Collapsible 4-Tier Screener**")
         
-        # Always show screener on home page
-        st.markdown("---")
-        show_technical_screener('1y')  # Default to 1 year on home page
-        st.markdown("---")
+        # Always show screener on home page (if enabled)
+        if st.session_state.show_technical_screener:
+            st.markdown("---")
+            show_technical_screener('1y')  # Default to 1 year on home page
+            st.markdown("---")
         
-        with st.expander("🏗️ Modular Architecture Overview", expanded=False):
+        with st.expander("🏗️ Enhanced Architecture Overview", expanded=False):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -879,13 +1064,13 @@ def main():
                 st.write("✅ **`utils/`** - Helpers, decorators, formatters")
                 
             with col2:
-                st.write("### 🎯 **All Sections Working**")
-                st.write("• **Individual Technical Analysis**")
-                st.write("• **Fundamental Analysis** (Graham & Piotroski)")
-                st.write("• **Market Correlation & Breakouts**")
-                st.write("• **4-Tier Technical Score Screener**")
-                st.write("• **Options Analysis with Greeks**")
-                st.write("• **Statistical Confidence Intervals**")
+                st.write("### 🎯 **Enhanced Features**")
+                st.write("• **📈 Technical Charts** with indicators overlay")
+                st.write("• **📊 All Fibonacci EMAs** (21,55,89,144,233)")
+                st.write("• **📅 Previous Week High/Low** levels")
+                st.write("• **📋 Detailed Fundamental** criteria breakdown")
+                st.write("• **🎯 Collapsible Technical Screener**")
+                st.write("• **⚙️ Toggleable sections** in sidebar")
         
         # Show current market status
         market_status = get_market_status()
@@ -895,9 +1080,9 @@ def main():
         with st.expander("🚀 Quick Start Guide", expanded=False):
             st.write("1. **Enter a symbol** and press Enter for instant analysis")
             st.write("2. **Click any Quick Link** for immediate analysis")
-            st.write("3. **Click screener symbols** for instant detailed analysis")
+            st.write("3. **View interactive charts** with technical indicators")
             st.write("4. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("5. **🆕 Auto-analysis** - No need to click Analyze button!")
+            st.write("5. **🆕 Enhanced indicators** - All EMAs, weekly levels, detailed criteria")
 
     # Footer
     st.markdown("---")
@@ -905,14 +1090,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.4 - Auto Analysis")
-        st.write(f"**Architecture:** Full Modular + Auto-Features")
+        st.write(f"**Version:** VWV Professional v3.5 - Enhanced")
+        st.write(f"**Architecture:** Full Modular + Charts + Enhanced Indicators")
     with col2:
-        st.write(f"**Status:** ✅ All Modules + Auto Analysis Active")
+        st.write(f"**Status:** ✅ All Modules + Chart + Enhanced Features")
         st.write(f"**Current Symbol:** {st.session_state.get('current_symbol', 'SPY')}")
     with col3:
-        st.write(f"**Features:** Enter Key + Quick Links Auto-Analyze")
-        st.write(f"**Screener Position:** Below Market Correlation")
+        st.write(f"**Features:** Charts, All EMAs, Weekly Levels, Detailed Criteria")
+        st.write(f"**Screener:** Collapsible with Toggle Control")
 
 if __name__ == "__main__":
     try:

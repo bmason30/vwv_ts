@@ -1,14 +1,14 @@
 """
 VWV Professional Trading System - Complete Modular Version
-Main application with all sections working properly
-FIXES: Symbol selection persistence and HTML rendering
+Main application with Technical Score Screener
 """
 
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import warnings
+import time
 
 # Import our modular components
 from config.settings import DEFAULT_VWV_CONFIG, UI_SETTINGS, PARAMETER_RANGES
@@ -53,6 +53,189 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Screener Configuration
+SCREENER_CONFIG = {
+    'refresh_minutes': 15,  # Recommended: 15 minutes for good balance
+    'extreme_low_threshold': 25,
+    'extreme_high_threshold': 75,
+    'max_symbols_per_scan': 20,  # Limit to avoid timeouts
+    'timeout_per_symbol': 10  # seconds
+}
+
+@st.cache_data(ttl=SCREENER_CONFIG['refresh_minutes'] * 60, show_spinner=False)
+def scan_extreme_technical_scores():
+    """Scan quick links symbols for extreme technical scores with caching"""
+    start_time = time.time()
+    extreme_scores = {'bearish': [], 'bullish': []}
+    scanned_count = 0
+    
+    # Get all symbols from quick links (limit to prevent timeouts)
+    all_symbols = []
+    for category, symbols in QUICK_LINK_CATEGORIES.items():
+        all_symbols.extend(symbols)
+    
+    # Remove duplicates and limit
+    unique_symbols = list(set(all_symbols))[:SCREENER_CONFIG['max_symbols_per_scan']]
+    
+    for symbol in unique_symbols:
+        if time.time() - start_time > 120:  # 2-minute total timeout
+            break
+            
+        try:
+            # Quick analysis for screening (shorter period for speed)
+            market_data = get_market_data_enhanced(symbol, period='3mo', show_debug=False)
+            
+            if market_data is None or len(market_data) < 50:
+                continue
+                
+            # Calculate minimal indicators needed for composite score
+            daily_vwap = calculate_daily_vwap(market_data)
+            fibonacci_emas = calculate_fibonacci_emas(market_data)
+            point_of_control = calculate_point_of_control_enhanced(market_data)
+            comprehensive_technicals = calculate_comprehensive_technicals(market_data)
+            
+            current_price = round(float(market_data['Close'].iloc[-1]), 2)
+            
+            # Build minimal analysis for composite score
+            analysis_for_score = {
+                'symbol': symbol,
+                'current_price': current_price,
+                'enhanced_indicators': {
+                    'daily_vwap': daily_vwap,
+                    'fibonacci_emas': fibonacci_emas,
+                    'point_of_control': point_of_control,
+                    'comprehensive_technicals': comprehensive_technicals
+                }
+            }
+            
+            # Calculate composite score
+            composite_score, score_details = calculate_composite_technical_score(analysis_for_score)
+            
+            # Check for extreme scores
+            if composite_score <= SCREENER_CONFIG['extreme_low_threshold']:
+                extreme_scores['bearish'].append({
+                    'symbol': symbol,
+                    'score': composite_score,
+                    'price': current_price,
+                    'description': SYMBOL_DESCRIPTIONS.get(symbol, f"{symbol} - Financial Symbol")[:50] + "..."
+                })
+            elif composite_score >= SCREENER_CONFIG['extreme_high_threshold']:
+                extreme_scores['bullish'].append({
+                    'symbol': symbol,
+                    'score': composite_score,
+                    'price': current_price,
+                    'description': SYMBOL_DESCRIPTIONS.get(symbol, f"{symbol} - Financial Symbol")[:50] + "..."
+                })
+                
+            scanned_count += 1
+            
+        except Exception as e:
+            continue  # Skip problematic symbols
+    
+    # Sort by score (most extreme first)
+    extreme_scores['bearish'].sort(key=lambda x: x['score'])
+    extreme_scores['bullish'].sort(key=lambda x: x['score'], reverse=True)
+    
+    scan_time = time.time() - start_time
+    
+    return {
+        'results': extreme_scores,
+        'scan_time': round(scan_time, 1),
+        'scanned_count': scanned_count,
+        'timestamp': datetime.now().strftime('%H:%M:%S')
+    }
+
+def show_technical_screener():
+    """Display the technical score screener section"""
+    st.write("### 🎯 Technical Score Screener")
+    st.write(f"**Extreme Scores**: < {SCREENER_CONFIG['extreme_low_threshold']} (Very Bearish) or > {SCREENER_CONFIG['extreme_high_threshold']} (Very Bullish) | Auto-refresh: {SCREENER_CONFIG['refresh_minutes']} min")
+    
+    # Add manual refresh button
+    col1, col2, col3 = st.columns([1, 1, 2])
+    with col1:
+        if st.button("🔄 Refresh Now", help="Manually refresh screener results"):
+            st.cache_data.clear()
+            st.rerun()
+    
+    # Get cached results
+    with st.spinner("Scanning symbols for extreme scores..."):
+        screen_results = scan_extreme_technical_scores()
+    
+    with col2:
+        st.write(f"**Last Scan:** {screen_results['timestamp']}")
+    with col3:
+        st.write(f"**Scanned:** {screen_results['scanned_count']} symbols in {screen_results['scan_time']}s")
+    
+    results = screen_results['results']
+    
+    # Display results in two columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("#### 🔴 Very Bearish (≤25)")
+        if results['bearish']:
+            bearish_data = []
+            for item in results['bearish']:
+                bearish_data.append({
+                    'Symbol': item['symbol'],
+                    'Score': f"{item['score']:.1f}",
+                    'Price': f"${item['price']:.2f}",
+                    'Description': item['description']
+                })
+            
+            df_bearish = pd.DataFrame(bearish_data)
+            st.dataframe(df_bearish, use_container_width=True, hide_index=True)
+            
+            # Quick analysis buttons
+            st.write("**Quick Analysis:**")
+            cols = st.columns(min(3, len(results['bearish'])))
+            for idx, item in enumerate(results['bearish'][:3]):
+                with cols[idx]:
+                    if st.button(f"📊 {item['symbol']}", key=f"bearish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.rerun()
+        else:
+            st.info("No very bearish signals found")
+    
+    with col2:
+        st.write("#### 🟢 Very Bullish (≥75)")
+        if results['bullish']:
+            bullish_data = []
+            for item in results['bullish']:
+                bullish_data.append({
+                    'Symbol': item['symbol'],
+                    'Score': f"{item['score']:.1f}",
+                    'Price': f"${item['price']:.2f}",
+                    'Description': item['description']
+                })
+            
+            df_bullish = pd.DataFrame(bullish_data)
+            st.dataframe(df_bullish, use_container_width=True, hide_index=True)
+            
+            # Quick analysis buttons
+            st.write("**Quick Analysis:**")
+            cols = st.columns(min(3, len(results['bullish'])))
+            for idx, item in enumerate(results['bullish'][:3]):
+                with cols[idx]:
+                    if st.button(f"📊 {item['symbol']}", key=f"bullish_{item['symbol']}", use_container_width=True):
+                        st.session_state.selected_symbol = item['symbol']
+                        st.rerun()
+        else:
+            st.info("No very bullish signals found")
+    
+    # Summary stats
+    total_extreme = len(results['bearish']) + len(results['bullish'])
+    if total_extreme > 0:
+        st.write(f"**Summary:** Found {total_extreme} symbols with extreme scores ({len(results['bearish'])} bearish, {len(results['bullish'])} bullish)")
+        
+        # Show configuration
+        with st.expander("⚙️ Screener Configuration", expanded=False):
+            st.write(f"• **Refresh Frequency:** {SCREENER_CONFIG['refresh_minutes']} minutes")
+            st.write(f"• **Bearish Threshold:** ≤ {SCREENER_CONFIG['extreme_low_threshold']}")
+            st.write(f"• **Bullish Threshold:** ≥ {SCREENER_CONFIG['extreme_high_threshold']}")
+            st.write(f"• **Max Symbols per Scan:** {SCREENER_CONFIG['max_symbols_per_scan']}")
+            st.write(f"• **Data Period:** 3 months (optimized for speed)")
+
 def initialize_session_state():
     """Initialize session state variables"""
     if 'recently_viewed' not in st.session_state:
@@ -67,7 +250,6 @@ def initialize_session_state():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
-    # FIX: Initialize current_symbol properly
     if 'current_symbol' not in st.session_state:
         st.session_state.current_symbol = UI_SETTINGS['default_symbol']
 
@@ -78,7 +260,7 @@ def create_sidebar_controls():
     # Initialize session state
     initialize_session_state()
     
-    # FIX: Better symbol handling - check for quick link selection first
+    # Better symbol handling - check for quick link selection first
     if 'selected_symbol' in st.session_state:
         st.session_state.current_symbol = st.session_state.selected_symbol
         del st.session_state.selected_symbol  # Clear the trigger
@@ -90,7 +272,7 @@ def create_sidebar_controls():
         help="Enter stock symbol"
     ).upper()
     
-    # FIX: Update current_symbol when text input changes
+    # Update current_symbol when text input changes
     if symbol != st.session_state.current_symbol:
         st.session_state.current_symbol = symbol
     
@@ -171,7 +353,7 @@ def create_sidebar_controls():
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)
     
     return {
-        'symbol': st.session_state.current_symbol,  # FIX: Use session state symbol
+        'symbol': st.session_state.current_symbol,
         'period': period,
         'analyze_button': analyze_button,
         'show_debug': show_debug
@@ -196,7 +378,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
         
-        # FIX: Use components directly instead of markdown for better rendering
+        # Use components directly instead of markdown for better rendering
         st.components.v1.html(score_bar_html, height=200)
         
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
@@ -528,7 +710,7 @@ def main():
     # Create sidebar and get controls
     controls = create_sidebar_controls()
     
-    # FIX: Show current symbol being analyzed
+    # Show current symbol being analyzed
     if controls['symbol']:
         st.write(f"## 📊 VWV Trading Analysis - {controls['symbol']}")
     
@@ -554,8 +736,13 @@ def main():
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
+                # NEW: Technical Score Screener - placed above debug info
+                st.markdown("---")
+                show_technical_screener()
+                
                 # Debug information
                 if controls['show_debug']:
+                    st.markdown("---")
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")
                         st.json(analysis_results, expanded=False)
@@ -575,9 +762,14 @@ def main():
     else:
         # Welcome message
         st.write("## 🚀 VWV Professional Trading System - Complete Modular Architecture")
-        st.write("**All modules active:** Technical, Fundamental, Market, Options, UI Components")
+        st.write("**All modules active:** Technical, Fundamental, Market, Options, UI Components, **Technical Screener**")
         
-        with st.expander("🏗️ Modular Architecture Overview", expanded=True):
+        # NEW: Always show screener on home page
+        st.markdown("---")
+        show_technical_screener()
+        st.markdown("---")
+        
+        with st.expander("🏗️ Modular Architecture Overview", expanded=False):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -595,17 +787,19 @@ def main():
                 st.write("• **Market Correlation & Breakouts**")
                 st.write("• **Options Analysis with Greeks**")
                 st.write("• **Statistical Confidence Intervals**")
+                st.write("• **🆕 Technical Score Screener**")
         
         # Show current market status
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
         
         # Quick start guide
-        with st.expander("🚀 Quick Start Guide", expanded=True):
+        with st.expander("🚀 Quick Start Guide", expanded=False):
             st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
             st.write("2. **Click 'Analyze Symbol'** to run complete analysis")
             st.write("3. **View all sections:** Technical, Fundamental, Market, Options")
             st.write("4. **Toggle sections** on/off in Analysis Sections panel")
+            st.write("5. **🆕 Use the screener** to find extreme technical scores automatically")
 
     # Footer
     st.markdown("---")
@@ -613,14 +807,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.1 - Fixed")
-        st.write(f"**Architecture:** Full Modular Implementation")
+        st.write(f"**Version:** VWV Professional v3.2 - Screener Added")
+        st.write(f"**Architecture:** Full Modular + Screening")
     with col2:
-        st.write(f"**Status:** ✅ All Modules Active")
+        st.write(f"**Status:** ✅ All Modules + Screener Active")
         st.write(f"**Current Symbol:** {st.session_state.get('current_symbol', 'SPY')}")
     with col3:
-        st.write(f"**Components:** config, data, analysis, ui, utils")
-        st.write(f"**Interface:** Complete multi-section experience")
+        st.write(f"**Screener:** Auto-refresh every {SCREENER_CONFIG['refresh_minutes']} min")
+        st.write(f"**Thresholds:** ≤{SCREENER_CONFIG['extreme_low_threshold']} | ≥{SCREENER_CONFIG['extreme_high_threshold']}")
 
 if __name__ == "__main__":
     try:

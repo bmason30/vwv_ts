@@ -1,5 +1,6 @@
 """
 Data fetching and validation functionality
+Updated to suppress messages during bulk screening
 """
 import streamlit as st
 import pandas as pd
@@ -140,7 +141,7 @@ def is_etf(symbol: str) -> bool:
 
 @safe_calculation_wrapper
 def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug: bool = False) -> Optional[pd.DataFrame]:
-    """Enhanced market data fetching with debug control"""
+    """Enhanced market data fetching with debug control - SUPPRESS MESSAGES FOR BULK OPERATIONS"""
     try:
         if show_debug:
             st.write(f"📡 Fetching data for {symbol}...")
@@ -149,7 +150,8 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
         raw_data = ticker.history(period=period)
 
         if raw_data is None or len(raw_data) == 0:
-            st.error(f"❌ No data returned for {symbol}")
+            if show_debug:
+                st.error(f"❌ No data returned for {symbol}")
             return None
 
         if show_debug:
@@ -164,7 +166,8 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
 
         missing_columns = [col for col in required_columns if col not in available_columns]
         if missing_columns:
-            st.error(f"❌ Missing columns: {missing_columns}")
+            if show_debug:
+                st.error(f"❌ Missing columns: {missing_columns}")
             return None
 
         # Clean data
@@ -172,7 +175,8 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
         clean_data = clean_data.dropna()
 
         if len(clean_data) == 0:
-            st.error(f"❌ No data after cleaning")
+            if show_debug:
+                st.error(f"❌ No data after cleaning")
             return None
 
         # Add typical price
@@ -181,16 +185,16 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
         # Data quality check
         quality_check = DataQualityChecker.validate_market_data(clean_data)
         
-        if not quality_check['is_acceptable']:
+        if not quality_check['is_acceptable'] and show_debug:
             st.warning(f"⚠️ Data quality issues detected for {symbol}: {quality_check['issues']}")
 
+        # ONLY show success messages when show_debug=True (prevents screener clutter)
         if show_debug:
             st.success(f"✅ Data ready: {clean_data.shape} | Quality Score: {quality_check['quality_score']}")
-        else:
-            st.success(f"✅ Data loaded: {len(clean_data)} periods | Quality: {quality_check['quality_score']}/100")
 
         return clean_data
 
     except Exception as e:
-        st.error(f"❌ Error fetching {symbol}: {str(e)}")
+        if show_debug:
+            st.error(f"❌ Error fetching {symbol}: {str(e)}")
         return None

@@ -684,6 +684,66 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
         st.dataframe(df_technical, use_container_width=True, hide_index=True)
 
+def show_interactive_charts_section(analysis_results, show_debug=False):
+    """Display interactive charts section - NEW FEATURE"""
+    if not st.session_state.get('show_interactive_charts', True):
+        return
+        
+    # Get market data for charts
+    data_manager = get_data_manager()
+    symbol = analysis_results['symbol']
+    chart_data = data_manager.get_market_data_for_chart(symbol)
+    
+    if chart_data is not None and len(chart_data) > 0:
+        with st.expander(f"📈 {symbol} - Interactive Charts & Visualization", expanded=True):
+            try:
+                # Display the interactive charts
+                display_interactive_charts(analysis_results, chart_data)
+                
+                # Chart information panel
+                with st.container():
+                    st.markdown("---")
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.info("""
+                        **📈 Price Chart Features:**
+                        • Candlestick price data
+                        • Fibonacci EMAs (21, 55, 89, 144, 233)
+                        • VWAP & Point of Control levels
+                        • Support/Resistance levels
+                        • Volume analysis
+                        """)
+                    
+                    with col2:
+                        st.info("""
+                        **📊 Volume Analysis:**
+                        • Color-coded volume bars
+                        • 20-period volume moving average
+                        • Volume relationship to price
+                        • Intraday volume patterns
+                        """)
+                    
+                    with col3:
+                        st.info("""
+                        **🎯 Interactive Features:**
+                        • Zoom and pan functionality
+                        • Hover for detailed data
+                        • Download chart as PNG
+                        • Mobile-responsive design
+                        """)
+                
+                if show_debug:
+                    st.write(f"📊 Chart data points: {len(chart_data)}")
+                    st.write(f"📅 Date range: {chart_data.index[0]} to {chart_data.index[-1]}")
+                
+            except Exception as e:
+                st.error(f"❌ Error displaying charts: {str(e)}")
+                if show_debug:
+                    st.exception(e)
+    else:
+        st.warning("⚠️ Chart data not available for visualization")
+
 def show_fundamental_analysis(analysis_results, show_debug=False):
     """Display ENHANCED fundamental analysis section"""
     if not st.session_state.show_fundamental_analysis:

@@ -957,15 +957,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
             volatility = comprehensive_technicals.get('volatility_20d', 0)
             st.metric("20D Volatility", f"{volatility:.1f}%")
         
-        # ENHANCED CHART SECTION
-        data_manager = get_data_manager()
-        chart_data = data_manager.get_market_data_for_chart(analysis_results['symbol'])
-        
-        if chart_data is not None:
-            st.subheader("📈 Technical Analysis Chart")
-            chart_fig = create_technical_chart(chart_data, analysis_results)
-            if chart_fig:
-                st.plotly_chart(chart_fig, use_container_width=True)
+        # Charts are now displayed in the Interactive Charts section above
         
         # ENHANCED Technical indicators table - ALL EMAs
         st.subheader("📋 Technical Indicators")

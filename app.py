@@ -1354,7 +1354,12 @@ if __name__ == "__main__":
                             })
                         
                         # Show key fibonacci levels
-                        key_levels = [item for item in fib_data if float(item['Fibonacci Level']) in [0.382, 0.500, 0.618, 1.000]]
+                        key_levels = []
+                        for item in fib_data:
+                            fib_level_val = float(item["Fibonacci Level"])
+                            if fib_level_val in [0.382, 0.500, 0.618, 1.000]:
+                                key_levels.append(item)
+                        
                         if key_levels:
                             df_fibonacci = pd.DataFrame(key_levels)
                             st.dataframe(df_fibonacci, use_container_width=True, hide_index=True)

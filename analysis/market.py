@@ -1,5 +1,6 @@
 """
-Market correlation and comparison analysis
+Market correlation and comparison analysis - FIXED v5.0
+Fixed the 0% breakout/breakdown issue with enhanced logic
 """
 import streamlit as st
 import pandas as pd
@@ -105,91 +106,109 @@ def get_correlation_description(corr):
         return "Very Weak"
 
 @safe_calculation_wrapper
-def calculate_breakout_breakdown_analysis(show_debug=False):
-    """Calculate breakout/breakdown ratios for major indices"""
+def calculate_enhanced_breakout_analysis(symbols=['SPY', 'QQQ', 'IWM'], show_debug=False):
+    """
+    FIXED: Enhanced breakout/breakdown analysis with robust logic
+    Solves the 0% issue with multi-factor detection
+    """
     try:
-        indices = ['SPY', 'QQQ', 'IWM']
         results = {}
         
-        for index in indices:
+        for symbol in symbols:
             try:
                 if show_debug:
-                    st.write(f"📊 Analyzing breakouts/breakdowns for {index}...")
+                    logger.info(f"📊 Analyzing enhanced breakouts for {symbol}")
                 
-                # Get recent data (3 months for reliable signals)
-                ticker = yf.Ticker(index)
+                # Get 3 months of data for reliable analysis
+                ticker = yf.Ticker(symbol)
                 data = ticker.history(period='3mo')
                 
-                if len(data) < 50:
+                if len(data) < 50:  # Need sufficient data
                     continue
                     
                 current_price = data['Close'].iloc[-1]
+                current_volume = data['Volume'].iloc[-1]
                 
-                # Multi-timeframe resistance levels
-                resistance_10 = data['High'].rolling(10).max().iloc[-2]   # 10-day high
-                resistance_20 = data['High'].rolling(20).max().iloc[-2]   # 20-day high
-                resistance_50 = data['High'].rolling(50).max().iloc[-2]   # 50-day high
+                # Method 1: Moving Average Analysis
+                ma_20 = data['Close'].rolling(20).mean().iloc[-1]
+                ma_50 = data['Close'].rolling(50).mean().iloc[-1] if len(data) >= 50 else ma_20
                 
-                # Multi-timeframe support levels  
-                support_10 = data['Low'].rolling(10).min().iloc[-2]       # 10-day low
-                support_20 = data['Low'].rolling(20).min().iloc[-2]       # 20-day low
-                support_50 = data['Low'].rolling(50).min().iloc[-2]       # 50-day low
+                ma_score = 0
+                if current_price > ma_20 * 1.005:  # 0.5% above 20MA
+                    ma_score += 1
+                if current_price > ma_50 * 1.01:   # 1% above 50MA  
+                    ma_score += 1
+                if ma_20 > ma_50:  # Bullish MA alignment
+                    ma_score += 1
                 
-                # Breakout signals (price above resistance)
-                breakout_10 = 1 if current_price > resistance_10 else 0
-                breakout_20 = 1 if current_price > resistance_20 else 0
-                breakout_50 = 1 if current_price > resistance_50 else 0
+                # Method 2: Range Analysis (multiple timeframes)
+                range_score = 0
+                for period in [5, 10, 20]:
+                    if len(data) >= period + 2:
+                        recent_high = data['High'].iloc[-(period+1):-1].max()
+                        recent_low = data['Low'].iloc[-(period+1):-1].min()
+                        
+                        # Breakout detection
+                        if current_price > recent_high * 1.002:  # 0.2% above high
+                            range_score += 1
+                        elif current_price < recent_low * 0.998:  # 0.2% below low
+                            range_score -= 1
                 
-                # Breakdown signals (price below support)
-                breakdown_10 = 1 if current_price < support_10 else 0
-                breakdown_20 = 1 if current_price < support_20 else 0
-                breakdown_50 = 1 if current_price < support_50 else 0
+                # Method 3: Volume Confirmation
+                avg_volume = data['Volume'].rolling(20).mean().iloc[-1]
+                volume_score = 0
                 
-                # Calculate ratios
-                total_breakouts = breakout_10 + breakout_20 + breakout_50
-                total_breakdowns = breakdown_10 + breakdown_20 + breakdown_50
+                if current_volume > avg_volume * 1.2:  # 20% above average
+                    volume_score += 1
+                elif current_volume < avg_volume * 0.8:  # 20% below average
+                    volume_score -= 0.5
                 
-                breakout_ratio = (total_breakouts / 3) * 100  # Percentage of timeframes showing breakout
-                breakdown_ratio = (total_breakdowns / 3) * 100  # Percentage of timeframes showing breakdown
-                net_ratio = breakout_ratio - breakdown_ratio  # Net bias
+                # Composite scoring (scale to percentages)
+                composite_raw = (ma_score * 0.4 + range_score * 0.4 + volume_score * 0.2)
                 
-                # Determine overall signal strength
-                if net_ratio > 66:
+                # Convert to meaningful percentages
+                if composite_raw > 0:
+                    breakout_ratio = min(100, composite_raw * 25)  # Scale positive to 0-100%
+                    breakdown_ratio = 0
+                elif composite_raw < 0:
+                    breakout_ratio = 0
+                    breakdown_ratio = min(100, abs(composite_raw) * 25)  # Scale negative to 0-100%
+                else:
+                    breakout_ratio = 0
+                    breakdown_ratio = 0
+                
+                net_ratio = breakout_ratio - breakdown_ratio
+                
+                # Signal strength
+                if net_ratio > 50:
                     signal_strength = "Very Bullish"
-                elif net_ratio > 33:
-                    signal_strength = "Bullish" 
-                elif net_ratio > -33:
+                elif net_ratio > 20:
+                    signal_strength = "Bullish"
+                elif net_ratio > -20:
                     signal_strength = "Neutral"
-                elif net_ratio > -66:
+                elif net_ratio > -50:
                     signal_strength = "Bearish"
                 else:
                     signal_strength = "Very Bearish"
                 
-                results[index] = {
+                results[symbol] = {
                     'current_price': round(current_price, 2),
                     'breakout_ratio': round(breakout_ratio, 1),
                     'breakdown_ratio': round(breakdown_ratio, 1),
                     'net_ratio': round(net_ratio, 1),
                     'signal_strength': signal_strength,
-                    'breakout_levels': {
-                        '10d': round(resistance_10, 2),
-                        '20d': round(resistance_20, 2), 
-                        '50d': round(resistance_50, 2)
-                    },
-                    'breakdown_levels': {
-                        '10d': round(support_10, 2),
-                        '20d': round(support_20, 2),
-                        '50d': round(support_50, 2)
-                    },
-                    'active_breakouts': [f"{days}d" for days, signal in 
-                                       [('10', breakout_10), ('20', breakout_20), ('50', breakout_50)] if signal],
-                    'active_breakdowns': [f"{days}d" for days, signal in 
-                                        [('10', breakdown_10), ('20', breakdown_20), ('50', breakdown_50)] if signal]
+                    'ma_20': round(ma_20, 2),
+                    'ma_50': round(ma_50, 2),
+                    'volume_ratio': round(current_volume / avg_volume, 2) if avg_volume > 0 else 1.0,
+                    'analysis_method': 'Enhanced Multi-Factor v5.0'
                 }
+                
+                if show_debug:
+                    logger.info(f"  • {symbol}: {breakout_ratio:.1f}% breakout, {breakdown_ratio:.1f}% breakdown")
                 
             except Exception as e:
                 if show_debug:
-                    st.write(f"❌ Error analyzing {index}: {e}")
+                    logger.error(f"❌ Error analyzing {symbol}: {e}")
                 continue
         
         # Calculate overall market sentiment
@@ -199,27 +218,33 @@ def calculate_breakout_breakdown_analysis(show_debug=False):
             overall_net = overall_breakout - overall_breakdown
             
             # Market regime classification
-            if overall_net > 50:
+            if overall_net > 40:
                 market_regime = "🚀 Strong Breakout Environment"
-            elif overall_net > 20:
+            elif overall_net > 15:
                 market_regime = "📈 Bullish Breakout Bias"
-            elif overall_net > -20:
+            elif overall_net > -15:
                 market_regime = "⚖️ Balanced Market"
-            elif overall_net > -50:
+            elif overall_net > -40:
                 market_regime = "📉 Bearish Breakdown Bias"
             else:
                 market_regime = "🔻 Strong Breakdown Environment"
             
             results['OVERALL'] = {
                 'breakout_ratio': round(overall_breakout, 1),
-                'breakdown_ratio': round(overall_breakdown, 1), 
+                'breakdown_ratio': round(overall_breakdown, 1),
                 'net_ratio': round(overall_net, 1),
                 'market_regime': market_regime,
-                'sample_size': len(results)
+                'sample_size': len(results),
+                'analysis_method': 'Enhanced Multi-Factor v5.0'
             }
         
         return results
         
     except Exception as e:
-        logger.error(f"Breakout/breakdown analysis error: {e}")
+        logger.error(f"Enhanced breakout analysis error: {e}")
         return {}
+
+# Maintain backward compatibility
+def calculate_breakout_breakdown_analysis(show_debug=False):
+    """Wrapper function for backward compatibility"""
+    return calculate_enhanced_breakout_analysis(['SPY', 'QQQ', 'IWM'], show_debug)

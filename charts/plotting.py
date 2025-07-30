@@ -245,14 +245,14 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
             hovermode='x unified'
         )
         
-        # Update y-axes
-        fig.update_yaxis(title_text="Price ($)", row=1, col=1)
-        fig.update_yaxis(title_text="Volume", row=2, col=1)
-        fig.update_yaxis(title_text="RSI", row=3, col=1, secondary_y=False, range=[0, 100])
-        fig.update_yaxis(title_text="MACD", row=3, col=1, secondary_y=True)
+        # Update y-axes (fixed method names)
+        fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+        fig.update_yaxes(title_text="Volume", row=2, col=1)
+        fig.update_yaxes(title_text="RSI", row=3, col=1, secondary_y=False, range=[0, 100])
+        fig.update_yaxes(title_text="MACD", row=3, col=1, secondary_y=True)
         
-        # Update x-axes
-        fig.update_xaxis(title_text="Date", row=3, col=1)
+        # Update x-axes (fixed method names)
+        fig.update_xaxes(title_text="Date", row=3, col=1)
         
         return fig
         
@@ -380,36 +380,90 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
 def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any]):
     """Display all trading charts in organized tabs"""
     try:
+        # Validate inputs first
+        if data is None or data.empty:
+            st.error("❌ No data available for charting")
+            return
+            
+        if not analysis_results:
+            st.error("❌ No analysis results available for charting")
+            return
+            
+        # Check if required columns exist
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        
+        if missing_columns:
+            st.error(f"❌ Missing required data columns: {missing_columns}")
+            return
+            
         tab1, tab2, tab3, tab4 = st.tabs(["📊 Main Chart", "🎯 Options Levels", "📈 Technical Breakdown", "📋 Data Table"])
         
         with tab1:
             st.subheader("Comprehensive Trading Chart")
-            main_chart = create_comprehensive_trading_chart(data, analysis_results)
-            if main_chart:
-                st.plotly_chart(main_chart, use_container_width=True)
-            else:
-                st.error("Unable to create main trading chart")
+            try:
+                main_chart = create_comprehensive_trading_chart(data, analysis_results)
+                if main_chart:
+                    st.plotly_chart(main_chart, use_container_width=True)
+                else:
+                    st.error("Unable to create main trading chart")
+                    # Fallback to simple line chart
+                    st.subheader("Fallback: Basic Price Chart")
+                    st.line_chart(data['Close'])
+            except Exception as e:
+                st.error(f"Main chart error: {str(e)}")
+                # Fallback to simple line chart
+                st.subheader("Fallback: Basic Price Chart")
+                st.line_chart(data['Close'])
         
         with tab2:
             st.subheader("Options Premium Selling Levels")
-            options_chart = create_options_levels_chart(data, analysis_results)
-            if options_chart:
-                st.plotly_chart(options_chart, use_container_width=True)
-            else:
-                st.info("Options levels chart not available")
+            try:
+                options_chart = create_options_levels_chart(data, analysis_results)
+                if options_chart:
+                    st.plotly_chart(options_chart, use_container_width=True)
+                else:
+                    st.info("Options levels chart not available")
+            except Exception as e:
+                st.error(f"Options chart error: {str(e)}")
         
         with tab3:
             st.subheader("Technical Score Components")
-            score_chart = create_technical_score_chart(analysis_results)
-            if score_chart:
-                st.plotly_chart(score_chart, use_container_width=True)
-            else:
-                st.info("Technical score chart not available")
+            try:
+                score_chart = create_technical_score_chart(analysis_results)
+                if score_chart:
+                    st.plotly_chart(score_chart, use_container_width=True)
+                else:
+                    st.info("Technical score chart not available")
+            except Exception as e:
+                st.error(f"Technical score chart error: {str(e)}")
         
         with tab4:
             st.subheader("Raw Market Data")
-            st.dataframe(data.tail(50), use_container_width=True)
+            try:
+                # Show data info
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Data Points", len(data))
+                with col2:
+                    st.metric("Date Range", f"{len(data)} days")
+                with col3:
+                    st.metric("Columns", len(data.columns))
+                
+                # Show actual data
+                st.dataframe(data.tail(50), use_container_width=True)
+            except Exception as e:
+                st.error(f"Data table error: {str(e)}")
     
     except Exception as e:
         logger.error(f"Chart display error: {e}")
         st.error(f"Error displaying charts: {str(e)}")
+        
+        # Ultimate fallback
+        st.subheader("Emergency Fallback: Basic Data View")
+        if data is not None and not data.empty:
+            st.line_chart(data['Close'])
+            st.write("Data shape:", data.shape)
+            st.write("Columns:", list(data.columns))
+        else:
+            st.error("No data available at all")

@@ -198,8 +198,57 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         # COMPOSITE TECHNICAL SCORE - Use modular component
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
-        score_bar_html = create_technical_score_bar(composite_score, score_details)
-        st.markdown(score_bar_html, unsafe_allow_html=True)
+        
+        # Display score using columns instead of HTML for better reliability
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.subheader("Technical Composite Score")
+            st.write("Aggregated signal from all technical indicators")
+        with col2:
+            # Determine interpretation and color
+            if composite_score >= 80:
+                interpretation = "Very Bullish"
+                color = "green"
+            elif composite_score >= 65:
+                interpretation = "Bullish"
+                color = "green"
+            elif composite_score >= 55:
+                interpretation = "Slightly Bullish"
+                color = "blue"
+            elif composite_score >= 45:
+                interpretation = "Neutral"
+                color = "orange"
+            elif composite_score >= 35:
+                interpretation = "Slightly Bearish"
+                color = "orange"
+            elif composite_score >= 20:
+                interpretation = "Bearish"
+                color = "red"
+            else:
+                interpretation = "Very Bearish"
+                color = "red"
+            
+            st.metric("Score", f"{composite_score:.1f}/100", f"{interpretation}")
+        
+        # Score progress bar
+        progress_value = composite_score / 100
+        st.progress(progress_value)
+        
+        # Component breakdown
+        if 'component_scores' in score_details:
+            st.write("**Component Breakdown:**")
+            components = score_details['component_scores']
+            
+            comp_col1, comp_col2, comp_col3 = st.columns(3)
+            with comp_col1:
+                st.write(f"• VWAP Position: {components.get('vwap_position', 50):.1f}")
+                st.write(f"• POC Position: {components.get('poc_position', 50):.1f}")
+            with comp_col2:
+                st.write(f"• EMA Confluence: {components.get('ema_confluence', 50):.1f}")
+                st.write(f"• RSI Momentum: {components.get('rsi_momentum', 50):.1f}")
+            with comp_col3:
+                st.write(f"• Volume Strength: {components.get('volume_strength', 50):.1f}")
+                st.write(f"• Trend Direction: {components.get('trend_direction', 50):.1f}")
         
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
@@ -308,6 +357,27 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                     )
                 else:
                     st.metric("Piotroski %", "0%", "No Data")
+            
+            # Detailed criteria breakdown
+            if 'error' not in graham_data and 'criteria' in graham_data:
+                with st.expander("📋 Graham Score Detailed Criteria", expanded=False):
+                    st.write("**Benjamin Graham Value Investment Criteria:**")
+                    criteria_list = graham_data.get('criteria', [])
+                    if criteria_list:
+                        for criterion in criteria_list:
+                            st.write(f"• {criterion}")
+                    else:
+                        st.write("Criteria details not available")
+            
+            if 'error' not in piotroski_data and 'criteria' in piotroski_data:
+                with st.expander("📋 Piotroski F-Score Detailed Criteria", expanded=False):
+                    st.write("**Piotroski F-Score Quality Metrics:**")
+                    criteria_list = piotroski_data.get('criteria', [])
+                    if criteria_list:
+                        for criterion in criteria_list:
+                            st.write(f"• {criterion}")
+                    else:
+                        st.write("Criteria details not available")
         
         elif is_etf_symbol:
             st.info(f"ℹ️ **{analysis_results['symbol']} is an ETF** - Fundamental analysis is not applicable to Exchange-Traded Funds.")
@@ -438,13 +508,35 @@ def show_interactive_charts(data, analysis_results, show_debug=False):
         
     with st.expander("📊 Interactive Trading Charts", expanded=True):
         try:
-            display_trading_charts(data, analysis_results)
+            # Check if we have the charts module
+            try:
+                from charts.plotting import display_trading_charts
+                display_trading_charts(data, analysis_results)
+            except ImportError as e:
+                st.error("📊 Charts module not available")
+                if show_debug:
+                    st.error(f"Import error: {str(e)}")
+                
+                # Fallback simple chart
+                st.subheader("Basic Price Chart (Fallback)")
+                if data is not None and not data.empty:
+                    st.line_chart(data['Close'])
+                else:
+                    st.error("No data available for charting")
+                    
         except Exception as e:
             if show_debug:
                 st.error(f"Chart display error: {str(e)}")
                 st.exception(e)
             else:
-                st.warning("⚠️ Charts temporarily unavailable. Enable debug mode for details.")
+                st.warning("⚠️ Charts temporarily unavailable. Try refreshing or enable debug mode for details.")
+                
+                # Fallback simple chart
+                st.subheader("Basic Price Chart (Fallback)")
+                if data is not None and not data.empty:
+                    st.line_chart(data['Close'])
+                else:
+                    st.error("No data available for charting")
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components"""
@@ -579,14 +671,38 @@ def main():
                         st.write("### Analysis Results Structure")
                         st.json(analysis_results, expanded=False)
                         
-                        st.write("### Chart Data Shape")
-                        st.write(f"Chart data: {chart_data.shape}")
-                        st.write(f"Date range: {chart_data.index[0]} to {chart_data.index[-1]}")
+                        st.write("### Chart Data Information")
+                        if chart_data is not None:
+                            st.write(f"**Chart data shape:** {chart_data.shape}")
+                            st.write(f"**Date range:** {chart_data.index[0]} to {chart_data.index[-1]}")
+                            st.write(f"**Columns:** {list(chart_data.columns)}")
+                            st.write(f"**Data types:** {chart_data.dtypes.to_dict()}")
+                            st.write("**Sample data:**")
+                            st.dataframe(chart_data.head(3))
+                        else:
+                            st.error("❌ Chart data is None")
                         
                         st.write("### Data Manager Summary")
                         data_manager = get_data_manager()
                         summary = data_manager.get_data_summary()
                         st.json(summary)
+                        
+                        st.write("### System Information")
+                        import plotly
+                        st.write(f"**Plotly version:** {plotly.__version__}")
+                        st.write(f"**Streamlit version:** {st.__version__}")
+                        
+                        # Test chart creation
+                        st.write("### Chart Creation Test")
+                        try:
+                            import plotly.graph_objects as go
+                            test_fig = go.Figure()
+                            test_fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 2, 3], name="Test"))
+                            st.plotly_chart(test_fig, use_container_width=True)
+                            st.success("✅ Basic Plotly chart creation successful")
+                        except Exception as e:
+                            st.error(f"❌ Basic Plotly test failed: {str(e)}")
+                            st.exception(e)
     
     else:
         # Welcome message

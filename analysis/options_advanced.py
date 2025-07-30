@@ -54,7 +54,7 @@ def calculate_5day_rolling_base(data: pd.DataFrame) -> Dict[str, float]:
     """
     try:
         if len(data) < 5:
-            return {'base_price': float(data['Close'].iloc[-1]), 'rolling_periods': 1}
+            return {"base_price": float(data['Close'].iloc[-1]), "rolling_periods": 1}
         
         # Calculate 5-day rolling average
         rolling_5day = data['Close'].rolling(window=5).mean()
@@ -65,10 +65,10 @@ def calculate_5day_rolling_base(data: pd.DataFrame) -> Dict[str, float]:
         base_deviation = ((current_price - base_price) / base_price) * 100
         
         return {
-            'base_price': round(float(base_price), 2),
-            'current_price': round(float(current_price), 2),
-            'base_deviation_pct': round(float(base_deviation), 2),
-            'rolling_periods': 5
+            "base_price": round(float(base_price), 2),
+            "current_price": round(float(current_price), 2),
+            "base_deviation_pct": round(float(base_deviation), 2),
+            "rolling_periods": 5
         }
         
     except Exception as e:
@@ -91,23 +91,23 @@ def calculate_fibonacci_levels_from_base(base_data: Dict[str, float], volatility
             # Calculate Fibonacci-based range
             fib_range = base_price * avg_volatility * level
             
-            fibonacci_strikes[f'fib_{level}'] = {
-                'level': level,
-                'put_strike': round(base_price - fib_range, 2),
-                'call_strike': round(base_price + fib_range, 2),
-                'range_dollars': round(fib_range, 2),
-                'range_percent': round((fib_range / base_price) * 100, 2)
+            fibonacci_strikes[f"fib_{level}"] = {
+                "level": level,
+                "put_strike": round(base_price - fib_range, 2),
+                "call_strike": round(base_price + fib_range, 2),
+                "range_dollars": round(fib_range, 2),
+                "range_percent": round((fib_range / base_price) * 100, 2)
             }
         
         return {
-            'base_price': base_price,
-            'fibonacci_strikes': fibonacci_strikes,
-            'volatility_used': avg_volatility * 100
+            "base_price": base_price,
+            "fibonacci_strikes": fibonacci_strikes,
+            "volatility_used": avg_volatility * 100
         }
         
     except Exception as e:
         logger.error(f"Fibonacci levels calculation error: {e}")
-        return {'fibonacci_strikes': {}, 'base_price': base_data.get('base_price', 0)}
+        return {"fibonacci_strikes": {}, "base_price": base_data.get("base_price", 0)}
 
 @safe_calculation_wrapper
 def calculate_multi_timeframe_volatility(data: pd.DataFrame) -> Dict[str, float]:

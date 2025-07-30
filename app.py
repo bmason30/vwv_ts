@@ -1,7 +1,6 @@
 """
-VWV Professional Trading System - Complete Modular Version
-Main application with all sections working properly
-MINIMAL CHANGES: Only fix default period and breakout analysis
+VWV Professional Trading System - Fixed v3.1
+Main application with charts and auto-analysis on quick links
 """
 
 import streamlit as st
@@ -39,6 +38,7 @@ from ui.components import (
     create_technical_score_bar,
     create_header
 )
+from charts.plotting import display_trading_charts
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
@@ -70,17 +70,22 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
+    if 'show_charts' not in st.session_state:
+        st.session_state.show_charts = True
+    if 'auto_analyze' not in st.session_state:
+        st.session_state.auto_analyze = False
     
     # Basic controls
     if 'selected_symbol' in st.session_state:
         default_symbol = st.session_state.selected_symbol
-        del st.session_state.selected_symbol
+        # Clear the selected symbol but keep auto_analyze flag
+        if not st.session_state.get('auto_analyze', False):
+            del st.session_state.selected_symbol
     else:
         default_symbol = UI_SETTINGS['default_symbol']
         
     symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
-    # FIXED: Change default period to 3mo (index 1 instead of index 3)
-    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=1)
+    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=2)  # Default to 6mo
     
     # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
@@ -115,9 +120,20 @@ def create_sidebar_controls():
                 value=st.session_state.show_confidence_intervals,
                 key="toggle_confidence"
             )
+            st.session_state.show_charts = st.checkbox(
+                "Interactive Charts", 
+                value=st.session_state.show_charts,
+                key="toggle_charts"
+            )
     
     # Main analyze button
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    
+    # Check for auto-analyze trigger
+    auto_analyze_triggered = st.session_state.get('auto_analyze', False)
+    if auto_analyze_triggered:
+        st.session_state.auto_analyze = False  # Reset the flag
+        analyze_button = True  # Trigger analysis
     
     # Recently Viewed section
     if len(st.session_state.recently_viewed) > 0:
@@ -135,6 +151,7 @@ def create_sidebar_controls():
                         with col:
                             if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
                                 st.session_state.selected_symbol = recent_symbol
+                                st.session_state.auto_analyze = True  # Set flag for auto-analysis
                                 st.rerun()
 
     # Quick Links section
@@ -151,6 +168,7 @@ def create_sidebar_controls():
                             with col:
                                 if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
                                     st.session_state.selected_symbol = sym
+                                    st.session_state.auto_analyze = True  # Set flag for auto-analysis
                                     st.rerun()
 
     # Debug toggle
@@ -322,127 +340,9 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
         else:
             st.warning("⚠️ Market correlation data not available")
         
-        # FIXED Breakout/breakdown analysis
-        st.subheader("📊 Breakout/Breakdown Analysis (FIXED)")
-        
-        # FIXED INLINE FUNCTION - No external dependencies
-        @safe_calculation_wrapper
-        def calculate_fixed_breakout_analysis(symbols=['SPY', 'QQQ', 'IWM'], show_debug=False):
-            """FIXED breakout analysis - inline to avoid import issues"""
-            import yfinance as yf
-            results = {}
-            
-            for symbol in symbols:
-                try:
-                    ticker = yf.Ticker(symbol)
-                    data = ticker.history(period='3mo')
-                    
-                    if len(data) < 50:
-                        continue
-                        
-                    current_price = data['Close'].iloc[-1]
-                    current_volume = data['Volume'].iloc[-1]
-                    
-                    # Moving Average Analysis
-                    ma_20 = data['Close'].rolling(20).mean().iloc[-1]
-                    ma_50 = data['Close'].rolling(50).mean().iloc[-1] if len(data) >= 50 else ma_20
-                    
-                    ma_score = 0
-                    if current_price > ma_20 * 1.005:  # Above 20MA
-                        ma_score += 1
-                    if current_price > ma_50 * 1.01:   # Above 50MA
-                        ma_score += 1
-                    if ma_20 > ma_50:  # Bullish alignment
-                        ma_score += 1
-                    
-                    # Range Analysis
-                    range_score = 0
-                    for period in [5, 10, 20]:
-                        if len(data) >= period + 2:
-                            recent_high = data['High'].iloc[-(period+1):-1].max()
-                            recent_low = data['Low'].iloc[-(period+1):-1].min()
-                            
-                            if current_price > recent_high * 1.002:  # Above high
-                                range_score += 1
-                            elif current_price < recent_low * 0.998:  # Below low
-                                range_score -= 1
-                    
-                    # Volume Analysis
-                    avg_volume = data['Volume'].rolling(20).mean().iloc[-1]
-                    volume_score = 0
-                    
-                    if current_volume > avg_volume * 1.2:
-                        volume_score += 1
-                    elif current_volume < avg_volume * 0.8:
-                        volume_score -= 0.5
-                    
-                    # Calculate final percentages
-                    composite_raw = (ma_score * 0.4 + range_score * 0.4 + volume_score * 0.2)
-                    
-                    if composite_raw > 0:
-                        breakout_ratio = min(100, composite_raw * 25)
-                        breakdown_ratio = 0
-                    elif composite_raw < 0:
-                        breakout_ratio = 0
-                        breakdown_ratio = min(100, abs(composite_raw) * 25)
-                    else:
-                        breakout_ratio = 0
-                        breakdown_ratio = 0
-                    
-                    net_ratio = breakout_ratio - breakdown_ratio
-                    
-                    if net_ratio > 50:
-                        signal_strength = "Very Bullish"
-                    elif net_ratio > 20:
-                        signal_strength = "Bullish"
-                    elif net_ratio > -20:
-                        signal_strength = "Neutral"
-                    elif net_ratio > -50:
-                        signal_strength = "Bearish"
-                    else:
-                        signal_strength = "Very Bearish"
-                    
-                    results[symbol] = {
-                        'current_price': round(current_price, 2),
-                        'breakout_ratio': round(breakout_ratio, 1),
-                        'breakdown_ratio': round(breakdown_ratio, 1),
-                        'net_ratio': round(net_ratio, 1),
-                        'signal_strength': signal_strength
-                    }
-                    
-                except Exception as e:
-                    if show_debug:
-                        st.write(f"Error analyzing {symbol}: {e}")
-                    continue
-            
-            # Overall calculation
-            if results:
-                overall_breakout = sum([results[idx]['breakout_ratio'] for idx in results]) / len(results)
-                overall_breakdown = sum([results[idx]['breakdown_ratio'] for idx in results]) / len(results)
-                overall_net = overall_breakout - overall_breakdown
-                
-                if overall_net > 40:
-                    market_regime = "🚀 Strong Breakout Environment"
-                elif overall_net > 15:
-                    market_regime = "📈 Bullish Breakout Bias"
-                elif overall_net > -15:
-                    market_regime = "⚖️ Balanced Market"
-                elif overall_net > -40:
-                    market_regime = "📉 Bearish Breakdown Bias"
-                else:
-                    market_regime = "🔻 Strong Breakdown Environment"
-                
-                results['OVERALL'] = {
-                    'breakout_ratio': round(overall_breakout, 1),
-                    'breakdown_ratio': round(overall_breakdown, 1),
-                    'net_ratio': round(overall_net, 1),
-                    'market_regime': market_regime,
-                    'sample_size': len(results)
-                }
-            
-            return results
-        
-        breakout_data = calculate_fixed_breakout_analysis(['SPY', 'QQQ', 'IWM'], show_debug=show_debug)
+        # Breakout/breakdown analysis
+        st.subheader("📊 Breakout/Breakdown Analysis")
+        breakout_data = calculate_breakout_breakdown_analysis(show_debug=show_debug)
         
         if breakout_data:
             # Overall market sentiment
@@ -531,6 +431,21 @@ def show_confidence_intervals(analysis_results, show_debug=False):
             df_intervals = pd.DataFrame(final_intervals_data)
             st.dataframe(df_intervals, use_container_width=True, hide_index=True)
 
+def show_interactive_charts(data, analysis_results, show_debug=False):
+    """Display interactive charts section"""
+    if not st.session_state.show_charts:
+        return
+        
+    with st.expander("📊 Interactive Trading Charts", expanded=True):
+        try:
+            display_trading_charts(data, analysis_results)
+        except Exception as e:
+            if show_debug:
+                st.error(f"Chart display error: {str(e)}")
+                st.exception(e)
+            else:
+                st.warning("⚠️ Charts temporarily unavailable. Enable debug mode for details.")
+
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components"""
     try:
@@ -539,7 +454,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         
         if market_data is None:
             st.error(f"❌ Could not fetch data for {symbol}")
-            return None
+            return None, None
         
         # Step 2: Store data using data manager
         data_manager = get_data_manager()
@@ -550,7 +465,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         
         if analysis_input is None:
             st.error("❌ Could not prepare analysis data")
-            return None
+            return None, None
         
         # Step 4: Calculate enhanced indicators using modular analysis
         daily_vwap = calculate_daily_vwap(analysis_input)
@@ -616,11 +531,14 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Store results
         data_manager.store_analysis_results(symbol, analysis_results)
         
-        return analysis_results
+        # Get chart data
+        chart_data = data_manager.get_market_data_for_chart(symbol)
+        
+        return analysis_results, chart_data
         
     except Exception as e:
         st.error(f"❌ Analysis failed: {str(e)}")
-        return None
+        return None, None
 
 def main():
     """Main application function"""
@@ -640,25 +558,30 @@ def main():
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             
             # Perform analysis using modular components
-            analysis_results = perform_enhanced_analysis(
+            analysis_results, chart_data = perform_enhanced_analysis(
                 controls['symbol'], 
                 controls['period'], 
                 controls['show_debug']
             )
             
-            if analysis_results:
+            if analysis_results and chart_data is not None:
                 # Show all analysis sections using modular functions
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
+                show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
                 
                 # Debug information
                 if controls['show_debug']:
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")
                         st.json(analysis_results, expanded=False)
+                        
+                        st.write("### Chart Data Shape")
+                        st.write(f"Chart data: {chart_data.shape}")
+                        st.write(f"Date range: {chart_data.index[0]} to {chart_data.index[-1]}")
                         
                         st.write("### Data Manager Summary")
                         data_manager = get_data_manager()
@@ -667,25 +590,28 @@ def main():
     
     else:
         # Welcome message
-        st.write("## 🚀 VWV Professional Trading System - Fixed Version")
-        st.write("**Fixes Applied:** Default period (3mo), Breakout analysis (no more 0%)")
+        st.write("## 🚀 VWV Professional Trading System - Fixed v3.1")
+        st.write("**All modules active:** Technical, Fundamental, Market, Options, Charts")
         
-        with st.expander("🔧 Fixes Applied", expanded=True):
+        with st.expander("🔧 Recent Fixes", expanded=True):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.write("### ✅ **Fixed Issues**")
-                st.write("✅ **Default Period** - Now defaults to 3mo instead of 1y")
-                st.write("✅ **Breakout Analysis** - Shows actual percentages, not 0%")
-                st.write("✅ **No Import Errors** - Removed all problematic dependencies")
+                st.write("### ✅ **Issues Fixed**")
+                st.write("🔧 **Quick Links Auto-Analysis** - Click any quick link to automatically analyze")
+                st.write("📊 **Interactive Charts Added** - Comprehensive trading charts with indicators")
+                st.write("🎯 **Options Levels Chart** - Visual premium selling levels")
+                st.write("📈 **Technical Score Breakdown** - Component analysis charts")
+                st.write("🔄 **Recently Viewed Auto-Analysis** - One-click re-analysis")
                 
             with col2:
-                st.write("### 🎯 **Working Features**")
-                st.write("• **Technical Analysis** - Composite scoring & indicators")
-                st.write("• **Fundamental Analysis** - Graham & Piotroski scores")
-                st.write("• **Market Correlation** - ETF relationships & FIXED breakouts")
-                st.write("• **Options Analysis** - Strike levels with Greeks")
-                st.write("• **Confidence Intervals** - Statistical analysis")
+                st.write("### 📈 **New Chart Features**")
+                st.write("• **Candlestick Charts** with OHLC data")
+                st.write("• **Technical Indicators** - VWAP, EMAs, Bollinger Bands")
+                st.write("• **Volume Analysis** with SMA overlay")
+                st.write("• **RSI & MACD** momentum indicators")
+                st.write("• **Options Strikes** visualization")
+                st.write("• **Multi-tab Interface** for organized viewing")
         
         # Show current market status
         market_status = get_market_status()
@@ -693,11 +619,11 @@ def main():
         
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("2. **Period now defaults to 3mo** - optimal for analysis")
-            st.write("3. **Click 'Analyze Symbol'** to run analysis")
-            st.write("4. **Check breakout section** - now shows real percentages")
-            st.write("5. **Toggle sections** on/off in Analysis Sections panel")
+            st.write("1. **Use Quick Links** - Click any symbol in the sidebar for instant analysis")
+            st.write("2. **Enter a symbol** manually and click 'Analyze Symbol'")
+            st.write("3. **View all sections:** Technical, Fundamental, Market, Options, Charts")
+            st.write("4. **Toggle sections** on/off in Analysis Sections panel")
+            st.write("5. **Explore charts** in the Interactive Trading Charts section")
 
     # Footer
     st.markdown("---")
@@ -705,14 +631,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional - Fixed")
-        st.write(f"**Status:** ✅ Core Issues Fixed")
+        st.write(f"**Version:** VWV Professional v3.1 - Fixed")
+        st.write(f"**Status:** ✅ All Systems Operational")
     with col2:
-        st.write(f"**Default Period:** 3mo (Fixed)")
-        st.write(f"**Breakouts:** Real percentages (Fixed)")
+        st.write(f"**Features:** Technical, Fundamental, Market, Options, Charts")
+        st.write(f"**Auto-Analysis:** ✅ Quick Links & Recently Viewed")
     with col3:
-        st.write(f"**Dependencies:** Only existing modules")
-        st.write(f"**Import Status:** ✅ No errors")
+        st.write(f"**Charts:** ✅ Interactive Plotly Charts")
+        st.write(f"**User Experience:** ✅ One-Click Analysis")
 
 if __name__ == "__main__":
     try:

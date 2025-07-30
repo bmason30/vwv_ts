@@ -34,6 +34,10 @@ from analysis.options import (
     calculate_options_levels_enhanced,
     calculate_confidence_intervals
 )
+from analysis.vwv_core import (
+    calculate_vwv_system_complete,
+    get_vwv_signal_interpretation
+)
 from ui.components import (
     create_technical_score_bar,
     create_header
@@ -60,6 +64,8 @@ def create_sidebar_controls():
     # Initialize session state
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
+    if 'show_vwv_analysis' not in st.session_state:
+        st.session_state.show_vwv_analysis = True
     if 'show_technical_analysis' not in st.session_state:
         st.session_state.show_technical_analysis = True
     if 'show_fundamental_analysis' not in st.session_state:
@@ -84,8 +90,8 @@ def create_sidebar_controls():
     else:
         default_symbol = UI_SETTINGS['default_symbol']
         
-    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
-    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=2)  # Default to 6mo
+    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol (press Enter to analyze)", key="symbol_input").upper()
+    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=1)  # Default to 3mo
     
     # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
@@ -93,6 +99,11 @@ def create_sidebar_controls():
         
         col1, col2 = st.columns(2)
         with col1:
+            st.session_state.show_vwv_analysis = st.checkbox(
+                "🔴 VWV Signals", 
+                value=st.session_state.show_vwv_analysis,
+                key="toggle_vwv"
+            )
             st.session_state.show_technical_analysis = st.checkbox(
                 "Technical Analysis", 
                 value=st.session_state.show_technical_analysis,
@@ -103,13 +114,13 @@ def create_sidebar_controls():
                 value=st.session_state.show_fundamental_analysis,
                 key="toggle_fundamental"
             )
+        
+        with col2:
             st.session_state.show_market_correlation = st.checkbox(
                 "Market Correlation", 
                 value=st.session_state.show_market_correlation,
                 key="toggle_correlation"
             )
-        
-        with col2:
             st.session_state.show_options_analysis = st.checkbox(
                 "Options Analysis", 
                 value=st.session_state.show_options_analysis,
@@ -129,7 +140,17 @@ def create_sidebar_controls():
     # Main analyze button
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
     
-    # Check for auto-analyze trigger
+    # Check for Enter key press (when symbol input changes)
+    if 'last_symbol' not in st.session_state:
+        st.session_state.last_symbol = ""
+    
+    # Detect if user pressed Enter or changed symbol
+    if symbol != st.session_state.last_symbol and symbol != "" and len(symbol) > 0:
+        st.session_state.last_symbol = symbol
+        st.session_state.auto_analyze = True
+        analyze_button = True  # Trigger analysis on Enter/symbol change
+    
+    # Check for auto-analyze trigger from quick links
     auto_analyze_triggered = st.session_state.get('auto_analyze', False)
     if auto_analyze_triggered:
         st.session_state.auto_analyze = False  # Reset the flag
@@ -188,6 +209,193 @@ def add_to_recently_viewed(symbol):
             st.session_state.recently_viewed.remove(symbol)
         st.session_state.recently_viewed.insert(0, symbol)
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
+
+def show_vwv_analysis(analysis_results, vwv_results, show_debug=False):
+    """Display Williams VIX Fix (VWV) analysis section"""
+    if not st.session_state.show_vwv_analysis:
+        return
+        
+    with st.expander(f"🔴 {analysis_results['symbol']} - Williams VIX Fix (VWV) Professional Signals", expanded=True):
+        
+        if vwv_results and 'error' not in vwv_results:
+            # Main VWV Signal Display
+            signal_strength = vwv_results.get('signal_strength', 'WEAK')
+            signal_color = vwv_results.get('signal_color', '⚪')
+            vwv_score = vwv_results.get('vwv_score', 0)
+            
+            # Color mapping for signal strength
+            strength_colors = {
+                'VERY_STRONG': '#DC143C',  # Crimson red
+                'STRONG': '#FFD700',       # Gold
+                'GOOD': '#32CD32',         # Lime green
+                'WEAK': '#808080'          # Gray
+            }
+            
+            signal_color_hex = strength_colors.get(signal_strength, '#808080')
+            
+            # Main signal header
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                st.markdown(f"""
+                <div style="padding: 1rem; background: linear-gradient(135deg, {signal_color_hex}20, {signal_color_hex}10); 
+                            border-left: 4px solid {signal_color_hex}; border-radius: 8px; margin-bottom: 1rem;">
+                    <h3 style="color: {signal_color_hex}; margin: 0;">
+                        {signal_color} VWV Signal: {signal_strength}
+                    </h3>
+                    <p style="margin: 0.5rem 0 0 0; color: #666;">
+                        {vwv_results.get('signal_interpretation', 'Professional market timing signal')}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.metric("VWV Score", f"{vwv_score:.1f}/100", f"{signal_strength}")
+            
+            with col3:
+                st.metric("Current Price", f"${vwv_results.get('current_price', 0):.2f}")
+            
+            # Risk Management Section
+            risk_mgmt = vwv_results.get('risk_management', {})
+            if risk_mgmt:
+                st.subheader("🎯 Risk Management Levels")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Stop Loss", f"${risk_mgmt.get('stop_loss_price', 0):.2f}", 
+                             f"-{risk_mgmt.get('stop_loss_pct', 2.2):.1f}%")
+                with col2:
+                    st.metric("Take Profit", f"${risk_mgmt.get('take_profit_price', 0):.2f}", 
+                             f"+{risk_mgmt.get('take_profit_pct', 5.5):.1f}%")
+                with col3:
+                    st.metric("Risk/Reward", f"{risk_mgmt.get('risk_reward_ratio', 2.5):.1f}:1")
+                with col4:
+                    # Calculate potential profit/loss
+                    current_price = vwv_results.get('current_price', 0)
+                    stop_loss = risk_mgmt.get('stop_loss_price', 0)
+                    take_profit = risk_mgmt.get('take_profit_price', 0)
+                    
+                    if current_price > 0:
+                        max_loss = ((current_price - stop_loss) / current_price) * 100
+                        max_gain = ((take_profit - current_price) / current_price) * 100
+                        st.metric("Max Loss", f"-{max_loss:.1f}%", f"Max Gain: +{max_gain:.1f}%")
+                    else:
+                        st.metric("Max Loss/Gain", "N/A")
+            
+            # 6-Component Breakdown
+            components = vwv_results.get('components', {})
+            if components:
+                st.subheader("📊 6-Component VWV Analysis")
+                
+                # Create component summary table
+                component_data = []
+                
+                # Williams VIX Fix
+                wvf_comp = components.get('williams_vix_fix', {})
+                component_data.append([
+                    "1. Williams VIX Fix", 
+                    f"{wvf_comp.get('current_value', 0):.2f}", 
+                    f"{wvf_comp.get('score', 50):.1f}/100",
+                    f"Weight: {wvf_comp.get('weight', 0.8):.1f}",
+                    "Fear Gauge"
+                ])
+                
+                # MA Confluence
+                ma_comp = components.get('ma_confluence', {})
+                component_data.append([
+                    "2. MA Confluence", 
+                    f"{ma_comp.get('confluence_count', 0)}/3", 
+                    f"{ma_comp.get('score', 50):.1f}/100",
+                    f"Weight: {ma_comp.get('weight', 1.2):.1f}",
+                    "Trend Alignment"
+                ])
+                
+                # Volume Confluence
+                vol_comp = components.get('volume_confluence', {})
+                component_data.append([
+                    "3. Volume Confluence", 
+                    vol_comp.get('strength', 'Neutral'), 
+                    f"{vol_comp.get('score', 50):.1f}/100",
+                    f"Weight: {vol_comp.get('weight', 0.6):.1f}",
+                    "Volume Confirmation"
+                ])
+                
+                # VWAP Analysis
+                vwap_comp = components.get('vwap_analysis', {})
+                component_data.append([
+                    "4. Enhanced VWAP", 
+                    vwap_comp.get('position', 'Neutral'), 
+                    f"{vwap_comp.get('score', 50):.1f}/100",
+                    f"Weight: {vwap_comp.get('weight', 0.4):.1f}",
+                    "Price/Volume"
+                ])
+                
+                # RSI Momentum
+                rsi_comp = components.get('rsi_momentum', {})
+                component_data.append([
+                    "5. RSI Momentum", 
+                    rsi_comp.get('level', 'Neutral'), 
+                    f"{rsi_comp.get('score', 50):.1f}/100",
+                    f"Weight: {rsi_comp.get('weight', 0.5):.1f}",
+                    "Oversold Detection"
+                ])
+                
+                # Volatility Filter
+                vol_filter = components.get('volatility_filter', {})
+                component_data.append([
+                    "6. Volatility Filter", 
+                    vol_filter.get('regime', 'Normal'), 
+                    f"{vol_filter.get('score', 50):.1f}/100",
+                    f"Weight: {vol_filter.get('weight', 0.3):.1f}",
+                    "Market Regime"
+                ])
+                
+                # Display component table
+                df_components = pd.DataFrame(component_data, 
+                                           columns=['Component', 'Current State', 'Score', 'Weight', 'Purpose'])
+                st.dataframe(df_components, use_container_width=True, hide_index=True)
+                
+                # Detailed component expandables
+                with st.expander("📋 Detailed Component Analysis", expanded=False):
+                    
+                    # MA Confluence Details
+                    ma_details = ma_comp.get('details', {})
+                    if ma_details:
+                        st.write("**Moving Average Confluence:**")
+                        for ma_name, ma_data in ma_details.items():
+                            status = "✅ Above" if ma_data.get('above') else "❌ Below"
+                            st.write(f"• {ma_name}: ${ma_data.get('value', 0):.2f} - {status} ({ma_data.get('distance_pct', 0):+.1f}%)")
+                    
+                    # Volume Details
+                    vol_details = vol_comp.get('details', {})
+                    if vol_details:
+                        st.write("**Volume Analysis:**")
+                        for vol_name, vol_data in vol_details.items():
+                            ratio = vol_data.get('ratio', 1)
+                            status = "✅ Above Average" if vol_data.get('above_average') else "❌ Below Average"
+                            st.write(f"• {vol_name}: {ratio:.2f}x - {status}")
+                    
+                    # VWAP Details
+                    if 'vwap_value' in vwap_comp:
+                        st.write("**VWAP Analysis:**")
+                        st.write(f"• VWAP Level: ${vwap_comp['vwap_value']:.2f}")
+                        st.write(f"• Position: {vwap_comp.get('position', 'Neutral')}")
+                    
+                    # RSI Details
+                    if 'rsi_value' in rsi_comp:
+                        st.write("**RSI Momentum:**")
+                        st.write(f"• RSI(14): {rsi_comp['rsi_value']:.1f}")
+                        st.write(f"• Level: {rsi_comp.get('level', 'Neutral')}")
+                    
+                    # Volatility Details
+                    if 'volatility' in vol_filter:
+                        st.write("**Volatility Filter:**")
+                        st.write(f"• 20-Day Volatility: {vol_filter['volatility']:.1f}%")
+                        st.write(f"• Regime: {vol_filter.get('regime', 'Normal')}")
+        
+        else:
+            st.error("❌ VWV analysis failed or data insufficient")
+            if show_debug and vwv_results and 'error' in vwv_results:
+                st.error(f"Error details: {vwv_results['error']}")
 
 def show_individual_technical_analysis(analysis_results, show_debug=False):
     """Display individual technical analysis section"""
@@ -595,10 +803,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
         options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
         
-        # Step 8: Calculate confidence intervals
+        # Step 8: Calculate VWV System Analysis
+        vwv_results = calculate_vwv_system_complete(analysis_input, symbol, DEFAULT_VWV_CONFIG)
+        
+        # Step 9: Calculate confidence intervals
         confidence_analysis = calculate_confidence_intervals(analysis_input)
         
-        # Step 9: Build analysis results
+        # Step 10: Build analysis results
         current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
         
         analysis_results = {
@@ -616,6 +827,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'graham_score': graham_score,
                 'piotroski_score': piotroski_score
             },
+            'vwv_analysis': vwv_results,  # Add VWV results
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL'
         }
@@ -626,11 +838,11 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Get chart data
         chart_data = data_manager.get_market_data_for_chart(symbol)
         
-        return analysis_results, chart_data
+        return analysis_results, chart_data, vwv_results
         
     except Exception as e:
         st.error(f"❌ Analysis failed: {str(e)}")
-        return None, None
+        return None, None, None
 
 def main():
     """Main application function"""
@@ -650,7 +862,7 @@ def main():
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             
             # Perform analysis using modular components
-            analysis_results, chart_data = perform_enhanced_analysis(
+            analysis_results, chart_data, vwv_results = perform_enhanced_analysis(
                 controls['symbol'], 
                 controls['period'], 
                 controls['show_debug']
@@ -658,6 +870,7 @@ def main():
             
             if analysis_results and chart_data is not None:
                 # Show all analysis sections using modular functions
+                show_vwv_analysis(analysis_results, vwv_results, controls['show_debug'])
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
@@ -670,6 +883,12 @@ def main():
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")
                         st.json(analysis_results, expanded=False)
+                        
+                        st.write("### VWV Analysis Results")
+                        if vwv_results:
+                            st.json(vwv_results, expanded=False)
+                        else:
+                            st.error("❌ VWV results not available")
                         
                         st.write("### Chart Data Information")
                         if chart_data is not None:
@@ -706,28 +925,60 @@ def main():
     
     else:
         # Welcome message
-        st.write("## 🚀 VWV Professional Trading System - Fixed v3.1")
-        st.write("**All modules active:** Technical, Fundamental, Market, Options, Charts")
+        st.write("## 🚀 VWV Professional Trading System - v4.0 Enhanced")
+        st.write("**All modules active:** VWV Signals, Technical, Fundamental, Market, Options, Charts")
         
-        with st.expander("🔧 Recent Fixes", expanded=True):
+        with st.expander("🔧 Latest Enhancements - v4.0", expanded=True):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.write("### ✅ **Issues Fixed**")
-                st.write("🔧 **Quick Links Auto-Analysis** - Click any quick link to automatically analyze")
-                st.write("📊 **Interactive Charts Added** - Comprehensive trading charts with indicators")
-                st.write("🎯 **Options Levels Chart** - Visual premium selling levels")
-                st.write("📈 **Technical Score Breakdown** - Component analysis charts")
-                st.write("🔄 **Recently Viewed Auto-Analysis** - One-click re-analysis")
+                st.write("### ✅ **New Features Added**")
+                st.write("🔴 **Williams VIX Fix (VWV) Core System** - Professional market timing")
+                st.write("📊 **6-Component Confluence Analysis** - Advanced signal generation") 
+                st.write("🎯 **Risk Management Integration** - Stop loss & take profit levels")
+                st.write("⚡ **Enhanced Enter Key Support** - Type symbol and press Enter")
+                st.write("📅 **Default Period Fixed** - Now correctly defaults to 3mo")
                 
             with col2:
-                st.write("### 📈 **New Chart Features**")
-                st.write("• **Candlestick Charts** with OHLC data")
-                st.write("• **Technical Indicators** - VWAP, EMAs, Bollinger Bands")
-                st.write("• **Volume Analysis** with SMA overlay")
-                st.write("• **RSI & MACD** momentum indicators")
-                st.write("• **Options Strikes** visualization")
-                st.write("• **Multi-tab Interface** for organized viewing")
+                st.write("### 🔴 **VWV Signal System**")
+                st.write("• **Williams VIX Fix** - Fear gauge calculation")
+                st.write("• **MA Confluence** - 20/50/200 trend alignment")
+                st.write("• **Volume Confluence** - Volume confirmation")
+                st.write("• **Enhanced VWAP** - Price/volume relationship")
+                st.write("• **RSI Momentum** - Oversold detection")
+                st.write("• **Volatility Filter** - Market regime analysis")
+                st.write("• **Signal Classification** - GOOD/STRONG/VERY_STRONG")
+        
+        # VWV Signal Classifications
+        with st.expander("📊 VWV Signal Classifications", expanded=False):
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown("""
+                **🟢 GOOD Signal (≥3.5)**
+                - Basic oversold condition
+                - Some confluence alignment
+                - Standard probability setup
+                - Expected frequency: ~40 signals/year
+                """)
+            
+            with col2:
+                st.markdown("""
+                **🟡 STRONG Signal (≥4.5)**
+                - Enhanced oversold condition  
+                - Good confluence confirmation
+                - Above-average probability
+                - Expected frequency: ~20 signals/year
+                """)
+            
+            with col3:
+                st.markdown("""
+                **🔴 VERY_STRONG Signal (≥5.5)**
+                - Extreme oversold condition
+                - Full confluence alignment
+                - High probability setup
+                - Expected frequency: ~8 signals/year
+                """)
         
         # Show current market status
         market_status = get_market_status()
@@ -736,10 +987,11 @@ def main():
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
             st.write("1. **Use Quick Links** - Click any symbol in the sidebar for instant analysis")
-            st.write("2. **Enter a symbol** manually and click 'Analyze Symbol'")
-            st.write("3. **View all sections:** Technical, Fundamental, Market, Options, Charts")
-            st.write("4. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("5. **Explore charts** in the Interactive Trading Charts section")
+            st.write("2. **Type & Enter** - Enter a symbol and press Enter for immediate analysis")
+            st.write("3. **View VWV Signals** - Professional Williams VIX Fix market timing")
+            st.write("4. **Check Risk Levels** - Automatic stop loss and take profit calculations")
+            st.write("5. **Explore all sections** - Technical, Fundamental, Market, Options, Charts")
+            st.write("6. **Toggle sections** on/off in Analysis Sections panel")
 
     # Footer
     st.markdown("---")
@@ -747,14 +999,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v3.1 - Fixed")
+        st.write(f"**Version:** VWV Professional v4.0 - Enhanced")
         st.write(f"**Status:** ✅ All Systems Operational")
     with col2:
-        st.write(f"**Features:** Technical, Fundamental, Market, Options, Charts")
-        st.write(f"**Auto-Analysis:** ✅ Quick Links & Recently Viewed")
+        st.write(f"**Features:** VWV Signals, Technical, Fundamental, Market, Options, Charts")
+        st.write(f"**Core System:** ✅ Williams VIX Fix Integrated")
     with col3:
-        st.write(f"**Charts:** ✅ Interactive Plotly Charts")
-        st.write(f"**User Experience:** ✅ One-Click Analysis")
+        st.write(f"**Signal Types:** 🟢 GOOD 🟡 STRONG 🔴 VERY_STRONG")
+        st.write(f"**User Experience:** ✅ Enter Key + One-Click Analysis")
 
 if __name__ == "__main__":
     try:

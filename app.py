@@ -42,8 +42,7 @@ from analysis.vwv_core import (
 )
 from analysis.options import (
     calculate_options_levels_enhanced,
-    calculate_confidence_intervals,
-    calculate_enhanced_sigma_levels
+    calculate_confidence_intervals
 )
 
 # New v5.0 analysis modules
@@ -79,21 +78,20 @@ def create_sidebar_controls():
     st.sidebar.title("📊 VWV Trading Analysis v5.0")
     
     # Initialize session state for all sections
-    section_states = {
-        'show_vwv_core_analysis': True,
-        'show_technical_analysis': True,
-        'show_fundamental_analysis': True,
-        'show_market_correlation': True,
-        'show_options_analysis': True,
-        'show_confidence_intervals': True,
-        'show_insider_analysis': True,
-        'show_divergence_analysis': True,
-        'show_tech_sentiment': True
-    }
-    
-    for key, default_value in section_states.items():
-        if key not in st.session_state:
-            st.session_state[key] = default_value
+    if 'recently_viewed' not in st.session_state:
+        st.session_state.recently_viewed = []
+    if 'show_vwv_core_analysis' not in st.session_state:
+        st.session_state.show_vwv_core_analysis = True
+    if 'show_technical_analysis' not in st.session_state:
+        st.session_state.show_technical_analysis = True
+    if 'show_fundamental_analysis' not in st.session_state:
+        st.session_state.show_fundamental_analysis = True
+    if 'show_market_correlation' not in st.session_state:
+        st.session_state.show_market_correlation = True
+    if 'show_options_analysis' not in st.session_state:
+        st.session_state.show_options_analysis = True
+    if 'show_confidence_intervals' not in st.session_state:
+        st.session_state.show_confidence_intervals = True
     
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
@@ -110,14 +108,14 @@ def create_sidebar_controls():
     
     # Enhanced Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
-        st.write("**Core VWV System:**")
+        st.write("**Toggle Analysis Sections:**")
+        
         col1, col2 = st.columns(2)
         with col1:
             st.session_state.show_vwv_core_analysis = st.checkbox(
                 "VWV Core (NEW)", 
-                value=st.session_state.get('show_vwv_core_analysis', True),
-                key="toggle_vwv_core",
-                help="Williams VIX Fix 6-component confluence system"
+                value=st.session_state.show_vwv_core_analysis,
+                key="toggle_vwv_core"
             )
             st.session_state.show_technical_analysis = st.checkbox(
                 "Technical Analysis", 
@@ -129,13 +127,13 @@ def create_sidebar_controls():
                 value=st.session_state.show_fundamental_analysis,
                 key="toggle_fundamental"
             )
+        
+        with col2:
             st.session_state.show_market_correlation = st.checkbox(
                 "Market Correlation", 
                 value=st.session_state.show_market_correlation,
                 key="toggle_correlation"
             )
-        
-        with col2:
             st.session_state.show_options_analysis = st.checkbox(
                 "Options Analysis", 
                 value=st.session_state.show_options_analysis,
@@ -146,26 +144,6 @@ def create_sidebar_controls():
                 value=st.session_state.show_confidence_intervals,
                 key="toggle_confidence"
             )
-            st.session_state.show_insider_analysis = st.checkbox(
-                "Insider Analysis", 
-                value=st.session_state.show_insider_analysis,
-                key="toggle_insider",
-                help="NEW: Insider buying/selling analysis"
-            )
-            st.session_state.show_divergence_analysis = st.checkbox(
-                "Market Divergence", 
-                value=st.session_state.show_divergence_analysis,
-                key="toggle_divergence",
-                help="NEW: Multi-ETF relative strength analysis"
-            )
-        
-        st.write("**Sector Analysis:**")
-        st.session_state.show_tech_sentiment = st.checkbox(
-            "Tech Sentiment (FNGD/FNGU)", 
-            value=st.session_state.show_tech_sentiment,
-            key="toggle_tech_sentiment",
-            help="NEW: Tech sector sentiment via leveraged ETFs"
-        )
     
     # Main analyze button
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
@@ -939,16 +917,7 @@ def perform_enhanced_analysis_v5(symbol, period, controls, show_debug=False):
         
         vwv_score, vwv_details = calculate_vwv_confluence_score_simple(analysis_input)
         
-        # Step 7: NEW v5.0 - Calculate Insider Analysis
-        insider_analysis = calculate_insider_score(symbol, show_debug)
-        
-        # Step 8: NEW v5.0 - Calculate Market Divergence Analysis
-        divergence_analysis = calculate_market_divergence_analysis(analysis_input, symbol, period, show_debug)
-        
-        # Step 9: NEW v5.0 - Calculate Tech Sentiment Analysis
-        tech_sentiment_analysis = calculate_tech_sector_sentiment_analysis(period, show_debug)
-        
-        # Step 10: Calculate fundamental analysis (skip for ETFs)
+        # Step 7: Calculate fundamental analysis (skip for ETFs)
         is_etf_symbol = is_etf(symbol)
         
         if is_etf_symbol:
@@ -958,7 +927,7 @@ def perform_enhanced_analysis_v5(symbol, period, controls, show_debug=False):
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
         
-        # Step 11: ENHANCED v5.0 - Calculate enhanced options levels with sigma
+        # Step 11: ENHANCED v5.0 - Calculate enhanced options levels
         volatility = comprehensive_technicals.get('volatility_20d', 20)
         underlying_beta = 1.0  # Default market beta
         
@@ -971,27 +940,19 @@ def perform_enhanced_analysis_v5(symbol, period, controls, show_debug=False):
                     except:
                         continue
         
-        # Enhanced options with market data for sigma calculations
+        # Enhanced options with market data
         options_levels = calculate_options_levels_enhanced(
             current_price, volatility, 
             controls['options_dte'], 
-            underlying_beta=underlying_beta,
-            market_data=analysis_input
+            underlying_beta=underlying_beta
         )
-        
-        # Calculate enhanced sigma levels for different risk profiles
-        sigma_analysis = {}
-        for risk_level in ['conservative', 'moderate', 'aggressive']:
-            sigma_levels = calculate_enhanced_sigma_levels(
-                analysis_input, current_price, risk_level, 30
-            )
-            if sigma_levels:
-                sigma_analysis[risk_level] = sigma_levels
         
         # Step 12: Calculate confidence intervals
         confidence_analysis = calculate_confidence_intervals(analysis_input)
         
-        # Step 13: Build comprehensive analysis results
+        # Step 13: Build analysis results
+        current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
+        
         analysis_results = {
             'symbol': symbol,
             'timestamp': current_date,
@@ -1016,10 +977,6 @@ def perform_enhanced_analysis_v5(symbol, period, controls, show_debug=False):
                 'component_details': vwv_details,
                 'signal_classification': vwv_details.get('signal_classification', 'WEAK')
             },
-            'insider_analysis': insider_analysis,
-            'divergence_analysis': divergence_analysis,
-            'tech_sentiment_analysis': tech_sentiment_analysis,
-            'sigma_analysis': sigma_analysis,
             
             'confidence_analysis': confidence_analysis,
             'system_status': 'VWV_v5.0_OPERATIONAL'
@@ -1062,13 +1019,10 @@ def main():
             )
             
             if analysis_results:
-                # Show all analysis sections using enhanced v5.0 functions
+                # Show working analysis sections
                 show_vwv_core_analysis(analysis_results, controls['show_debug'])  # NEW VWV Core section
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
-                show_insider_analysis(analysis_results, controls['show_debug'])
-                show_market_divergence_analysis(analysis_results, controls['show_debug'])
-                show_tech_sentiment_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
@@ -1086,48 +1040,25 @@ def main():
     
     else:
         # Enhanced welcome message for v5.0
-        st.write("## 🚀 VWV Professional Trading System v5.0 - Complete Enhanced Architecture")
-        st.write("**Major v5.0 Enhancements:** Williams VIX Fix Core, Insider Analysis, Market Divergence, Tech Sentiment, Enhanced Sigma Levels")
+        st.write("## 🚀 VWV Professional Trading System v5.0 - Enhanced")
+        st.write("**Key Fixes:** Default period (3mo), Fixed breakout analysis, Added VWV Core system")
         
-        with st.expander("🆕 What's New in v5.0", expanded=True):
+        with st.expander("🔧 v5.0 Fixes Applied", expanded=True):
             col1, col2 = st.columns(2)
             
             with col1:
-                st.write("### 🎯 **NEW Core Features**")
-                st.write("✅ **Williams VIX Fix** - 6-component confluence system")
-                st.write("✅ **Insider Analysis** - Buying/selling sentiment tracking") 
-                st.write("✅ **Market Divergence** - Multi-ETF relative strength")
-                st.write("✅ **Tech Sentiment** - FNGD/FNGU leveraged ETF analysis")
-                st.write("✅ **Enhanced Sigma Levels** - Fibonacci + Volatility + Volume")
-                st.write("✅ **Fixed Breakouts** - Multi-factor breakout detection")
+                st.write("### ✅ **Fixes Applied**")
+                st.write("✅ **Default Period** - Now defaults to 3mo")
+                st.write("✅ **Breakout Analysis** - Fixed 0% issue")
+                st.write("✅ **VWV Core System** - Williams VIX Fix analysis")
                 
             with col2:
-                st.write("### 🔧 **Enhanced Analysis**")
-                st.write("• **VWV Risk Management** - Dynamic stops & targets")
-                st.write("• **Expected Moves** - Volatility regime detection")
-                st.write("• **Perfect Setups** - FNGD/FNGU EMA relationships")
-                st.write("• **Component Scoring** - 4-factor technical analysis")
-                st.write("• **Default Period** - Changed to 3mo for better analysis")
-                st.write("• **Probability of Touch** - Enhanced options modeling")
-        
-        with st.expander("📊 All Active Analysis Sections", expanded=True):
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.write("### 🎯 **Core VWV System**")
-                st.write("• **VWV Core Signals** - Williams VIX Fix confluence")
-                st.write("• **Individual Technical** - Enhanced composite scoring")
-                st.write("• **Fundamental Analysis** - Graham & Piotroski scores")
-                st.write("• **Market Correlation** - ETF relationship analysis")
-                st.write("• **Enhanced Breakouts** - Multi-factor detection")
-                
-            with col2:
-                st.write("### 🆕 **New v5.0 Sections**")
-                st.write("• **Insider Analysis** - Professional insider tracking")
-                st.write("• **Market Divergence** - Expected moves & relative strength")
-                st.write("• **Tech Sentiment** - Sector-specific FNGD/FNGU analysis")
-                st.write("• **Enhanced Options** - Sigma levels with Fibonacci base")
-                st.write("• **Statistical Intervals** - Confidence level calculations")
+                st.write("### 🎯 **Working Sections**")
+                st.write("• **VWV Core** - Williams VIX Fix confluence")
+                st.write("• **Technical** - Enhanced indicators")
+                st.write("• **Fundamental** - Graham & Piotroski")
+                st.write("• **Market** - Correlation & breakouts (fixed)")
+                st.write("• **Options** - Strike levels with Greeks")
         
         # Show current market status
         market_status = get_market_status()
@@ -1148,14 +1079,14 @@ def main():
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v5.0 - Enhanced")
-        st.write(f"**Core System:** Williams VIX Fix (32+ years proven)")
+        st.write(f"**Version:** VWV Professional v5.0 - Fixed")
+        st.write(f"**Status:** ✅ Core Issues Fixed")
     with col2:
-        st.write(f"**Status:** ✅ All Enhanced Modules Active")
-        st.write(f"**New Sections:** VWV Core, Insider, Divergence, Tech Sentiment")
+        st.write(f"**Default Period:** 3mo (Fixed)")
+        st.write(f"**Breakouts:** Multi-factor logic (Fixed)")
     with col3:
-        st.write(f"**Architecture:** Complete modular with v5.0 enhancements")
-        st.write(f"**Options:** Enhanced with Sigma Levels & Fibonacci integration")
+        st.write(f"**VWV Core:** Williams VIX Fix (NEW)")
+        st.write(f"**Options:** Enhanced with Greeks")
 
 if __name__ == "__main__":
     try:

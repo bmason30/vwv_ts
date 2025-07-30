@@ -1,6 +1,5 @@
 """
-Technical analysis indicators and calculations
-ENHANCED with all missing indicators: monthly highs/lows, all EMAs, etc.
+Technical analysis indicators and calculations - UPDATED with Volume/Volatility Integration
 """
 import pandas as pd
 import numpy as np
@@ -10,6 +9,10 @@ from utils.decorators import safe_calculation_wrapper
 from utils.helpers import statistical_normalize
 from config.settings import FIBONACCI_EMA_PERIODS, TECHNICAL_PERIODS
 import logging
+
+# Import new analysis modules
+from analysis.volume import calculate_complete_volume_analysis
+from analysis.volatility import calculate_complete_volatility_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +63,7 @@ def calculate_daily_vwap(data: pd.DataFrame) -> float:
 
 @safe_calculation_wrapper
 def calculate_fibonacci_emas(data: pd.DataFrame) -> Dict[str, float]:
-    """Calculate ALL Fibonacci EMAs (21, 55, 89, 144, 233) - ENHANCED"""
+    """Calculate Fibonacci EMAs (21, 55, 89, 144, 233)"""
     try:
         if len(data) < 21:
             return {}
@@ -68,22 +71,13 @@ def calculate_fibonacci_emas(data: pd.DataFrame) -> Dict[str, float]:
         close = data['Close']
         emas = {}
 
-        # ENSURE ALL FIBONACCI PERIODS ARE CALCULATED
         for period in FIBONACCI_EMA_PERIODS:
             if len(close) >= period:
                 ema_value = close.ewm(span=period).mean().iloc[-1]
                 emas[f'EMA_{period}'] = round(float(ema_value), 2)
-            else:
-                # If not enough data, extrapolate from available EMAs
-                if len(close) >= 21:  # At least have EMA 21
-                    ema_21 = close.ewm(span=21).mean().iloc[-1]
-                    # Use simple approximation for longer EMAs
-                    adjustment_factor = 1.0 + (period - 21) * 0.001  # Small adjustment
-                    emas[f'EMA_{period}'] = round(float(ema_21 * adjustment_factor), 2)
 
         return emas
-    except Exception as e:
-        logger.error(f"Fibonacci EMAs calculation error: {e}")
+    except Exception:
         return {}
 
 @safe_calculation_wrapper
@@ -155,7 +149,7 @@ def calculate_point_of_control_enhanced(data: pd.DataFrame) -> Optional[float]:
 
 @safe_calculation_wrapper
 def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate comprehensive technical indicators - ENHANCED with monthly highs/lows"""
+    """Calculate comprehensive technical indicators for individual symbol analysis"""
     try:
         if len(data) < 50:
             return {}
@@ -165,15 +159,10 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
         low = data['Low']
         volume = data['Volume']
 
-        # ENHANCED - Previous week high/low (last 5 trading days)
-        week_data = data.tail(5)
-        prev_week_high = float(week_data['High'].max())
-        prev_week_low = float(week_data['Low'].min())
-
-        # ENHANCED - Previous month high/low (last 20 trading days ≈ 1 month)
-        month_data = data.tail(20) if len(data) >= 20 else data
-        prev_month_high = float(month_data['High'].max())
-        prev_month_low = float(month_data['Low'].min())
+        # Previous week high/low
+        week_data = data.tail(5)  # Last 5 trading days
+        prev_week_high = week_data['High'].max()
+        prev_week_low = week_data['Low'].min()
 
         # RSI (14-period)
         rsi_14 = safe_rsi(close, 14).iloc[-1]
@@ -214,10 +203,8 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
             volatility_20d = returns.std() * (252 ** 0.5) * 100 if len(returns) > 0 else 20
 
         return {
-            'prev_week_high': round(prev_week_high, 2),
-            'prev_week_low': round(prev_week_low, 2),
-            'prev_month_high': round(prev_month_high, 2),  # ENHANCED - ADDED
-            'prev_month_low': round(prev_month_low, 2),    # ENHANCED - ADDED
+            'prev_week_high': round(float(prev_week_high), 2),
+            'prev_week_low': round(float(prev_week_low), 2),
             'rsi_14': round(float(rsi_14), 2),
             'mfi_14': round(float(mfi_14), 2),
             'macd': macd_data,
@@ -425,16 +412,18 @@ def calculate_weekly_deviations(data: pd.DataFrame) -> Dict[str, Any]:
         return {}
 
 def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tuple:
-    """Calculate composite technical score from all indicators (1-100)"""
+    """Calculate composite technical score from all indicators (1-100) - UPDATED with Volume/Volatility"""
     try:
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+        volume_analysis = enhanced_indicators.get('volume_analysis', {})
+        volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
         current_price = analysis_results['current_price']
         
         scores = []
         weights = []
         
-        # 1. PRICE POSITION ANALYSIS (35% total weight)
+        # 1. PRICE POSITION ANALYSIS (30% total weight - reduced from 35%)
         daily_vwap = enhanced_indicators.get('daily_vwap', current_price)
         poc = enhanced_indicators.get('point_of_control', current_price)
         fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
@@ -449,14 +438,14 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
         scores.append(poc_score)
         weights.append(0.10)
         
-        # EMA confluence analysis (15% weight)
+        # EMA confluence analysis (10% weight - reduced from 15%)
         if fibonacci_emas:
             ema_above_count = sum(1 for ema_value in fibonacci_emas.values() if current_price > ema_value)
             ema_confluence_score = (ema_above_count / len(fibonacci_emas)) * 100
             scores.append(ema_confluence_score)
-            weights.append(0.15)
+            weights.append(0.10)
         
-        # 2. MOMENTUM OSCILLATORS (30% total weight)
+        # 2. MOMENTUM OSCILLATORS (25% total weight - reduced from 30%)
         rsi = comprehensive_technicals.get('rsi_14', 50)
         mfi = comprehensive_technicals.get('mfi_14', 50)
         williams_r = comprehensive_technicals.get('williams_r', -50)
@@ -476,7 +465,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             rsi_score = 50 + (50 - rsi) * 0.3  # Neutral zone with slight contrarian bias
         
         scores.append(rsi_score)
-        weights.append(0.12)
+        weights.append(0.10)  # Reduced from 0.12
         
         # MFI scoring (money flow consideration)
         if mfi < 20:
@@ -487,7 +476,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             mfi_score = 50 + (50 - mfi) * 0.4
         
         scores.append(mfi_score)
-        weights.append(0.08)
+        weights.append(0.06)  # Reduced from 0.08
         
         # Williams %R scoring (convert to 0-100 scale)
         williams_normalized = ((williams_r + 100) / 100) * 100  # Convert -100:0 to 0:100
@@ -503,25 +492,19 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             stoch_score = stoch_k
         
         scores.append(stoch_score)
-        weights.append(0.05)
+        weights.append(0.04)  # Reduced from 0.05
         
-        # 3. VOLUME ANALYSIS (15% weight)
-        volume_ratio = comprehensive_technicals.get('volume_ratio', 1)
-        if volume_ratio > 2.0:
-            volume_score = 85  # Very high volume
-        elif volume_ratio > 1.5:
-            volume_score = 70  # High volume
-        elif volume_ratio < 0.3:
-            volume_score = 15  # Very low volume
-        elif volume_ratio < 0.7:
-            volume_score = 30  # Low volume
-        else:
-            volume_score = 50 + (volume_ratio - 1) * 20  # Neutral zone
-        
-        scores.append(max(10, min(90, volume_score)))  # Cap extreme values
+        # 3. VOLUME ANALYSIS (15% weight - NEW)
+        volume_composite_score = volume_analysis.get('composite_score', 50) if volume_analysis else 50
+        scores.append(volume_composite_score)
         weights.append(0.15)
         
-        # 4. TREND ANALYSIS (20% weight)
+        # 4. VOLATILITY ANALYSIS (15% weight - NEW)
+        volatility_composite_score = volatility_analysis.get('composite_score', 50) if volatility_analysis else 50
+        scores.append(volatility_composite_score)
+        weights.append(0.15)
+        
+        # 5. TREND ANALYSIS (15% weight - reduced from 20%)
         macd_data = comprehensive_technicals.get('macd', {})
         histogram = macd_data.get('histogram', 0)
         
@@ -534,7 +517,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             macd_score = 50
         
         scores.append(max(5, min(95, macd_score)))
-        weights.append(0.10)
+        weights.append(0.08)  # Reduced from 0.10
         
         # Previous week support/resistance analysis
         prev_week_high = comprehensive_technicals.get('prev_week_high', current_price)
@@ -554,7 +537,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
                 breakout_score = 50
         
         scores.append(breakout_score)
-        weights.append(0.10)
+        weights.append(0.07)  # Reduced from 0.10
         
         # Calculate weighted composite score
         if len(scores) == len(weights) and sum(weights) > 0:
@@ -571,13 +554,56 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
                 'poc_position': round(scores[1], 1) if len(scores) > 1 else 50, 
                 'ema_confluence': round(scores[2], 1) if len(scores) > 2 else 50,
                 'rsi_momentum': round(scores[3], 1) if len(scores) > 3 else 50,
-                'volume_strength': round(scores[5], 1) if len(scores) > 5 else 50,
+                'volume_composite': round(volume_composite_score, 1),
+                'volatility_composite': round(volatility_composite_score, 1),
                 'trend_direction': round(scores[6], 1) if len(scores) > 6 else 50
             },
             'total_components': len(scores),
-            'weight_distribution': dict(zip(['vwap', 'poc', 'ema', 'rsi', 'mfi', 'williams', 'stoch', 'volume', 'macd', 'breakout'], weights))
+            'weight_distribution': {
+                'price_position': 0.30,
+                'momentum_oscillators': 0.25,
+                'volume_analysis': 0.15,
+                'volatility_analysis': 0.15,
+                'trend_analysis': 0.15
+            },
+            'new_components_integrated': True
         }
         
     except Exception as e:
         logger.error(f"Composite technical score calculation error: {e}")
         return 50.0, {'error': str(e)}
+
+@safe_calculation_wrapper
+def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:
+    """Calculate enhanced technical analysis with volume and volatility integration"""
+    try:
+        if len(data) < 50:
+            return {'error': 'Insufficient data for enhanced technical analysis'}
+        
+        # Calculate all traditional technical indicators
+        daily_vwap = calculate_daily_vwap(data)
+        fibonacci_emas = calculate_fibonacci_emas(data)
+        point_of_control = calculate_point_of_control_enhanced(data)
+        weekly_deviations = calculate_weekly_deviations(data)
+        comprehensive_technicals = calculate_comprehensive_technicals(data)
+        
+        # Calculate new volume and volatility analyses
+        volume_analysis = calculate_complete_volume_analysis(data)
+        volatility_analysis = calculate_complete_volatility_analysis(data)
+        
+        # Combine all indicators
+        enhanced_indicators = {
+            'daily_vwap': daily_vwap,
+            'fibonacci_emas': fibonacci_emas,
+            'point_of_control': point_of_control,
+            'weekly_deviations': weekly_deviations,
+            'comprehensive_technicals': comprehensive_technicals,
+            'volume_analysis': volume_analysis,
+            'volatility_analysis': volatility_analysis
+        }
+        
+        return enhanced_indicators
+        
+    except Exception as e:
+        logger.error(f"Enhanced technical analysis error: {e}")
+        return {'error': f'Enhanced analysis error: {str(e)}'}

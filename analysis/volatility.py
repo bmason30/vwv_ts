@@ -1,5 +1,5 @@
 """
-Volatility analysis for VWV Trading System
+Volatility analysis for VWV Trading System v4.2.1
 Comprehensive volatility trend analysis with 5-day and 30-day rolling metrics
 """
 import pandas as pd

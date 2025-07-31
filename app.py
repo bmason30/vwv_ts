@@ -35,13 +35,25 @@ from analysis.options import (
     calculate_options_levels_enhanced,
     calculate_confidence_intervals
 )
-# NEW: Volume & Volatility Analysis Modules v4.2.1
-# CORRECTED CODE
-from analysis.volume import (
-    analyze_volume_profile,
-    interpret_volume_data,
-    compare_market_volume
-)
+# CORRECTED CODE  
+# Import Volume & Volatility functions using direct imports to avoid circular dependencies
+def get_volume_analysis_functions():
+    """Local import to avoid circular dependencies"""
+    from analysis.volume import (
+        calculate_volume_analysis,
+        get_volume_interpretation, 
+        calculate_market_volume_comparison
+    )
+    return calculate_volume_analysis, get_volume_interpretation, calculate_market_volume_comparison
+
+def get_volatility_analysis_functions():
+    """Local import to avoid circular dependencies"""
+    from analysis.volatility import (
+        calculate_volatility_analysis,
+        get_volatility_interpretation,
+        calculate_market_volatility_comparison
+    )
+    return calculate_volatility_analysis, get_volatility_interpretation, calculate_market_volatility_comparison
 from analysis.volatility import (
     calculate_volatility_analysis,
     get_volatility_interpretation,

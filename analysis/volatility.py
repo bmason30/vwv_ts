@@ -1,460 +1,419 @@
 """
-Volatility Analysis Module for VWV Trading System
-Advanced volatility trend analysis with 5d/30d comparisons and regime detection
+Volatility analysis for VWV Trading System
+Comprehensive volatility trend analysis with 5-day and 30-day rolling metrics
 """
 import pandas as pd
 import numpy as np
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional
 from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
 @safe_calculation_wrapper
-def calculate_5day_rolling_volatility(data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate 5-day rolling volatility average and analysis"""
+def calculate_volatility_analysis(data: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Comprehensive volatility analysis with 5-day and 30-day rolling metrics
+    
+    Returns:
+        Dict containing volatility metrics, trends, and regime classification
+    """
     try:
-        if len(data) < 10:
-            return {'error': 'Insufficient data for 5-day volatility analysis'}
+        if len(data) < 30:
+            return {
+                'error': 'Insufficient data for volatility analysis (minimum 30 periods required)',
+                'data_points': len(data)
+            }
+
+        close = data['Close'].copy()
         
         # Calculate daily returns
-        returns = data['Close'].pct_change().dropna()
+        returns = close.pct_change().dropna()
         
-        # 5-day rolling volatility (annualized)
-        volatility_5d = returns.rolling(window=5).std() * np.sqrt(252) * 100  # Annualized percentage
-        current_5d_volatility = float(volatility_5d.iloc[-1])
+        if len(returns) < 30:
+            return {
+                'error': 'Insufficient returns data for volatility analysis',
+                'data_points': len(returns)
+            }
         
-        # Current daily volatility (for comparison)
-        recent_returns = returns.tail(5)
-        current_daily_vol = float(recent_returns.std() * np.sqrt(252) * 100) if len(recent_returns) > 1 else 0
+        # 5-Day Rolling Volatility Analysis (annualized)
+        volatility_5d_rolling = returns.rolling(window=5).std() * np.sqrt(252) * 100  # Annualized percentage
+        current_5d_vol = volatility_5d_rolling.iloc[-1]
+        prev_5d_vol = volatility_5d_rolling.iloc[-2] if len(volatility_5d_rolling) > 1 else current_5d_vol
         
-        # 5-day volatility trend analysis
-        recent_5d_values = volatility_5d.tail(5).dropna()
+        # 5-Day Volatility Trend Analysis
+        vol_5d_trend_direction = "Increasing" if current_5d_vol > prev_5d_vol else "Decreasing"
+        vol_5d_trend_strength = abs((current_5d_vol - prev_5d_vol) / prev_5d_vol * 100) if prev_5d_vol > 0 else 0
         
-        if len(recent_5d_values) >= 3:
-            # Calculate trend using linear regression slope
-            x_values = np.arange(len(recent_5d_values))
-            y_values = recent_5d_values.values
-            
-            # Simple linear regression
-            n = len(x_values)
-            sum_x = np.sum(x_values)
-            sum_y = np.sum(y_values)
-            sum_xy = np.sum(x_values * y_values)
-            sum_x2 = np.sum(x_values ** 2)
-            
-            # Calculate slope (trend)
-            if n * sum_x2 - sum_x ** 2 != 0:
-                slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x ** 2)
-            else:
-                slope = 0
-            
-            # Trend classification
-            slope_pct = (slope / current_5d_volatility) * 100 if current_5d_volatility > 0 else 0
-            
-            if slope_pct > 10:
-                trend_direction = "Rapidly Expanding"
-                trend_strength = "Strong"
-                cycle_phase = "Expansion"
-            elif slope_pct > 3:
-                trend_direction = "Expanding"
-                trend_strength = "Moderate"
-                cycle_phase = "Expansion"
-            elif slope_pct < -10:
-                trend_direction = "Rapidly Contracting"
-                trend_strength = "Strong"
-                cycle_phase = "Contraction"
-            elif slope_pct < -3:
-                trend_direction = "Contracting"
-                trend_strength = "Moderate"
-                cycle_phase = "Contraction"
-            else:
-                trend_direction = "Stable"
-                trend_strength = "Weak"
-                cycle_phase = "Neutral"
+        # Volatility momentum (rate of change over 5 days)
+        vol_5d_values = volatility_5d_rolling.tail(5).dropna()
+        if len(vol_5d_values) >= 2:
+            vol_momentum = (vol_5d_values.iloc[-1] - vol_5d_values.iloc[0]) / vol_5d_values.iloc[0] * 100
         else:
-            slope = 0
-            slope_pct = 0
-            trend_direction = "Insufficient Data"
-            trend_strength = "N/A"
-            cycle_phase = "Unknown"
+            vol_momentum = 0
         
-        # Volatility momentum (rate of change)
-        volatility_momentum = 0
-        if len(recent_5d_values) >= 2:
-            volatility_momentum = ((recent_5d_values.iloc[-1] - recent_5d_values.iloc[-2]) / recent_5d_values.iloc[-2]) * 100
+        # 30-Day Rolling Volatility Analysis
+        volatility_30d_rolling = returns.rolling(window=30).std() * np.sqrt(252) * 100  # Annualized percentage
+        current_30d_vol = volatility_30d_rolling.iloc[-1]
         
-        # Volatility acceleration (second derivative)
-        volatility_acceleration = 0
-        if len(recent_5d_values) >= 3:
-            recent_changes = recent_5d_values.diff().tail(2)
-            if len(recent_changes) == 2:
-                volatility_acceleration = recent_changes.iloc[-1] - recent_changes.iloc[-2]
+        # 5-Day vs 30-Day Comparison
+        vol_ratio_5d_30d = current_5d_vol / current_30d_vol if current_30d_vol > 0 else 1
+        vol_deviation_pct = ((current_5d_vol - current_30d_vol) / current_30d_vol * 100) if current_30d_vol > 0 else 0
         
-        return {
-            'current_5d_volatility': round(current_5d_volatility, 2),
-            'current_daily_volatility': round(current_daily_vol, 2),
-            'trend_slope': round(slope, 3),
-            'trend_slope_pct': round(slope_pct, 2),
-            'trend_direction': trend_direction,
-            'trend_strength': trend_strength,
-            'cycle_phase': cycle_phase,
-            'volatility_momentum': round(volatility_momentum, 2),
-            'volatility_acceleration': round(volatility_acceleration, 3)
-        }
-        
-    except Exception as e:
-        logger.error(f"5-day rolling volatility calculation error: {e}")
-        return {'error': f'Calculation error: {str(e)}'}
-
-@safe_calculation_wrapper
-def calculate_volatility_comparison_30d(data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate 5-day vs 30-day volatility comparison analysis"""
-    try:
-        if len(data) < 35:
-            return {'error': 'Insufficient data for 30-day volatility analysis'}
-        
-        # Calculate daily returns
-        returns = data['Close'].pct_change().dropna()
-        
-        # Rolling volatilities (annualized)
-        volatility_5d = returns.rolling(window=5).std().iloc[-1] * np.sqrt(252) * 100
-        volatility_30d = returns.rolling(window=30).std().iloc[-1] * np.sqrt(252) * 100
-        
-        if volatility_30d == 0:
-            return {'error': 'Invalid 30-day volatility data'}
-        
-        # Relative volatility ratio
-        relative_ratio = volatility_5d / volatility_30d
-        
-        # Deviation percentage
-        deviation_pct = ((volatility_5d - volatility_30d) / volatility_30d) * 100
-        
-        # Volatility regime classification
-        if relative_ratio >= 2.0:
-            regime = "Extreme High Volatility"
-            regime_score = 90
-            market_environment = "Crisis/Panic"
-        elif relative_ratio >= 1.5:
-            regime = "High Volatility"
-            regime_score = 75
-            market_environment = "Stressed"
-        elif relative_ratio >= 1.2:
-            regime = "Elevated Volatility"
-            regime_score = 60
-            market_environment = "Uncertain"
-        elif relative_ratio >= 0.8:
-            regime = "Normal Volatility"
-            regime_score = 50
-            market_environment = "Stable"
-        elif relative_ratio >= 0.6:
-            regime = "Low Volatility"
-            regime_score = 35
-            market_environment = "Calm"
-        elif relative_ratio >= 0.4:
-            regime = "Very Low Volatility"
-            regime_score = 20
-            market_environment = "Complacent"
-        else:
-            regime = "Extremely Low Volatility"
-            regime_score = 10
-            market_environment = "Suppressed"
-        
-        # Significance classification
-        if abs(deviation_pct) >= 100:
-            significance = "Very Significant"
-        elif abs(deviation_pct) >= 50:
-            significance = "Significant"
-        elif abs(deviation_pct) >= 25:
-            significance = "Moderate"
-        elif abs(deviation_pct) >= 10:
-            significance = "Minor"
-        else:
-            significance = "Negligible"
-        
-        # Options implications
-        if relative_ratio >= 1.5:
-            options_implication = "High Premium Environment - Favor Selling"
-        elif relative_ratio >= 1.2:
-            options_implication = "Elevated Premium - Consider Selling"
-        elif relative_ratio <= 0.6:
-            options_implication = "Low Premium Environment - Favor Buying"
-        else:
-            options_implication = "Normal Premium Environment"
-        
-        return {
-            'volatility_5d': round(volatility_5d, 2),
-            'volatility_30d': round(volatility_30d, 2),
-            'relative_ratio': round(relative_ratio, 2),
-            'deviation_pct': round(deviation_pct, 1),
-            'regime_classification': regime,
-            'regime_score': regime_score,
-            'market_environment': market_environment,
-            'significance': significance,
-            'options_implication': options_implication,
-            'above_30d_average': volatility_5d > volatility_30d
-        }
-        
-    except Exception as e:
-        logger.error(f"Volatility comparison calculation error: {e}")
-        return {'error': f'Comparison error: {str(e)}'}
-
-@safe_calculation_wrapper
-def calculate_volatility_regime_detection(data: pd.DataFrame) -> Dict[str, Any]:
-    """Detect volatility regimes and unusual patterns"""
-    try:
-        if len(data) < 60:
-            return {'error': 'Insufficient data for regime analysis'}
-        
-        # Calculate daily returns and rolling volatilities
-        returns = data['Close'].pct_change().dropna()
-        
-        # Multiple timeframe volatilities
-        vol_10d = returns.rolling(10).std() * np.sqrt(252) * 100
-        vol_20d = returns.rolling(20).std() * np.sqrt(252) * 100
-        vol_50d = returns.rolling(50).std() * np.sqrt(252) * 100
-        
-        current_vol_10d = vol_10d.iloc[-1]
-        current_vol_20d = vol_20d.iloc[-1]
-        current_vol_50d = vol_50d.iloc[-1]
-        
-        # Historical volatility percentiles
-        vol_percentile_20d = vol_20d.rolling(100).rank(pct=True).iloc[-1] * 100
-        vol_percentile_50d = vol_50d.rolling(252).rank(pct=True).iloc[-1] * 100 if len(vol_50d) >= 252 else 50
-        
-        # Volatility clustering detection
-        high_vol_threshold = vol_50d.quantile(0.75)
-        low_vol_threshold = vol_50d.quantile(0.25)
-        
-        recent_high_vol_days = (vol_10d.tail(10) > high_vol_threshold).sum()
-        recent_low_vol_days = (vol_10d.tail(10) < low_vol_threshold).sum()
-        
-        # Regime classification based on multiple factors
-        if vol_percentile_20d >= 90:
-            regime = "Extreme Volatility Regime"
-            regime_strength = "Very Strong"
+        # Volatility Regime Classification
+        if current_5d_vol >= 50:  # Very high volatility
+            vol_regime = "Extreme High"
             regime_score = 95
-        elif vol_percentile_20d >= 75:
-            regime = "High Volatility Regime"
-            regime_strength = "Strong"
+        elif current_5d_vol >= 35:  # High volatility
+            vol_regime = "High"
             regime_score = 80
-        elif vol_percentile_20d >= 60:
-            regime = "Elevated Volatility Regime"
-            regime_strength = "Moderate"
+        elif current_5d_vol >= 25:  # Above normal
+            vol_regime = "Above Normal"
             regime_score = 65
-        elif vol_percentile_20d <= 10:
-            regime = "Low Volatility Regime"
-            regime_strength = "Very Strong"
-            regime_score = 15
-        elif vol_percentile_20d <= 25:
-            regime = "Suppressed Volatility Regime"
-            regime_strength = "Strong"
-            regime_score = 25
-        elif vol_percentile_20d <= 40:
-            regime = "Below Normal Volatility"
-            regime_strength = "Moderate"
-            regime_score = 35
-        else:
-            regime = "Normal Volatility Regime"
-            regime_strength = "Normal"
+        elif current_5d_vol >= 15:  # Normal range
+            vol_regime = "Normal"
             regime_score = 50
+        elif current_5d_vol >= 10:  # Below normal
+            vol_regime = "Below Normal"
+            regime_score = 35
+        else:  # Low volatility
+            vol_regime = "Low"
+            regime_score = 20
         
-        # Volatility clustering analysis
-        if recent_high_vol_days >= 7:
-            clustering = "High Volatility Cluster"
-        elif recent_low_vol_days >= 7:
-            clustering = "Low Volatility Cluster"
-        elif recent_high_vol_days >= 4:
-            clustering = "Moderate High Vol Clustering"
-        elif recent_low_vol_days >= 4:
-            clustering = "Moderate Low Vol Clustering"
+        # Volatility Cycle Analysis
+        vol_30d_values = volatility_30d_rolling.tail(30).dropna()
+        if len(vol_30d_values) >= 10:
+            vol_percentile = (vol_30d_values <= current_5d_vol).sum() / len(vol_30d_values) * 100
+            
+            if vol_percentile >= 90:
+                cycle_position = "Peak Volatility"
+            elif vol_percentile >= 75:
+                cycle_position = "High in Cycle"
+            elif vol_percentile >= 25:
+                cycle_position = "Mid Cycle"
+            elif vol_percentile >= 10:
+                cycle_position = "Low in Cycle"
+            else:
+                cycle_position = "Volatility Trough"
         else:
-            clustering = "No Clear Clustering"
+            cycle_position = "Insufficient Data"
+            vol_percentile = 50
+        
+        # Volatility Breakout Detection
+        vol_std_30d = volatility_30d_rolling.rolling(window=30).std().iloc[-1]
+        vol_z_score = (current_5d_vol - current_30d_vol) / vol_std_30d if vol_std_30d > 0 else 0
+        
+        if vol_z_score >= 2.0:
+            vol_breakout = "Significant Volatility Spike"
+        elif vol_z_score >= 1.5:
+            vol_breakout = "Moderate Volatility Increase"
+        elif vol_z_score <= -2.0:
+            vol_breakout = "Significant Volatility Compression"
+        elif vol_z_score <= -1.5:
+            vol_breakout = "Moderate Volatility Decrease"
+        else:
+            vol_breakout = "Normal Volatility Range"
+        
+        # Options Strategy Adjustment Factor
+        # High volatility = higher premiums, low volatility = lower premiums
+        if current_5d_vol >= 40:
+            options_adjustment = "Sell Premium" # High vol = good for selling
+        elif current_5d_vol >= 25:
+            options_adjustment = "Neutral Strategy"
+        else:
+            options_adjustment = "Buy Premium"  # Low vol = good for buying
+        
+        # Advanced Volatility Metrics
+        # Volatility acceleration (change in volatility trend)
+        vol_5d_values_extended = volatility_5d_rolling.tail(10).dropna()
+        if len(vol_5d_values_extended) >= 5:
+            recent_vol_trend = vol_5d_values_extended.tail(3).mean()
+            earlier_vol_trend = vol_5d_values_extended.head(3).mean()
+            vol_acceleration = (recent_vol_trend - earlier_vol_trend) / earlier_vol_trend * 100 if earlier_vol_trend > 0 else 0
+        else:
+            vol_acceleration = 0
+        
+        # Volatility of volatility (how stable the volatility is)
+        vol_of_vol = volatility_5d_rolling.tail(10).std() if len(volatility_5d_rolling) >= 10 else 0
+        
+        # Risk-adjusted return metrics
+        current_return = returns.iloc[-1] * 100  # Current day return as percentage
+        risk_adjusted_return = current_return / (current_5d_vol / 100) if current_5d_vol > 0 else 0
         
         return {
-            'current_vol_10d': round(current_vol_10d, 2),
-            'current_vol_20d': round(current_vol_20d, 2),
-            'current_vol_50d': round(current_vol_50d, 2),
-            'vol_percentile_20d': round(vol_percentile_20d, 1),
-            'vol_percentile_50d': round(vol_percentile_50d, 1),
-            'regime_classification': regime,
-            'regime_strength': regime_strength,
+            # 5-Day Rolling Metrics
+            'volatility_5d': round(float(current_5d_vol), 2),
+            'vol_5d_trend_direction': vol_5d_trend_direction,
+            'vol_5d_trend_strength': round(float(vol_5d_trend_strength), 2),
+            'vol_momentum': round(float(vol_momentum), 2),
+            
+            # 30-Day Comparison Metrics
+            'volatility_30d': round(float(current_30d_vol), 2),
+            'vol_ratio_5d_30d': round(float(vol_ratio_5d_30d), 2),
+            'vol_deviation_pct': round(float(vol_deviation_pct), 2),
+            
+            # Volatility Regime Analysis
+            'vol_regime': vol_regime,
             'regime_score': regime_score,
-            'volatility_clustering': clustering,
-            'high_vol_days_recent': int(recent_high_vol_days),
-            'low_vol_days_recent': int(recent_low_vol_days)
+            'cycle_position': cycle_position,
+            'vol_percentile': round(float(vol_percentile), 1),
+            'vol_breakout': vol_breakout,
+            'vol_z_score': round(float(vol_z_score), 2),
+            
+            # Options Integration
+            'options_adjustment': options_adjustment,
+            'vol_composite_score': regime_score,  # For composite technical scoring
+            
+            # Advanced Metrics
+            'vol_acceleration': round(float(vol_acceleration), 2),
+            'vol_of_vol': round(float(vol_of_vol), 2),
+            'risk_adjusted_return': round(float(risk_adjusted_return), 2),
+            'current_return': round(float(current_return), 2),
+            
+            # Metadata
+            'data_points': len(data),
+            'returns_count': len(returns),
+            'calculation_success': True
         }
         
     except Exception as e:
-        logger.error(f"Volatility regime detection error: {e}")
-        return {'error': f'Regime detection error: {str(e)}'}
+        logger.error(f"Volatility analysis calculation error: {e}")
+        return {
+            'error': f'Volatility analysis failed: {str(e)}',
+            'data_points': len(data) if data is not None else 0,
+            'calculation_success': False
+        }
 
 @safe_calculation_wrapper
-def calculate_volatility_composite_score(volatility_analysis: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
-    """Calculate composite volatility score for technical integration"""
+def get_volatility_interpretation(vol_data: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Provide human-readable interpretation of volatility analysis results
+    """
     try:
-        # Extract components
-        rolling_5d = volatility_analysis.get('rolling_5d_analysis', {})
-        comparison_30d = volatility_analysis.get('comparison_30d_analysis', {})
-        regime_analysis = volatility_analysis.get('regime_analysis', {})
+        if 'error' in vol_data or not vol_data.get('calculation_success', False):
+            return {
+                'overall': 'Volatility analysis unavailable',
+                'trend': 'Cannot determine trend',
+                'regime': 'Cannot assess regime',
+                'options': 'Cannot provide options guidance',
+                'risk': 'Cannot assess risk level'
+            }
         
-        scores = []
-        weights = []
-        components = {}
+        regime = vol_data.get('vol_regime', 'Unknown')
+        trend_direction = vol_data.get('vol_5d_trend_direction', 'Unknown')
+        cycle_position = vol_data.get('cycle_position', 'Unknown')
+        options_adjustment = vol_data.get('options_adjustment', 'Unknown')
         
-        # 5-day trend component (35% weight)
-        if 'cycle_phase' in rolling_5d:
-            cycle_phase = rolling_5d['cycle_phase']
-            trend_strength = rolling_5d.get('trend_strength', 'Weak')
-            volatility_momentum = rolling_5d.get('volatility_momentum', 0)
-            
-            # Base score by cycle phase
-            if cycle_phase == "Expansion":
-                if trend_strength == "Strong":
-                    trend_score = 75 + min(abs(volatility_momentum) / 2, 15)  # 75-90
-                else:
-                    trend_score = 65 + min(abs(volatility_momentum) / 2, 10)  # 65-75
-            elif cycle_phase == "Contraction":
-                if trend_strength == "Strong":
-                    trend_score = 25 - min(abs(volatility_momentum) / 2, 15)  # 10-25
-                else:
-                    trend_score = 35 - min(abs(volatility_momentum) / 2, 10)  # 25-35
-            else:  # Neutral/Stable/Unknown
-                trend_score = 50
-            
-            scores.append(max(5, min(95, trend_score)))
-            weights.append(0.35)
-            components['trend_score'] = round(trend_score, 1)
-        
-        # 30-day comparison component (40% weight)
-        if 'regime_score' in comparison_30d:
-            regime_score = comparison_30d['regime_score']
-            scores.append(regime_score)
-            weights.append(0.40)
-            components['regime_score'] = regime_score
-        
-        # Regime detection component (25% weight)
-        if 'regime_score' in regime_analysis:
-            regime_detection_score = regime_analysis['regime_score']
-            scores.append(regime_detection_score)
-            weights.append(0.25)
-            components['regime_detection_score'] = regime_detection_score
-        
-        # Calculate weighted composite score
-        if len(scores) == len(weights) and sum(weights) > 0:
-            composite_score = sum(score * weight for score, weight in zip(scores, weights)) / sum(weights)
+        # Overall interpretation
+        volatility_5d = vol_data.get('volatility_5d', 0)
+        if regime == 'Extreme High':
+            overall = f"Extremely high volatility ({volatility_5d:.1f}%) - crisis or event-driven environment"
+        elif regime == 'High':
+            overall = f"High volatility ({volatility_5d:.1f}%) - elevated risk environment"
+        elif regime == 'Above Normal':
+            overall = f"Above normal volatility ({volatility_5d:.1f}%) - increased market stress"
+        elif regime == 'Normal':
+            overall = f"Normal volatility ({volatility_5d:.1f}%) - typical market conditions"
+        elif regime == 'Below Normal':
+            overall = f"Below normal volatility ({volatility_5d:.1f}%) - calmer market conditions"
         else:
-            composite_score = 50  # Default neutral
+            overall = f"Low volatility ({volatility_5d:.1f}%) - very stable environment"
         
-        # Ensure score is within bounds
-        final_score = max(1, min(100, round(composite_score, 1)))
-        
-        # Score interpretation
-        if final_score >= 85:
-            interpretation = "Extreme High Volatility"
-        elif final_score >= 75:
-            interpretation = "High Volatility"
-        elif final_score >= 65:
-            interpretation = "Elevated Volatility"
-        elif final_score >= 35:
-            interpretation = "Normal Volatility"
-        elif final_score >= 25:
-            interpretation = "Low Volatility"
-        elif final_score >= 15:
-            interpretation = "Very Low Volatility"
+        # Trend interpretation
+        momentum = vol_data.get('vol_momentum', 0)
+        if trend_direction == "Increasing" and momentum > 15:
+            trend = "Rapidly increasing volatility - market stress building"
+        elif trend_direction == "Increasing":
+            trend = "Moderately increasing volatility"  
+        elif trend_direction == "Decreasing" and momentum < -15:
+            trend = "Rapidly decreasing volatility - market calming"
         else:
-            interpretation = "Suppressed Volatility"
+            trend = "Moderately decreasing volatility"
         
-        return final_score, {
-            'composite_score': final_score,
-            'interpretation': interpretation,
-            'component_scores': components,
-            'total_components': len(scores),
-            'weight_distribution': dict(zip(['trend', 'regime_comparison', 'regime_detection'], weights))
-        }
+        # Regime assessment
+        if cycle_position in ['Peak Volatility', 'High in Cycle']:
+            regime_assess = f"{cycle_position} - volatility may mean revert lower"
+        elif cycle_position in ['Volatility Trough', 'Low in Cycle']:
+            regime_assess = f"{cycle_position} - volatility may increase"
+        else:
+            regime_assess = f"{cycle_position} - balanced volatility environment"
         
-    except Exception as e:
-        logger.error(f"Volatility composite score calculation error: {e}")
-        return 50.0, {'error': str(e)}
-
-@safe_calculation_wrapper
-def calculate_complete_volatility_analysis(data: pd.DataFrame) -> Dict[str, Any]:
-    """Complete volatility analysis pipeline"""
-    try:
-        if len(data) < 35:
-            return {'error': 'Insufficient data for complete volatility analysis (minimum 35 periods required)'}
+        # Options strategy guidance
+        if options_adjustment == "Sell Premium":
+            options_guidance = "High volatility favors premium selling strategies (puts/calls)"
+        elif options_adjustment == "Buy Premium":
+            options_guidance = "Low volatility favors premium buying strategies (long options)"
+        else:
+            options_guidance = "Neutral volatility - balanced options approach"
         
-        # Perform all volatility analyses
-        rolling_5d_analysis = calculate_5day_rolling_volatility(data)
-        comparison_30d_analysis = calculate_volatility_comparison_30d(data)
-        regime_analysis = calculate_volatility_regime_detection(data)
-        
-        # Calculate composite score
-        volatility_analysis = {
-            'rolling_5d_analysis': rolling_5d_analysis,
-            'comparison_30d_analysis': comparison_30d_analysis,
-            'regime_analysis': regime_analysis
-        }
-        
-        composite_score, score_details = calculate_volatility_composite_score(volatility_analysis)
-        
-        # Combine all results
-        complete_analysis = {
-            'rolling_5d_analysis': rolling_5d_analysis,
-            'comparison_30d_analysis': comparison_30d_analysis,
-            'regime_analysis': regime_analysis,
-            'composite_score': composite_score,
-            'score_details': score_details,
-            'analysis_timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'data_points_analyzed': len(data)
-        }
-        
-        return complete_analysis
-        
-    except Exception as e:
-        logger.error(f"Complete volatility analysis error: {e}")
-        return {'error': f'Complete analysis error: {str(e)}'}
-
-def format_volatility_analysis_for_display(volatility_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    """Format volatility analysis for UI display"""
-    try:
-        if 'error' in volatility_analysis:
-            return volatility_analysis
-        
-        rolling_5d = volatility_analysis.get('rolling_5d_analysis', {})
-        comparison_30d = volatility_analysis.get('comparison_30d_analysis', {})
-        regime = volatility_analysis.get('regime_analysis', {})
-        score_details = volatility_analysis.get('score_details', {})
-        
-        # Summary metrics for main display
-        summary_metrics = {
-            'current_5d_volatility': rolling_5d.get('current_5d_volatility', 0),
-            'current_30d_volatility': comparison_30d.get('volatility_30d', 0),
-            'relative_ratio': comparison_30d.get('relative_ratio', 1.0),
-            'deviation_pct': comparison_30d.get('deviation_pct', 0),
-            'regime_classification': comparison_30d.get('regime_classification', 'Normal Volatility'),
-            'market_environment': comparison_30d.get('market_environment', 'Stable'),
-            'trend_direction': rolling_5d.get('trend_direction', 'Unknown'),
-            'cycle_phase': rolling_5d.get('cycle_phase', 'Unknown'),
-            'options_implication': comparison_30d.get('options_implication', 'Normal Premium Environment'),
-            'composite_score': volatility_analysis.get('composite_score', 50),
-            'interpretation': score_details.get('interpretation', 'Normal Volatility')
-        }
-        
-        # Detailed breakdown for expandable sections
-        detailed_analysis = {
-            '5_day_rolling': rolling_5d,
-            '30_day_comparison': comparison_30d,
-            'regime_detection': regime,
-            'scoring_breakdown': score_details
-        }
+        # Risk assessment
+        if volatility_5d >= 40:
+            risk_assessment = "Very high risk environment - use smaller position sizes"
+        elif volatility_5d >= 25:
+            risk_assessment = "Elevated risk environment - standard risk management"
+        elif volatility_5d >= 15:
+            risk_assessment = "Normal risk environment - typical position sizing"
+        else:
+            risk_assessment = "Low risk environment - may consider larger positions"
         
         return {
-            'summary_metrics': summary_metrics,
-            'detailed_analysis': detailed_analysis,
-            'display_ready': True
+            'overall': overall,
+            'trend': trend,
+            'regime': regime_assess,
+            'options': options_guidance,
+            'risk': risk_assessment
         }
         
     except Exception as e:
-        logger.error(f"Volatility analysis formatting error: {e}")
-        return {'error': f'Formatting error: {str(e)}'}
+        logger.error(f"Volatility interpretation error: {e}")
+        return {
+            'overall': 'Interpretation error',
+            'trend': 'Cannot interpret trend',
+            'regime': 'Cannot assess regime',
+            'options': 'Review volatility data manually',
+            'risk': 'Cannot assess risk level'
+        }
+
+@safe_calculation_wrapper
+def calculate_market_volatility_comparison(symbols: list = ['SPY', 'QQQ', 'IWM']) -> Dict[str, Any]:
+    """
+    Calculate market-wide volatility metrics for comparison
+    """
+    try:
+        import yfinance as yf
+        
+        market_vol_data = {}
+        
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period='2mo')  # Get enough data for 30-day rolling
+                
+                if len(data) >= 30:
+                    vol_analysis = calculate_volatility_analysis(data)
+                    if vol_analysis.get('calculation_success', False):
+                        market_vol_data[symbol] = {
+                            'vol_regime': vol_analysis.get('vol_regime', 'Unknown'),
+                            'volatility_5d': vol_analysis.get('volatility_5d', 0),
+                            'vol_ratio_5d_30d': vol_analysis.get('vol_ratio_5d_30d', 1.0),
+                            'regime_score': vol_analysis.get('regime_score', 50),
+                            'cycle_position': vol_analysis.get('cycle_position', 'Unknown'),
+                            'options_adjustment': vol_analysis.get('options_adjustment', 'Unknown')
+                        }
+                        
+            except Exception as e:
+                logger.error(f"Error fetching market data for {symbol}: {e}")
+                continue
+        
+        if market_vol_data:
+            # Calculate overall market volatility environment
+            avg_volatility = sum([data['volatility_5d'] for data in market_vol_data.values()]) / len(market_vol_data)
+            avg_regime_score = sum([data['regime_score'] for data in market_vol_data.values()]) / len(market_vol_data)
+            
+            # Market volatility regime classification
+            if avg_volatility >= 35:
+                market_regime = "High Volatility Market Environment"
+                vix_estimate = "High (VIX likely >30)"
+            elif avg_volatility >= 25:
+                market_regime = "Elevated Volatility Environment"
+                vix_estimate = "Elevated (VIX likely 20-30)"
+            elif avg_volatility >= 15:
+                market_regime = "Normal Volatility Environment"
+                vix_estimate = "Normal (VIX likely 15-20)"
+            else:
+                market_regime = "Low Volatility Environment"
+                vix_estimate = "Low (VIX likely <15)"
+            
+            # Options environment assessment
+            options_environments = [data['options_adjustment'] for data in market_vol_data.values()]
+            if options_environments.count('Sell Premium') >= 2:
+                market_options_env = "Premium Selling Environment"
+            elif options_environments.count('Buy Premium') >= 2:
+                market_options_env = "Premium Buying Environment"
+            else:
+                market_options_env = "Mixed Options Environment"
+            
+            return {
+                'individual_metrics': market_vol_data,
+                'market_regime': market_regime,
+                'market_options_env': market_options_env,
+                'avg_volatility': round(float(avg_volatility), 2),
+                'avg_regime_score': round(float(avg_regime_score), 1),
+                'vix_estimate': vix_estimate,
+                'sample_symbols': symbols,
+                'calculation_success': True
+            }
+        else:
+            return {
+                'error': 'Could not retrieve market volatility data',
+                'calculation_success': False
+            }
+            
+    except Exception as e:
+        logger.error(f"Market volatility comparison error: {e}")
+        return {
+            'error': f'Market volatility analysis failed: {str(e)}',
+            'calculation_success': False
+        }
+
+@safe_calculation_wrapper
+def get_volatility_regime_for_options(vol_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Get volatility regime information specifically for options strategy adjustment
+    """
+    try:
+        if 'error' in vol_data or not vol_data.get('calculation_success', False):
+            return {
+                'regime': 'Unknown',
+                'multiplier': 1.0,
+                'strategy_bias': 'Neutral',
+                'confidence': 'Low'
+            }
+        
+        volatility_5d = vol_data.get('volatility_5d', 20)
+        vol_regime = vol_data.get('vol_regime', 'Normal')
+        cycle_position = vol_data.get('cycle_position', 'Mid Cycle')
+        
+        # Determine options strategy multiplier based on volatility regime
+        if vol_regime == 'Extreme High':
+            multiplier = 1.4  # Expand strikes in high vol
+            strategy_bias = 'Aggressive Selling'
+            confidence = 'High'
+        elif vol_regime == 'High':
+            multiplier = 1.2
+            strategy_bias = 'Premium Selling'
+            confidence = 'High'
+        elif vol_regime == 'Above Normal':
+            multiplier = 1.1
+            strategy_bias = 'Slight Selling Bias'
+            confidence = 'Medium'
+        elif vol_regime == 'Normal':
+            multiplier = 1.0
+            strategy_bias = 'Neutral'
+            confidence = 'Medium'
+        elif vol_regime == 'Below Normal':
+            multiplier = 0.9
+            strategy_bias = 'Slight Buying Bias'
+            confidence = 'Medium'
+        else:  # Low
+            multiplier = 0.8  # Contract strikes in low vol
+            strategy_bias = 'Premium Buying'
+            confidence = 'High'
+        
+        return {
+            'regime': vol_regime,
+            'multiplier': multiplier,
+            'strategy_bias': strategy_bias,
+            'confidence': confidence,
+            'current_volatility': volatility_5d,
+            'cycle_position': cycle_position
+        }
+        
+    except Exception as e:
+        logger.error(f"Volatility regime for options error: {e}")
+        return {
+            'regime': 'Error',
+            'multiplier': 1.0,
+            'strategy_bias': 'Neutral',
+            'confidence': 'Low'
+        }

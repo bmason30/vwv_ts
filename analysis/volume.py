@@ -1,11 +1,10 @@
 """
 Volume Analysis Module for VWV Trading System v4.2.1
 Advanced 5-day and 30-day rolling volume analysis with regime detection
+Fixed circular dependencies with local imports
 """
 import pandas as pd
 import numpy as np
-import streamlit as st
-import yfinance as yf
 import logging
 from typing import Dict, Any, List, Optional
 import functools
@@ -27,7 +26,7 @@ def safe_calculation_wrapper(func):
     return wrapper
 
 @safe_calculation_wrapper
-def calculate_volume_analysis(data: pd.DataFrame) -> Dict[str, Any]:
+def analyze_volume_profile(data: pd.DataFrame) -> Dict[str, Any]:
     """
     Comprehensive 5-day and 30-day rolling volume analysis
     
@@ -267,7 +266,7 @@ def calculate_volume_strength_factor(volume_ratio: float, z_score: float, accele
         return 1.0  # Neutral multiplier
 
 @safe_calculation_wrapper
-def get_volume_interpretation(volume_data: Dict[str, Any]) -> Dict[str, str]:
+def interpret_volume_data(volume_data: Dict[str, Any]) -> Dict[str, str]:
     """Generate volume analysis interpretation"""
     try:
         if 'error' in volume_data:
@@ -348,47 +347,36 @@ def get_volume_interpretation(volume_data: Dict[str, Any]) -> Dict[str, str]:
             'breakout_interpretation': 'Analysis error'
         }
 
-@st.cache_data(ttl=600)  # 10-minute cache
-def get_market_volume_data(symbols: List[str], period: str = '3mo') -> Dict[str, pd.DataFrame]:
-    """Cached function to fetch market volume data"""
-    market_data = {}
-    
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            
-            if len(data) > 30:
-                market_data[symbol] = data
-                
-        except Exception as e:
-            logger.error(f"Error fetching volume data for {symbol}: {e}")
-            continue
-    
-    return market_data
-
 @safe_calculation_wrapper
-def calculate_market_volume_comparison(symbols: List[str] = None, period: str = '3mo', show_debug: bool = False) -> Dict[str, Any]:
+def compare_market_volume(symbols: List[str] = None, period: str = '3mo', show_debug: bool = False) -> Dict[str, Any]:
     """
     Calculate market-wide volume comparison across major symbols
-    
-    Args:
-        symbols: List of symbols to analyze (default: ['SPY', 'QQQ', 'IWM'])
-        period: Data period for analysis
-        show_debug: Show debug information
-    
-    Returns:
-        Dictionary with market volume analysis
+    Uses local imports to avoid circular dependencies
     """
     try:
+        # Local imports to avoid circular dependencies
+        import streamlit as st
+        import yfinance as yf
+        
         if symbols is None:
             symbols = ['SPY', 'QQQ', 'IWM']
         
         if show_debug:
             st.write(f"📊 Analyzing market volume for: {', '.join(symbols)}")
         
-        # Get market data
-        market_data = get_market_volume_data(symbols, period)
+        # Get market data with local caching
+        market_data = {}
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period=period)
+                
+                if len(data) > 30:
+                    market_data[symbol] = data
+                    
+            except Exception as e:
+                logger.error(f"Error fetching volume data for {symbol}: {e}")
+                continue
         
         if not market_data:
             return {'error': 'No market data available'}
@@ -397,7 +385,7 @@ def calculate_market_volume_comparison(symbols: List[str] = None, period: str = 
         
         for symbol, data in market_data.items():
             try:
-                volume_analysis = calculate_volume_analysis(data)
+                volume_analysis = analyze_volume_profile(data)
                 if 'error' not in volume_analysis:
                     market_volume_results[symbol] = {
                         'volume_regime': volume_analysis.get('volume_regime'),
@@ -479,3 +467,8 @@ def analyze_market_volume_environment(results: Dict[str, Dict[str, Any]]) -> Dic
             'environment': 'Analysis Error',
             'description': 'Unable to determine market volume environment'
         }
+
+# Aliases for the expected function names to maintain compatibility
+calculate_volume_analysis = analyze_volume_profile
+get_volume_interpretation = interpret_volume_data
+calculate_market_volume_comparison = compare_market_volume

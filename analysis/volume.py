@@ -1,5 +1,5 @@
 """
-Volume analysis for VWV Trading System
+Volume analysis for VWV Trading System v4.2.1
 Comprehensive volume trend analysis with 5-day and 30-day rolling metrics
 """
 import pandas as pd

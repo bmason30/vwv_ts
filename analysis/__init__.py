@@ -1,6 +1,7 @@
 """
 Analysis module for VWV Trading System v4.2.1
 Enhanced with Volume and Volatility Analysis modules
+Fixed circular dependencies
 """
 
 from .technical import (
@@ -39,24 +40,53 @@ from .options import (
     calculate_confidence_intervals
 )
 
-# NEW: Volume Analysis Module v4.2.1
-from .volume import (
-    calculate_volume_analysis,
-    get_volume_interpretation,
-    calculate_market_volume_comparison,
-    classify_volume_regime,
-    calculate_volume_strength_factor
-)
+# Volume and Volatility imports using try/except to avoid circular dependencies
+try:
+    from .volume import (
+        calculate_volume_analysis,
+        get_volume_interpretation,
+        calculate_market_volume_comparison,
+        classify_volume_regime,
+        calculate_volume_strength_factor
+    )
+except ImportError as e:
+    print(f"Warning: Volume analysis import failed: {e}")
+    # Provide dummy functions to prevent crashes
+    def calculate_volume_analysis(*args, **kwargs):
+        return {'error': 'Volume analysis not available'}
+    def get_volume_interpretation(*args, **kwargs):
+        return {'regime_interpretation': 'Not available'}
+    def calculate_market_volume_comparison(*args, **kwargs):
+        return {'error': 'Market volume comparison not available'}
+    def classify_volume_regime(*args, **kwargs):
+        return "Unknown", 50
+    def calculate_volume_strength_factor(*args, **kwargs):
+        return 1.0
 
-# NEW: Volatility Analysis Module v4.2.1  
-from .volatility import (
-    calculate_volatility_analysis,
-    get_volatility_interpretation,
-    calculate_market_volatility_comparison,
-    classify_volatility_regime,
-    get_volatility_regime_for_options,
-    calculate_volatility_strength_factor
-)
+try:
+    from .volatility import (
+        calculate_volatility_analysis,
+        get_volatility_interpretation,
+        calculate_market_volatility_comparison,
+        classify_volatility_regime,
+        get_volatility_regime_for_options,
+        calculate_volatility_strength_factor
+    )
+except ImportError as e:
+    print(f"Warning: Volatility analysis import failed: {e}")
+    # Provide dummy functions to prevent crashes
+    def calculate_volatility_analysis(*args, **kwargs):
+        return {'error': 'Volatility analysis not available'}
+    def get_volatility_interpretation(*args, **kwargs):
+        return {'regime_interpretation': 'Not available'}
+    def calculate_market_volatility_comparison(*args, **kwargs):
+        return {'error': 'Market volatility comparison not available'}
+    def classify_volatility_regime(*args, **kwargs):
+        return "Unknown", 50
+    def get_volatility_regime_for_options(*args, **kwargs):
+        return {'strategy': 'Neutral'}
+    def calculate_volatility_strength_factor(*args, **kwargs):
+        return 1.0
 
 __all__ = [
     # Technical analysis

@@ -36,10 +36,11 @@ from analysis.options import (
     calculate_confidence_intervals
 )
 # NEW: Volume & Volatility Analysis Modules v4.2.1
+# CORRECTED CODE
 from analysis.volume import (
-    calculate_volume_analysis,
-    get_volume_interpretation,
-    calculate_market_volume_comparison
+    analyze_volume_profile,
+    interpret_volume_data,
+    compare_market_volume
 )
 from analysis.volatility import (
     calculate_volatility_analysis,

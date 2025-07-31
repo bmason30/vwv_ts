@@ -1,5 +1,5 @@
 """
-Analysis module for VWV Trading System
+Analysis module for VWV Trading System - Updated with Volume & Volatility
 """
 
 from .technical import (
@@ -38,6 +38,21 @@ from .options import (
     calculate_confidence_intervals
 )
 
+# New Volume Analysis Module
+from .volume import (
+    calculate_volume_analysis,
+    get_volume_interpretation,
+    calculate_market_volume_comparison
+)
+
+# New Volatility Analysis Module  
+from .volatility import (
+    calculate_volatility_analysis,
+    get_volatility_interpretation,
+    calculate_market_volatility_comparison,
+    get_volatility_regime_for_options
+)
+
 __all__ = [
     # Technical analysis
     'safe_rsi',
@@ -69,5 +84,16 @@ __all__ = [
     
     # Options analysis
     'calculate_options_levels_enhanced',
-    'calculate_confidence_intervals'
+    'calculate_confidence_intervals',
+    
+    # Volume analysis - NEW
+    'calculate_volume_analysis',
+    'get_volume_interpretation',
+    'calculate_market_volume_comparison',
+    
+    # Volatility analysis - NEW
+    'calculate_volatility_analysis',
+    'get_volatility_interpretation',
+    'calculate_market_volatility_comparison',
+    'get_volatility_regime_for_options'
 ]

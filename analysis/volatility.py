@@ -1,11 +1,10 @@
 """
 Volatility Analysis Module for VWV Trading System v4.2.1
 Advanced 5-day and 30-day rolling volatility analysis with regime detection
+Fixed circular dependencies with local imports
 """
 import pandas as pd
 import numpy as np
-import streamlit as st
-import yfinance as yf
 import logging
 from typing import Dict, Any, List, Optional
 import functools
@@ -27,7 +26,7 @@ def safe_calculation_wrapper(func):
     return wrapper
 
 @safe_calculation_wrapper
-def calculate_volatility_analysis(data: pd.DataFrame) -> Dict[str, Any]:
+def analyze_volatility_profile(data: pd.DataFrame) -> Dict[str, Any]:
     """
     Comprehensive 5-day and 30-day rolling volatility analysis
     
@@ -98,7 +97,7 @@ def calculate_volatility_analysis(data: pd.DataFrame) -> Dict[str, Any]:
         )
         
         # Options strategy guidance based on volatility
-        options_guidance = get_volatility_regime_for_options({
+        options_guidance = determine_volatility_regime_for_options({
             'current_5d_vol': current_5d_vol,
             'vol_regime': vol_regime,
             'vol_percentile': vol_percentile,
@@ -241,7 +240,7 @@ def calculate_volatility_strength_factor(current_vol: float, vol_ratio: float, v
     except Exception:
         return 1.0  # Neutral multiplier
 
-def get_volatility_regime_for_options(vol_data: Dict[str, Any]) -> Dict[str, Any]:
+def determine_volatility_regime_for_options(vol_data: Dict[str, Any]) -> Dict[str, Any]:
     """Generate options strategy guidance based on volatility regime"""
     try:
         current_vol = vol_data.get('current_5d_vol', 20)
@@ -303,7 +302,7 @@ def get_volatility_regime_for_options(vol_data: Dict[str, Any]) -> Dict[str, Any
         }
 
 @safe_calculation_wrapper
-def get_volatility_interpretation(vol_data: Dict[str, Any]) -> Dict[str, str]:
+def interpret_volatility_data(vol_data: Dict[str, Any]) -> Dict[str, str]:
     """Generate volatility analysis interpretation"""
     try:
         if 'error' in vol_data:
@@ -385,47 +384,36 @@ def get_volatility_interpretation(vol_data: Dict[str, Any]) -> Dict[str, str]:
             'options_implications': 'Use standard options approach'
         }
 
-@st.cache_data(ttl=600)  # 10-minute cache
-def get_market_volatility_data(symbols: List[str], period: str = '3mo') -> Dict[str, pd.DataFrame]:
-    """Cached function to fetch market volatility data"""
-    market_data = {}
-    
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period)
-            
-            if len(data) > 30:
-                market_data[symbol] = data
-                
-        except Exception as e:
-            logger.error(f"Error fetching volatility data for {symbol}: {e}")
-            continue
-    
-    return market_data
-
 @safe_calculation_wrapper
-def calculate_market_volatility_comparison(symbols: List[str] = None, period: str = '3mo', show_debug: bool = False) -> Dict[str, Any]:
+def compare_market_volatility(symbols: List[str] = None, period: str = '3mo', show_debug: bool = False) -> Dict[str, Any]:
     """
     Calculate market-wide volatility comparison across major symbols
-    
-    Args:
-        symbols: List of symbols to analyze (default: ['SPY', 'QQQ', 'IWM'])
-        period: Data period for analysis
-        show_debug: Show debug information
-    
-    Returns:
-        Dictionary with market volatility analysis
+    Uses local imports to avoid circular dependencies
     """
     try:
+        # Local imports to avoid circular dependencies
+        import streamlit as st
+        import yfinance as yf
+        
         if symbols is None:
             symbols = ['SPY', 'QQQ', 'IWM']
         
         if show_debug:
             st.write(f"🌡️ Analyzing market volatility for: {', '.join(symbols)}")
         
-        # Get market data
-        market_data = get_market_volatility_data(symbols, period)
+        # Get market data with local processing
+        market_data = {}
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                data = ticker.history(period=period)
+                
+                if len(data) > 30:
+                    market_data[symbol] = data
+                    
+            except Exception as e:
+                logger.error(f"Error fetching volatility data for {symbol}: {e}")
+                continue
         
         if not market_data:
             return {'error': 'No market data available'}
@@ -434,7 +422,7 @@ def calculate_market_volatility_comparison(symbols: List[str] = None, period: st
         
         for symbol, data in market_data.items():
             try:
-                vol_analysis = calculate_volatility_analysis(data)
+                vol_analysis = analyze_volatility_profile(data)
                 if 'error' not in vol_analysis:
                     market_vol_results[symbol] = {
                         'vol_regime': vol_analysis.get('vol_regime'),
@@ -530,3 +518,9 @@ def analyze_market_volatility_environment(results: Dict[str, Dict[str, Any]]) ->
             'environment': 'Analysis Error',
             'description': 'Unable to determine market volatility environment'
         }
+
+# Aliases for the expected function names to maintain compatibility
+calculate_volatility_analysis = analyze_volatility_profile
+get_volatility_interpretation = interpret_volatility_data
+calculate_market_volatility_comparison = compare_market_volatility
+get_volatility_regime_for_options = determine_volatility_regime_for_options

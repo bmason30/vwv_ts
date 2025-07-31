@@ -1,5 +1,6 @@
 """
-Analysis module for VWV Trading System - Updated with Volume & Volatility
+Analysis module for VWV Trading System v4.2.1
+Enhanced with Volume and Volatility Analysis modules
 """
 
 from .technical import (
@@ -38,19 +39,23 @@ from .options import (
     calculate_confidence_intervals
 )
 
-# New Volume Analysis Module
+# NEW: Volume Analysis Module v4.2.1
 from .volume import (
     calculate_volume_analysis,
     get_volume_interpretation,
-    calculate_market_volume_comparison
+    calculate_market_volume_comparison,
+    classify_volume_regime,
+    calculate_volume_strength_factor
 )
 
-# New Volatility Analysis Module  
+# NEW: Volatility Analysis Module v4.2.1  
 from .volatility import (
     calculate_volatility_analysis,
     get_volatility_interpretation,
     calculate_market_volatility_comparison,
-    get_volatility_regime_for_options
+    classify_volatility_regime,
+    get_volatility_regime_for_options,
+    calculate_volatility_strength_factor
 )
 
 __all__ = [
@@ -86,14 +91,18 @@ __all__ = [
     'calculate_options_levels_enhanced',
     'calculate_confidence_intervals',
     
-    # Volume analysis - NEW
+    # Volume analysis (NEW v4.2.1)
     'calculate_volume_analysis',
-    'get_volume_interpretation',
+    'get_volume_interpretation', 
     'calculate_market_volume_comparison',
+    'classify_volume_regime',
+    'calculate_volume_strength_factor',
     
-    # Volatility analysis - NEW
+    # Volatility analysis (NEW v4.2.1)
     'calculate_volatility_analysis',
     'get_volatility_interpretation',
-    'calculate_market_volatility_comparison',
-    'get_volatility_regime_for_options'
+    'calculate_market_volatility_comparison', 
+    'classify_volatility_regime',
+    'get_volatility_regime_for_options',
+    'calculate_volatility_strength_factor'
 ]

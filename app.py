@@ -35,30 +35,6 @@ from analysis.options import (
     calculate_options_levels_enhanced,
     calculate_confidence_intervals
 )
-# CORRECTED CODE  
-# Import Volume & Volatility functions using direct imports to avoid circular dependencies
-def get_volume_analysis_functions():
-    """Local import to avoid circular dependencies"""
-    from analysis.volume import (
-        calculate_volume_analysis,
-        get_volume_interpretation, 
-        calculate_market_volume_comparison
-    )
-    return calculate_volume_analysis, get_volume_interpretation, calculate_market_volume_comparison
-
-def get_volatility_analysis_functions():
-    """Local import to avoid circular dependencies"""
-    from analysis.volatility import (
-        calculate_volatility_analysis,
-        get_volatility_interpretation,
-        calculate_market_volatility_comparison
-    )
-    return calculate_volatility_analysis, get_volatility_interpretation, calculate_market_volatility_comparison
-from analysis.volatility import (
-    calculate_volatility_analysis,
-    get_volatility_interpretation,
-    calculate_market_volatility_comparison
-)
 from ui.components import (
     create_technical_score_bar,
     create_header
@@ -76,6 +52,46 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+def get_volume_analysis_functions():
+    """Local import to avoid circular dependencies"""
+    try:
+        from analysis.volume import (
+            analyze_volume_profile as calculate_volume_analysis,
+            interpret_volume_data as get_volume_interpretation, 
+            compare_market_volume as calculate_market_volume_comparison
+        )
+        return calculate_volume_analysis, get_volume_interpretation, calculate_market_volume_comparison
+    except ImportError as e:
+        print(f"Volume analysis import failed: {e}")
+        # Return dummy functions
+        def dummy_vol_analysis(*args, **kwargs):
+            return {'error': 'Volume analysis not available'}
+        def dummy_vol_interp(*args, **kwargs):
+            return {'regime_interpretation': 'Not available'}
+        def dummy_vol_market(*args, **kwargs):
+            return {'error': 'Market volume not available'}
+        return dummy_vol_analysis, dummy_vol_interp, dummy_vol_market
+
+def get_volatility_analysis_functions():
+    """Local import to avoid circular dependencies"""
+    try:
+        from analysis.volatility import (
+            analyze_volatility_profile as calculate_volatility_analysis,
+            interpret_volatility_data as get_volatility_interpretation,
+            compare_market_volatility as calculate_market_volatility_comparison
+        )
+        return calculate_volatility_analysis, get_volatility_interpretation, calculate_market_volatility_comparison
+    except ImportError as e:
+        print(f"Volatility analysis import failed: {e}")
+        # Return dummy functions
+        def dummy_vol_analysis(*args, **kwargs):
+            return {'error': 'Volatility analysis not available'}
+        def dummy_vol_interp(*args, **kwargs):
+            return {'regime_interpretation': 'Not available'}
+        def dummy_vol_market(*args, **kwargs):
+            return {'error': 'Market volatility not available'}
+        return dummy_vol_analysis, dummy_vol_interp, dummy_vol_market
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters"""
@@ -336,13 +352,17 @@ def show_volume_analysis(analysis_results, show_debug=False):
         
         with col2:
             # Volume interpretations
-            volume_interpretations = get_volume_interpretation(volume_analysis)
-            
-            st.write("**Volume Analysis:**")
-            st.write(volume_interpretations.get('regime_interpretation', 'N/A'))
-            
-            st.write("**Trading Implications:**")
-            st.write(volume_interpretations.get('trading_implications', 'N/A'))
+            try:
+                _, get_volume_interpretation, _ = get_volume_analysis_functions()
+                volume_interpretations = get_volume_interpretation(volume_analysis)
+                
+                st.write("**Volume Analysis:**")
+                st.write(volume_interpretations.get('regime_interpretation', 'N/A'))
+                
+                st.write("**Trading Implications:**")
+                st.write(volume_interpretations.get('trading_implications', 'N/A'))
+            except:
+                st.write("**Volume interpretations not available**")
         
         # Volume breakout analysis
         breakout_data = volume_analysis.get('volume_breakout', {})
@@ -415,13 +435,17 @@ def show_volatility_analysis(analysis_results, show_debug=False):
         
         with col2:
             # Volatility interpretations
-            vol_interpretations = get_volatility_interpretation(volatility_analysis)
-            
-            st.write("**Volatility Analysis:**")
-            st.write(vol_interpretations.get('regime_interpretation', 'N/A'))
-            
-            st.write("**Trading Implications:**")
-            st.write(vol_interpretations.get('trading_implications', 'N/A'))
+            try:
+                _, get_volatility_interpretation, _ = get_volatility_analysis_functions()
+                vol_interpretations = get_volatility_interpretation(volatility_analysis)
+                
+                st.write("**Volatility Analysis:**")
+                st.write(vol_interpretations.get('regime_interpretation', 'N/A'))
+                
+                st.write("**Trading Implications:**")
+                st.write(vol_interpretations.get('trading_implications', 'N/A'))
+            except:
+                st.write("**Volatility interpretations not available**")
         
         # Options strategy guidance
         options_guidance = volatility_analysis.get('options_guidance', {})
@@ -559,8 +583,17 @@ def show_enhanced_market_analysis(analysis_results, show_debug=False):
         st.subheader("🌊 Market Volume/Volatility Environment")
         
         # Get market-wide volume analysis
-        market_volume_data = calculate_market_volume_comparison(['SPY', 'QQQ', 'IWM'], show_debug=show_debug)
-        market_vol_data = calculate_market_volatility_comparison(['SPY', 'QQQ', 'IWM'], show_debug=show_debug)
+        try:
+            _, _, calculate_market_volume_comparison = get_volume_analysis_functions()
+            market_volume_data = calculate_market_volume_comparison(['SPY', 'QQQ', 'IWM'], show_debug=show_debug)
+        except:
+            market_volume_data = {'error': 'Volume analysis not available'}
+            
+        try:
+            _, _, calculate_market_volatility_comparison = get_volatility_analysis_functions()
+            market_vol_data = calculate_market_volatility_comparison(['SPY', 'QQQ', 'IWM'], show_debug=show_debug)
+        except:
+            market_vol_data = {'error': 'Volatility analysis not available'}
         
         col1, col2 = st.columns(2)
         
@@ -731,10 +764,18 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
         
         # Step 5: NEW - Calculate Volume Analysis v4.2.1
-        volume_analysis = calculate_volume_analysis(analysis_input)
+        try:
+            calculate_volume_analysis, _, _ = get_volume_analysis_functions()
+            volume_analysis = calculate_volume_analysis(analysis_input)
+        except Exception as e:
+            volume_analysis = {'error': f'Volume analysis failed: {str(e)}'}
         
         # Step 6: NEW - Calculate Volatility Analysis v4.2.1
-        volatility_analysis = calculate_volatility_analysis(analysis_input)
+        try:
+            calculate_volatility_analysis, _, _ = get_volatility_analysis_functions()
+            volatility_analysis = calculate_volatility_analysis(analysis_input)
+        except Exception as e:
+            volatility_analysis = {'error': f'Volatility analysis failed: {str(e)}'}
         
         # Step 7: Calculate market correlations
         market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug=show_debug)

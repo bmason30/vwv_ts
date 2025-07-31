@@ -412,18 +412,24 @@ def calculate_weekly_deviations(data: pd.DataFrame) -> Dict[str, Any]:
         return {}
 
 def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tuple:
-    """Calculate composite technical score from all indicators (1-100) - UPDATED with Volume/Volatility"""
+    """
+    Calculate enhanced composite technical score with Volume & Volatility integration (v4.2.1)
+    New weight distribution:
+    - VWAP Position Analysis: 30% (reduced from 35%)
+    - Momentum Oscillators: 25% (reduced from 30%)
+    - Volume Analysis: 15% (NEW)
+    - Volatility Analysis: 15% (NEW)
+    - Trend Analysis: 15% (reduced from 20%)
+    """
     try:
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
-        volume_analysis = enhanced_indicators.get('volume_analysis', {})
-        volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
         current_price = analysis_results['current_price']
         
         scores = []
         weights = []
         
-        # 1. PRICE POSITION ANALYSIS (30% total weight - reduced from 35%)
+        # 1. VWAP POSITION ANALYSIS (30% total weight - reduced from 35%)
         daily_vwap = enhanced_indicators.get('daily_vwap', current_price)
         poc = enhanced_indicators.get('point_of_control', current_price)
         fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
@@ -452,7 +458,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
         stoch_data = comprehensive_technicals.get('stochastic', {})
         stoch_k = stoch_data.get('k', 50)
         
-        # RSI scoring (oversold favored in bottom-picking system)
+        # RSI scoring (10% weight - reduced from 12%)
         if rsi < 25:
             rsi_score = 90  # Very oversold - very bullish
         elif rsi < 35:
@@ -465,9 +471,9 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             rsi_score = 50 + (50 - rsi) * 0.3  # Neutral zone with slight contrarian bias
         
         scores.append(rsi_score)
-        weights.append(0.10)  # Reduced from 0.12
+        weights.append(0.10)
         
-        # MFI scoring (money flow consideration)
+        # MFI scoring (8% weight)
         if mfi < 20:
             mfi_score = 85
         elif mfi > 80:
@@ -476,14 +482,14 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             mfi_score = 50 + (50 - mfi) * 0.4
         
         scores.append(mfi_score)
-        weights.append(0.06)  # Reduced from 0.08
+        weights.append(0.08)
         
-        # Williams %R scoring (convert to 0-100 scale)
+        # Williams %R scoring (4% weight - reduced from 5%)
         williams_normalized = ((williams_r + 100) / 100) * 100  # Convert -100:0 to 0:100
         scores.append(williams_normalized)
-        weights.append(0.05)
+        weights.append(0.04)
         
-        # Stochastic scoring
+        # Stochastic scoring (3% weight - reduced from 5%)
         if stoch_k < 20:
             stoch_score = 85
         elif stoch_k > 80:
@@ -492,23 +498,47 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             stoch_score = stoch_k
         
         scores.append(stoch_score)
-        weights.append(0.04)  # Reduced from 0.05
+        weights.append(0.03)
         
         # 3. VOLUME ANALYSIS (15% weight - NEW)
-        volume_composite_score = volume_analysis.get('composite_score', 50) if volume_analysis else 50
-        scores.append(volume_composite_score)
-        weights.append(0.15)
+        volume_analysis = enhanced_indicators.get('volume_analysis', {})
+        if volume_analysis and 'error' not in volume_analysis:
+            volume_regime_score = volume_analysis.get('regime_score', 50)
+            volume_strength_factor = volume_analysis.get('volume_strength_factor', 1.0)
+            
+            # Volume score combines regime score with strength factor
+            volume_score = volume_regime_score * volume_strength_factor
+            volume_score = max(10, min(90, volume_score))  # Cap extreme values
+            
+            scores.append(volume_score)
+            weights.append(0.15)
+        else:
+            # Fallback if volume analysis not available
+            scores.append(50)  # Neutral
+            weights.append(0.15)
         
-        # 4. VOLATILITY ANALYSIS (15% weight - NEW)
-        volatility_composite_score = volatility_analysis.get('composite_score', 50) if volatility_analysis else 50
-        scores.append(volatility_composite_score)
-        weights.append(0.15)
+        # 4. VOLATILITY ANALYSIS (15% weight - NEW) 
+        volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
+        if volatility_analysis and 'error' not in volatility_analysis:
+            vol_regime_score = volatility_analysis.get('regime_score', 50)
+            vol_strength_factor = volatility_analysis.get('vol_strength_factor', 1.0)
+            
+            # Volatility score combines regime score with strength factor
+            vol_score = vol_regime_score * vol_strength_factor
+            vol_score = max(10, min(90, vol_score))  # Cap extreme values
+            
+            scores.append(vol_score)
+            weights.append(0.15)
+        else:
+            # Fallback if volatility analysis not available
+            scores.append(50)  # Neutral
+            weights.append(0.15)
         
         # 5. TREND ANALYSIS (15% weight - reduced from 20%)
         macd_data = comprehensive_technicals.get('macd', {})
         histogram = macd_data.get('histogram', 0)
         
-        # MACD Histogram trend
+        # MACD Histogram trend (8% weight - reduced from 10%)
         if histogram > 0:
             macd_score = 70 + min(histogram * 1000, 20)  # Bullish with strength adjustment
         elif histogram < 0:
@@ -517,9 +547,9 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
             macd_score = 50
         
         scores.append(max(5, min(95, macd_score)))
-        weights.append(0.08)  # Reduced from 0.10
+        weights.append(0.08)
         
-        # Previous week support/resistance analysis
+        # Previous week support/resistance analysis (7% weight - reduced from 10%)
         prev_week_high = comprehensive_technicals.get('prev_week_high', current_price)
         prev_week_low = comprehensive_technicals.get('prev_week_low', current_price)
         
@@ -537,7 +567,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
                 breakout_score = 50
         
         scores.append(breakout_score)
-        weights.append(0.07)  # Reduced from 0.10
+        weights.append(0.07)
         
         # Calculate weighted composite score
         if len(scores) == len(weights) and sum(weights) > 0:
@@ -548,30 +578,34 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
         # Ensure score is within bounds and add some smoothing
         final_score = max(1, min(100, round(composite_score, 1)))
         
-        return final_score, {
-            'component_scores': {
-                'vwap_position': round(scores[0], 1) if len(scores) > 0 else 50,
-                'poc_position': round(scores[1], 1) if len(scores) > 1 else 50, 
-                'ema_confluence': round(scores[2], 1) if len(scores) > 2 else 50,
-                'rsi_momentum': round(scores[3], 1) if len(scores) > 3 else 50,
-                'volume_composite': round(volume_composite_score, 1),
-                'volatility_composite': round(volatility_composite_score, 1),
-                'trend_direction': round(scores[6], 1) if len(scores) > 6 else 50
-            },
+        # Enhanced component breakdown
+        component_names = [
+            'vwap_position', 'poc_position', 'ema_confluence', 'rsi_momentum', 'mfi_momentum',
+            'williams_momentum', 'stochastic_momentum', 'volume_analysis', 'volatility_analysis',
+            'macd_trend', 'breakout_analysis'
+        ]
+        
+        component_breakdown = {
+            'component_scores': dict(zip(component_names[:len(scores)], 
+                                       [round(score, 1) for score in scores])),
+            'component_weights': dict(zip(component_names[:len(weights)], weights)),
             'total_components': len(scores),
             'weight_distribution': {
-                'price_position': 0.30,
-                'momentum_oscillators': 0.25,
-                'volume_analysis': 0.15,
-                'volatility_analysis': 0.15,
-                'trend_analysis': 0.15
+                'vwap_position_analysis': '30%',
+                'momentum_oscillators': '25%', 
+                'volume_analysis': '15%',
+                'volatility_analysis': '15%',
+                'trend_analysis': '15%'
             },
-            'new_components_integrated': True
+            'version': 'v4.2.1_enhanced',
+            'new_components': ['volume_analysis', 'volatility_analysis']
         }
         
+        return final_score, component_breakdown
+        
     except Exception as e:
-        logger.error(f"Composite technical score calculation error: {e}")
-        return 50.0, {'error': str(e)}
+        logger.error(f"Enhanced composite technical score calculation error: {e}")
+        return 50.0, {'error': str(e), 'version': 'v4.2.1_enhanced'}
 
 @safe_calculation_wrapper
 def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:

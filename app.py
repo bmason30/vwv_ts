@@ -218,16 +218,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         # COMPOSITE TECHNICAL SCORE - Use modular component with PROPER HTML RENDERING
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
-        # CRITICAL: Unescape the string to reverse any pre-escaping from the component
-        
-        # --- START: TEMPORARY DEBUGGING CODE ---
-        st.write("--- DEBUG INFO ---")
-        st.write(f"Type of score_bar_html: {type(score_bar_html)}")
-        st.write("Raw content of score_bar_html:")
-        st.text(score_bar_html)
-        st.write("--- END DEBUG INFO ---")
-        # --- END: TEMPORARY DEBUGGING CODE ---
-        st.markdown(html.unescape(score_bar_html), unsafe_allow_html=True)
+        st.components.v1.html(score_bar_html, height=110)
         
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})

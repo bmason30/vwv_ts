@@ -3,6 +3,7 @@ VWV Professional Trading System v4.2.1 - CORRECTED VERSION
 Complete preservation of existing functionality with Volume & Volatility integration
 """
 
+import html
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -217,8 +218,8 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         # COMPOSITE TECHNICAL SCORE - Use modular component with PROPER HTML RENDERING
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
-        # CRITICAL: Must use unsafe_allow_html=True to render the gradient bar properly
-        st.markdown(score_bar_html, unsafe_allow_html=True)
+        # CRITICAL: Unescape the string to reverse any pre-escaping from the component
+        st.markdown(html.unescape(score_bar_html), unsafe_allow_html=True)
         
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})

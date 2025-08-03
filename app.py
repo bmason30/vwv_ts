@@ -36,6 +36,13 @@ from analysis.options import (
     calculate_confidence_intervals
 )
 
+# Charts import with safe fallback
+try:
+    from charts.plotting import display_trading_charts
+    CHARTS_AVAILABLE = True
+except ImportError:
+    CHARTS_AVAILABLE = False
+
 # Volume and Volatility imports with safe fallbacks
 try:
     from analysis.volume import (
@@ -94,6 +101,8 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
+    if 'show_charts' not in st.session_state:
+        st.session_state.show_charts = True
     
     # Basic controls
     if 'selected_symbol' in st.session_state:
@@ -154,6 +163,11 @@ def create_sidebar_controls():
                 "Confidence Intervals", 
                 value=st.session_state.show_confidence_intervals,
                 key="toggle_confidence"
+            )
+            st.session_state.show_charts = st.checkbox(
+                "📊 Interactive Charts", 
+                value=st.session_state.show_charts,
+                key="toggle_charts"
             )
     
     # Recently Viewed section
@@ -532,6 +546,276 @@ def show_confidence_intervals(analysis_results, show_debug=False):
             df_intervals = pd.DataFrame(final_intervals_data)
             st.dataframe(df_intervals, use_container_width=True, hide_index=True)
 
+def show_interactive_charts(analysis_results, market_data, show_debug=False):
+    """Display interactive charts section - FIRST PRIORITY DISPLAY"""
+    if not st.session_state.show_charts:
+        return
+        
+    with st.expander("📊 Interactive Trading Charts", expanded=True):
+        try:
+            if CHARTS_AVAILABLE and market_data is not None:
+                if show_debug:
+                    st.write("✅ Charts module available, rendering comprehensive charts...")
+                display_trading_charts(market_data, analysis_results)
+            else:
+                # Fallback chart display
+                if show_debug:
+                    st.write(f"⚠️ Charts module available: {CHARTS_AVAILABLE}, Data available: {market_data is not None}")
+                
+                st.subheader("📈 Basic Price Chart (Fallback)")
+                if market_data is not None and not market_data.empty:
+                    # Create simple but informative chart
+                    chart_data = market_data[['Close']].copy()
+                    st.line_chart(chart_data)
+                    
+                    # Add basic info
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Current Price", f"${market_data['Close'].iloc[-1]:.2f}")
+                    with col2:
+                        st.metric("High", f"${market_data['High'].max():.2f}")
+                    with col3:
+                        st.metric("Low", f"${market_data['Low'].min():.2f}")
+                    with col4:
+                        change_pct = ((market_data['Close'].iloc[-1] - market_data['Close'].iloc[0]) / market_data['Close'].iloc[0]) * 100
+                        st.metric("Period Change", f"{change_pct:+.2f}%")
+                else:
+                    st.error("❌ No market data available for charting")
+                    
+        except Exception as e:
+            if show_debug:
+                st.error(f"Chart display error: {str(e)}")
+                st.exception(e)
+            else:
+                st.warning("⚠️ Charts temporarily unavailable. Enable debug mode for details.")
+                # Still show basic fallback
+                if market_data is not None and not market_data.empty:
+                    st.line_chart(market_data[['Close']])
+
+def show_enhanced_debug_information(analysis_results, market_data, show_debug=False):
+    """Display comprehensive debug information"""
+    if not show_debug:
+        return
+        
+    with st.expander("🐛 Enhanced Debug Information", expanded=False):
+        
+        # System Status Overview
+        st.subheader("🖥️ System Status Overview")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.write("**Core Modules:**")
+            st.write(f"✅ Config: Available")
+            st.write(f"✅ Data: Available") 
+            st.write(f"✅ Analysis: Available")
+            st.write(f"✅ UI: Available")
+            st.write(f"✅ Utils: Available")
+            
+        with col2:
+            st.write("**Enhanced Modules:**")
+            st.write(f"{'✅' if VOLUME_ANALYSIS_AVAILABLE else '❌'} Volume Analysis: {VOLUME_ANALYSIS_AVAILABLE}")
+            st.write(f"{'✅' if VOLATILITY_ANALYSIS_AVAILABLE else '❌'} Volatility Analysis: {VOLATILITY_ANALYSIS_AVAILABLE}")
+            st.write(f"{'✅' if CHARTS_AVAILABLE else '❌'} Charts: {CHARTS_AVAILABLE}")
+            
+        with col3:
+            st.write("**Environment:**")
+            import streamlit as st
+            import pandas as pd
+            import numpy as np
+            try:
+                import plotly
+                plotly_version = plotly.__version__
+            except:
+                plotly_version = "Not Available"
+            
+            st.write(f"**Streamlit:** {st.__version__}")
+            st.write(f"**Pandas:** {pd.__version__}")
+            st.write(f"**NumPy:** {np.__version__}")
+            st.write(f"**Plotly:** {plotly_version}")
+            
+        # Data Quality Assessment
+        st.subheader("📊 Market Data Quality Assessment")
+        if market_data is not None:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Data Points", len(market_data))
+                st.metric("Missing Values", market_data.isnull().sum().sum())
+                
+            with col2:
+                st.metric("Date Range", f"{len(market_data)} days")
+                st.metric("Columns", len(market_data.columns))
+                
+            with col3:
+                price_range = market_data['High'].max() - market_data['Low'].min()
+                st.metric("Price Range", f"${price_range:.2f}")
+                avg_volume = market_data['Volume'].mean()
+                st.metric("Avg Volume", format_large_number(avg_volume))
+                
+            with col4:
+                returns = market_data['Close'].pct_change().dropna()
+                volatility = returns.std() * (252**0.5) * 100
+                st.metric("Volatility", f"{volatility:.1f}%")
+                st.metric("Data Quality", "✅ Good" if market_data.isnull().sum().sum() == 0 else "⚠️ Issues")
+            
+            # Data structure details
+            st.write("**Market Data Structure:**")
+            st.write(f"Shape: {market_data.shape}")
+            st.write(f"Index: {type(market_data.index)} ({market_data.index[0]} to {market_data.index[-1]})")
+            st.write(f"Columns: {list(market_data.columns)}")
+            st.write(f"Data Types: {dict(market_data.dtypes)}")
+            
+            # Sample data
+            st.write("**Sample Data (First 3 rows):**")
+            st.dataframe(market_data.head(3))
+            
+            st.write("**Sample Data (Last 3 rows):**")
+            st.dataframe(market_data.tail(3))
+            
+        else:
+            st.error("❌ No market data available for quality assessment")
+            
+        # Analysis Results Structure
+        st.subheader("🔍 Analysis Results Structure")
+        if analysis_results:
+            st.write("**Top-Level Keys:**")
+            for key in analysis_results.keys():
+                st.write(f"• **{key}**: {type(analysis_results[key])}")
+                
+            # Enhanced indicators breakdown
+            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+            if enhanced_indicators:
+                st.write("**Enhanced Indicators Keys:**")
+                for key in enhanced_indicators.keys():
+                    value = enhanced_indicators[key]
+                    if isinstance(value, dict):
+                        st.write(f"• **{key}**: Dict with {len(value)} keys")
+                    elif isinstance(value, list):
+                        st.write(f"• **{key}**: List with {len(value)} items")
+                    else:
+                        st.write(f"• **{key}**: {type(value)}")
+            
+            # Complete analysis results (expandable)
+            with st.expander("📋 Complete Analysis Results JSON", expanded=False):
+                st.json(analysis_results, expanded=False)
+        else:
+            st.error("❌ No analysis results available")
+            
+        # Session State Information
+        st.subheader("🔄 Session State Information")
+        session_info = {
+            'recently_viewed': len(st.session_state.get('recently_viewed', [])),
+            'show_technical_analysis': st.session_state.get('show_technical_analysis', False),
+            'show_volume_analysis': st.session_state.get('show_volume_analysis', False),
+            'show_volatility_analysis': st.session_state.get('show_volatility_analysis', False),
+            'show_fundamental_analysis': st.session_state.get('show_fundamental_analysis', False),
+            'show_market_correlation': st.session_state.get('show_market_correlation', False),
+            'show_options_analysis': st.session_state.get('show_options_analysis', False),
+            'show_confidence_intervals': st.session_state.get('show_confidence_intervals', False),
+            'show_charts': st.session_state.get('show_charts', False)
+        }
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.write("**Toggle States:**")
+            for key, value in session_info.items():
+                if key.startswith('show_'):
+                    st.write(f"• {key}: {'✅' if value else '❌'}")
+                    
+        with col2:
+            st.write("**Session Data:**")
+            st.write(f"• Recently Viewed: {session_info['recently_viewed']} symbols")
+            
+            # Data manager summary
+            try:
+                data_manager = get_data_manager()
+                summary = data_manager.get_data_summary()
+                st.write(f"• Stored Symbols: {summary.get('market_data_count', 0)}")
+                st.write(f"• Analysis Cache: {summary.get('analysis_results_count', 0)}")
+            except Exception as e:
+                st.write(f"• Data Manager: Error ({str(e)[:30]}...)")
+                
+        # Performance Metrics
+        st.subheader("⚡ Performance Metrics")
+        import time
+        current_time = time.time()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.write("**Timing Information:**")
+            st.write(f"• Current Time: {datetime.now().strftime('%H:%M:%S')}")
+            st.write(f"• Analysis Timestamp: {analysis_results.get('timestamp', 'N/A')}")
+            
+        with col2:
+            st.write("**Memory Usage:**")
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                memory_mb = process.memory_info().rss / 1024 / 1024
+                st.write(f"• Memory Usage: {memory_mb:.1f} MB")
+                st.write(f"• CPU Percent: {process.cpu_percent():.1f}%")
+            except:
+                st.write("• Memory Info: Not Available")
+                
+        with col3:
+            st.write("**Data Sizes:**")
+            if market_data is not None:
+                data_size_mb = market_data.memory_usage(deep=True).sum() / 1024 / 1024
+                st.write(f"• Market Data: {data_size_mb:.2f} MB")
+            if analysis_results:
+                import sys
+                result_size_kb = sys.getsizeof(str(analysis_results)) / 1024
+                st.write(f"• Analysis Results: {result_size_kb:.1f} KB")
+                
+        # Error Log
+        st.subheader("⚠️ System Diagnostics")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Import Status:**")
+            st.write(f"• Charts Module: {'✅' if CHARTS_AVAILABLE else '❌'}")
+            st.write(f"• Volume Module: {'✅' if VOLUME_ANALYSIS_AVAILABLE else '❌'}")
+            st.write(f"• Volatility Module: {'✅' if VOLATILITY_ANALYSIS_AVAILABLE else '❌'}")
+            
+        with col2:
+            st.write("**Configuration Status:**")
+            try:
+                st.write(f"• UI Settings: ✅ {len(UI_SETTINGS)} settings")
+                st.write(f"• Quick Links: ✅ {sum(len(symbols) for symbols in QUICK_LINK_CATEGORIES.values())} symbols")
+                st.write(f"• Default Config: ✅ {len(DEFAULT_VWV_CONFIG)} parameters")
+            except Exception as e:
+                st.write(f"• Configuration: ❌ Error loading")
+                
+        # Test Basic Functionality
+        st.subheader("🧪 Basic Functionality Tests")
+        test_col1, test_col2 = st.columns(2)
+        
+        with test_col1:
+            if st.button("Test Chart Creation", key="test_chart"):
+                try:
+                    import plotly.graph_objects as go
+                    test_fig = go.Figure()
+                    test_fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 4, 2], name="Test"))
+                    test_fig.update_layout(title="Test Chart", height=300)
+                    st.plotly_chart(test_fig, use_container_width=True)
+                    st.success("✅ Basic chart creation successful")
+                except Exception as e:
+                    st.error(f"❌ Chart creation failed: {str(e)}")
+                    
+        with test_col2:
+            if st.button("Test Data Processing", key="test_data"):
+                try:
+                    test_data = pd.DataFrame({
+                        'A': [1, 2, 3, 4, 5],
+                        'B': [2, 4, 6, 8, 10]
+                    })
+                    test_result = test_data.mean()
+                    st.write("Test calculation result:", test_result)
+                    st.success("✅ Data processing successful")
+                except Exception as e:
+                    st.error(f"❌ Data processing failed: {str(e)}")
+
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components - ENHANCED v4.2.1"""
     try:
@@ -609,11 +893,11 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Store results
         data_manager.store_analysis_results(symbol, analysis_results)
         
-        return analysis_results
+        return analysis_results, market_data
         
     except Exception as e:
         st.error(f"❌ Analysis failed: {str(e)}")
-        return None
+        return None, None
 
 def main():
     """Main application function - ENHANCED v4.2.1"""
@@ -633,13 +917,16 @@ def main():
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             
             # Perform analysis using modular components
-            analysis_results = perform_enhanced_analysis(
+            analysis_results, market_data = perform_enhanced_analysis(
                 controls['symbol'], 
                 controls['period'], 
                 controls['show_debug']
             )
             
-            if analysis_results:
+            if analysis_results and market_data is not None:
+                # CHARTS FIRST - TOP PRIORITY DISPLAY
+                show_interactive_charts(analysis_results, market_data, controls['show_debug'])
+                
                 # Show all analysis sections using modular functions
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
@@ -655,20 +942,8 @@ def main():
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
-                # Debug information
-                if controls['show_debug']:
-                    with st.expander("🐛 Debug Information", expanded=False):
-                        st.write("### Analysis Results Structure")
-                        st.json(analysis_results, expanded=False)
-                        
-                        st.write("### Data Manager Summary")
-                        data_manager = get_data_manager()
-                        summary = data_manager.get_data_summary()
-                        st.json(summary)
-                        
-                        st.write("### System Status")
-                        st.write(f"**Volume Analysis Available:** {VOLUME_ANALYSIS_AVAILABLE}")
-                        st.write(f"**Volatility Analysis Available:** {VOLATILITY_ANALYSIS_AVAILABLE}")
+                # Enhanced Debug information
+                show_enhanced_debug_information(analysis_results, market_data, controls['show_debug'])
     
     else:
         # Welcome message
@@ -708,11 +983,13 @@ def main():
         
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("2. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
-            st.write("3. **View all sections:** Technical, Volume, Volatility, Fundamental, Market, Options")
-            st.write("4. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("5. **Use Quick Links** for instant analysis of popular symbols")
+            st.write("1. **📊 Charts First** - Interactive price charts display immediately")
+            st.write("2. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
+            st.write("3. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
+            st.write("4. **View all sections:** Charts, Technical, Volume, Volatility, Fundamental, Market, Options")
+            st.write("5. **Toggle sections** on/off in Analysis Sections panel")
+            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
+            st.write("7. **Enhanced Debug Mode** - Comprehensive system diagnostics and performance metrics")
 
     # Footer
     st.markdown("---")
@@ -724,10 +1001,10 @@ def main():
         st.write(f"**Architecture:** Full Modular Implementation")
     with col2:
         st.write(f"**Status:** ✅ All Core Modules Active")
-        st.write(f"**New Features:** Volume & Volatility Analysis")
+        st.write(f"**Features:** Charts First + Volume & Volatility Analysis")
     with col3:
-        st.write(f"**Components:** config, data, analysis, ui, utils")
-        st.write(f"**Interface:** Complete multi-section experience")
+        st.write(f"**Components:** config, data, analysis, ui, utils, charts")
+        st.write(f"**Debug:** Enhanced diagnostics with performance metrics")
 
 if __name__ == "__main__":
     try:

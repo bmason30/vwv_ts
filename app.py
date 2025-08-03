@@ -1,6 +1,7 @@
 """
 VWV Professional Trading System v4.2.1 - CORRECTED VERSION with Baldwin Indicator
 Complete preservation of existing functionality with Baldwin Market Regime Indicator integration
+CHARTS DISPLAY FIRST
 """
 
 import html
@@ -72,6 +73,13 @@ from ui.components import (
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
+# Charts import with fallback
+try:
+    from charts.plotting import display_trading_charts
+    CHARTS_AVAILABLE = True
+except ImportError:
+    CHARTS_AVAILABLE = False
+
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 
@@ -90,6 +98,8 @@ def create_sidebar_controls():
     # Initialize session state
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
+    if 'show_charts' not in st.session_state:
+        st.session_state.show_charts = True
     if 'show_technical_analysis' not in st.session_state:
         st.session_state.show_technical_analysis = True
     if 'show_volume_analysis' not in st.session_state:
@@ -128,6 +138,12 @@ def create_sidebar_controls():
         
         col1, col2 = st.columns(2)
         with col1:
+            if CHARTS_AVAILABLE:
+                st.session_state.show_charts = st.checkbox(
+                    "📊 Interactive Charts", 
+                    value=st.session_state.show_charts,
+                    key="toggle_charts"
+                )
             st.session_state.show_technical_analysis = st.checkbox(
                 "Technical Analysis", 
                 value=st.session_state.show_technical_analysis,
@@ -225,6 +241,182 @@ def add_to_recently_viewed(symbol):
             st.session_state.recently_viewed.remove(symbol)
         st.session_state.recently_viewed.insert(0, symbol)
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
+
+def show_interactive_charts(market_data, analysis_results, show_debug=False):
+    """Display interactive charts section - FIRST PRIORITY DISPLAY"""
+    if not st.session_state.show_charts:
+        return
+        
+    with st.expander("📊 Interactive Trading Charts", expanded=True):
+        try:
+            if CHARTS_AVAILABLE and market_data is not None:
+                # Use the charts module for full interactive display
+                display_trading_charts(market_data, analysis_results)
+            else:
+                # Fallback chart implementation
+                st.subheader(f"{analysis_results['symbol']} - Price Chart")
+                
+                if market_data is not None and not market_data.empty:
+                    # Create basic interactive chart using Plotly
+                    import plotly.graph_objects as go
+                    from plotly.subplots import make_subplots
+                    
+                    # Create subplot with price and volume
+                    fig = make_subplots(
+                        rows=2, cols=1,
+                        shared_xaxes=True,
+                        vertical_spacing=0.03,
+                        subplot_titles=(f'{analysis_results["symbol"]} - Price', 'Volume'),
+                        row_heights=[0.7, 0.3]
+                    )
+                    
+                    # Add candlestick chart
+                    fig.add_trace(
+                        go.Candlestick(
+                            x=market_data.index,
+                            open=market_data['Open'],
+                            high=market_data['High'],
+                            low=market_data['Low'],
+                            close=market_data['Close'],
+                            name='Price',
+                            increasing_line_color='#00ff88',
+                            decreasing_line_color='#ff3366'
+                        ),
+                        row=1, col=1
+                    )
+                    
+                    # Add technical indicators
+                    enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+                    
+                    # VWAP line
+                    daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+                    if daily_vwap > 0:
+                        fig.add_hline(
+                            y=daily_vwap,
+                            line_dash="dash",
+                            line_color="#FFF700",
+                            annotation_text=f"VWAP: ${daily_vwap:.2f}",
+                            annotation_position="bottom right",
+                            row=1, col=1
+                        )
+                    
+                    # Point of Control
+                    point_of_control = enhanced_indicators.get('point_of_control', 0)
+                    if point_of_control > 0:
+                        fig.add_hline(
+                            y=point_of_control,
+                            line_dash="dot",
+                            line_color="#FF69B4",
+                            annotation_text=f"POC: ${point_of_control:.2f}",
+                            annotation_position="top right",
+                            row=1, col=1
+                        )
+                    
+                    # Add Fibonacci EMAs
+                    fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+                    ema_colors = ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A']
+                    for i, (ema_name, ema_value) in enumerate(fibonacci_emas.items()):
+                        if i < len(ema_colors) and ema_value > 0:
+                            period = ema_name.split('_')[1]
+                            # Calculate EMA series for display
+                            if len(market_data) >= int(period):
+                                ema_series = market_data['Close'].ewm(span=int(period)).mean()
+                                fig.add_trace(
+                                    go.Scatter(
+                                        x=market_data.index,
+                                        y=ema_series,
+                                        mode='lines',
+                                        name=f'EMA {period}',
+                                        line=dict(color=ema_colors[i], width=1.5),
+                                        opacity=0.8
+                                    ),
+                                    row=1, col=1
+                                )
+                    
+                    # Current price marker
+                    current_price = analysis_results.get('current_price', 0)
+                    if current_price > 0:
+                        fig.add_trace(
+                            go.Scatter(
+                                x=[market_data.index[-1]],
+                                y=[current_price],
+                                mode='markers',
+                                name='Current Price',
+                                marker=dict(
+                                    size=12,
+                                    color='#FFFF00',
+                                    symbol='diamond',
+                                    line=dict(width=2, color='#000000')
+                                )
+                            ),
+                            row=1, col=1
+                        )
+                    
+                    # Add volume bars
+                    colors = ['#00ff88' if close >= open else '#ff3366' 
+                             for close, open in zip(market_data['Close'], market_data['Open'])]
+                    
+                    fig.add_trace(
+                        go.Bar(
+                            x=market_data.index,
+                            y=market_data['Volume'],
+                            name='Volume',
+                            marker_color=colors,
+                            opacity=0.7
+                        ),
+                        row=2, col=1
+                    )
+                    
+                    # Update layout
+                    fig.update_layout(
+                        title=f"{analysis_results['symbol']} - Professional Trading Analysis",
+                        template='plotly_dark',
+                        height=800,
+                        showlegend=True,
+                        xaxis_rangeslider_visible=False,
+                        hovermode='x unified'
+                    )
+                    
+                    # Update axes
+                    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+                    fig.update_yaxes(title_text="Volume", row=2, col=1)
+                    fig.update_xaxes(title_text="Date", row=2, col=1)
+                    
+                    # Display the chart
+                    st.plotly_chart(fig, use_container_width=True, config={
+                        'displayModeBar': True,
+                        'displaylogo': False,
+                        'modeBarButtonsToRemove': ['pan2d', 'lasso2d', 'select2d']
+                    })
+                    
+                    # Chart summary
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Data Points", len(market_data))
+                    with col2:
+                        date_range = f"{(market_data.index[-1] - market_data.index[0]).days} days"
+                        st.metric("Time Range", date_range)
+                    with col3:
+                        avg_volume = market_data['Volume'].mean()
+                        st.metric("Avg Volume", format_large_number(avg_volume))
+                    with col4:
+                        price_range = market_data['High'].max() - market_data['Low'].min()
+                        st.metric("Price Range", f"${price_range:.2f}")
+                
+                else:
+                    st.error("❌ No market data available for charting")
+                    
+        except Exception as e:
+            if show_debug:
+                st.error(f"Chart display error: {str(e)}")
+                st.exception(e)
+            else:
+                st.warning("⚠️ Charts temporarily unavailable")
+                
+                # Ultra-simple fallback
+                if market_data is not None and not market_data.empty:
+                    st.subheader("Basic Price Chart (Fallback)")
+                    st.line_chart(market_data['Close'])
 
 def show_baldwin_indicator_analysis(baldwin_results, show_debug=False):
     """Display Baldwin Market Regime Indicator analysis"""
@@ -720,6 +912,7 @@ def show_enhanced_debug_information(analysis_results, market_data, show_debug=Fa
         st.write(f"**Volume Analysis Available:** {VOLUME_ANALYSIS_AVAILABLE}")
         st.write(f"**Volatility Analysis Available:** {VOLATILITY_ANALYSIS_AVAILABLE}")
         st.write(f"**Baldwin Indicator Available:** {BALDWIN_AVAILABLE}")
+        st.write(f"**Charts Available:** {CHARTS_AVAILABLE}")
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components - ENHANCED v4.2.1"""
@@ -839,7 +1032,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         return None, None
 
 def main():
-    """Main application function - ENHANCED v4.2.1 with Baldwin Indicator"""
+    """Main application function - ENHANCED v4.2.1 with Baldwin Indicator and Charts First"""
     # Create header using modular component
     create_header()
     
@@ -863,7 +1056,7 @@ def main():
             )
             
             if analysis_results and market_data is not None:
-                # Calculate Baldwin Indicator (market-wide analysis)
+                # Calculate Baldwin Indicator (market-wide analysis) - FIRST
                 baldwin_results = None
                 if BALDWIN_AVAILABLE:
                     try:
@@ -876,13 +1069,19 @@ def main():
                         baldwin_results = {'error': f'Baldwin calculation failed: {str(e)}'}
                 
                 # Show all analysis sections using modular functions
+                # DISPLAY ORDER: Baldwin -> Charts -> Technical -> Rest
                 
-                # NEW: Baldwin Indicator first (market regime)
+                # 1. Baldwin Indicator first (market regime)
                 if BALDWIN_AVAILABLE:
                     show_baldwin_indicator_analysis(baldwin_results, controls['show_debug'])
                 
+                # 2. CHARTS SECOND - Interactive Trading Charts
+                show_interactive_charts(market_data, analysis_results, controls['show_debug'])
+                
+                # 3. Individual Technical Analysis THIRD
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
+                # 4. Rest of the analysis sections
                 # NEW v4.2.1 - Volume and Volatility Analysis
                 if VOLUME_ANALYSIS_AVAILABLE:
                     show_volume_analysis(analysis_results, controls['show_debug'])
@@ -901,7 +1100,7 @@ def main():
     else:
         # Welcome message
         st.write("## 🚀 VWV Professional Trading System v4.2.1 Enhanced")
-        st.write("**Complete modular architecture with Baldwin Market Regime Indicator**")
+        st.write("**Complete modular architecture with Baldwin Market Regime Indicator + Charts First**")
         
         with st.expander("🚦 NEW: Baldwin Market Regime Indicator", expanded=True):
             col1, col2 = st.columns(2)
@@ -934,24 +1133,15 @@ def main():
                 st.write("✅ **utils/** - Helpers, decorators, formatters")
                 
             with col2:
-                st.write("### 🎯 **All Sections Working**")
-                if BALDWIN_AVAILABLE:
-                    st.write("• **🆕 🚦 Baldwin Market Regime** ✅")
-                else:
-                    st.write("• **Baldwin Indicator** ⚠️ (Module not available)")
-                st.write("• **Individual Technical Analysis** ✅")
+                st.write("### 🎯 **Display Order**")
+                st.write("1. **🚦 Baldwin Market Regime** - First priority")
+                st.write("2. **📊 Interactive Charts** - Visual analysis first")
+                st.write("3. **📊 Individual Technical Analysis** - Core metrics")
                 if VOLUME_ANALYSIS_AVAILABLE:
-                    st.write("• **Volume Analysis** ✅")
-                else:
-                    st.write("• **Volume Analysis** ⚠️ (Module not available)")
+                    st.write("4. **📊 Volume Analysis** ✅")
                 if VOLATILITY_ANALYSIS_AVAILABLE:
-                    st.write("• **Volatility Analysis** ✅")
-                else:
-                    st.write("• **Volatility Analysis** ⚠️ (Module not available)")
-                st.write("• **Fundamental Analysis** ✅")
-                st.write("• **Market Correlation & Breakouts** ✅")
-                st.write("• **Options Analysis with Greeks** ✅")
-                st.write("• **Statistical Confidence Intervals** ✅")
+                    st.write("5. **📊 Volatility Analysis** ✅")
+                st.write("6. **📊 Fundamental + Market + Options** ✅")
         
         # Show current market status
         market_status = get_market_status()
@@ -985,12 +1175,12 @@ def main():
         
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **Baldwin Regime First** - Check market-wide GREEN/YELLOW/RED status")
-            st.write("2. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("3. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
-            st.write("4. **View all sections:** Baldwin, Technical, Volume, Volatility, Fundamental, Market, Options")
-            st.write("5. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
+            st.write("1. **Baldwin Regime Check** - Market-wide GREEN/YELLOW/RED status first")
+            st.write("2. **Charts Display** - Interactive price analysis with all indicators")
+            st.write("3. **Technical Analysis** - Comprehensive scoring and breakdown")
+            st.write("4. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
+            st.write("5. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
+            st.write("6. **Toggle sections** on/off in Analysis Sections panel")
 
     # Footer
     st.markdown("---")
@@ -1002,10 +1192,10 @@ def main():
         st.write(f"**Architecture:** Full Modular Implementation")
     with col2:
         st.write(f"**Status:** ✅ All Core Modules Active")
-        st.write(f"**New Feature:** 🚦 Baldwin Market Regime Indicator")
+        st.write(f"**Display Order:** Baldwin → Charts → Technical → Analysis")
     with col3:
-        st.write(f"**Components:** config, data, analysis, ui, utils")
-        st.write(f"**Interface:** Complete multi-section + regime analysis")
+        st.write(f"**New Feature:** 🚦 Baldwin Market Regime Indicator")
+        st.write(f"**Charts:** ✅ Interactive with all indicators")
 
 if __name__ == "__main__":
     try:

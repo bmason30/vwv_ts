@@ -1,8 +1,9 @@
 """
-VWV Professional Trading System v4.2.1 - CORRECTED VERSION
-Complete preservation of existing functionality with Volume & Volatility integration
+VWV Professional Trading System v4.2.1 - CORRECTED VERSION with Baldwin Indicator
+Complete preservation of existing functionality with Baldwin Market Regime Indicator integration
 """
 
+import html
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -20,8 +21,7 @@ from analysis.technical import (
     calculate_point_of_control_enhanced,
     calculate_comprehensive_technicals,
     calculate_weekly_deviations,
-    calculate_composite_technical_score,
-    calculate_enhanced_technical_analysis
+    calculate_composite_technical_score
 )
 from analysis.fundamental import (
     calculate_graham_score,
@@ -36,22 +36,15 @@ from analysis.options import (
     calculate_confidence_intervals
 )
 
-# Charts import with safe fallback
-try:
-    from charts.plotting import display_trading_charts
-    CHARTS_AVAILABLE = True
-except ImportError:
-    CHARTS_AVAILABLE = False
-
-# Baldwin indicator import with safe fallback
+# Baldwin Indicator import
 try:
     from analysis.baldwin_indicator import (
-        calculate_baldwin_indicator,
+        calculate_baldwin_indicator_complete,
         format_baldwin_for_display
     )
-    BALDWIN_INDICATOR_AVAILABLE = True
+    BALDWIN_AVAILABLE = True
 except ImportError:
-    BALDWIN_INDICATOR_AVAILABLE = False
+    BALDWIN_AVAILABLE = False
 
 # Volume and Volatility imports with safe fallbacks
 try:
@@ -111,44 +104,23 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
-    if 'show_charts' not in st.session_state:
-        st.session_state.show_charts = True
     if 'show_baldwin_indicator' not in st.session_state:
         st.session_state.show_baldwin_indicator = True
     
-    # Basic controls - Fixed symbol handling
+    # Basic controls
     if 'selected_symbol' in st.session_state:
         default_symbol = st.session_state.selected_symbol
-        # Don't delete immediately - let the input field update first
+        del st.session_state.selected_symbol
     else:
         default_symbol = UI_SETTINGS['default_symbol']
-    
-    # Symbol input without form (to prevent reset issues)
-    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol (press Enter to analyze)", key="symbol_input").upper()
-    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
-    
-    # Analyze button
-    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
-    
-    # Handle Enter key detection
-    enter_pressed = False
-    quick_link_clicked = False
-    
-    if 'last_symbol_input' not in st.session_state:
-        st.session_state.last_symbol_input = ""
-    
-    # Check if this is from a quick link selection
-    if 'selected_symbol' in st.session_state and st.session_state.selected_symbol == symbol:
-        quick_link_clicked = True
-    
-    # Check if user pressed Enter (symbol changed and is not from quick link)
-    elif symbol != st.session_state.last_symbol_input and symbol != "" and 'selected_symbol' not in st.session_state:
-        enter_pressed = True
-        st.session_state.last_symbol_input = symbol
-    
-    # Clear selected_symbol after processing
-    if 'selected_symbol' in st.session_state:
-        del st.session_state.selected_symbol
+        
+    # Create form for Enter key functionality
+    with st.sidebar.form(key='symbol_form'):
+        symbol = st.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
+        period = st.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
+        
+        # Single analyze button in form
+        analyze_button = st.form_submit_button("📊 Analyze Symbol", type="primary", use_container_width=True)
     
     # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
@@ -195,14 +167,9 @@ def create_sidebar_controls():
                 value=st.session_state.show_confidence_intervals,
                 key="toggle_confidence"
             )
-            st.session_state.show_charts = st.checkbox(
-                "📊 Interactive Charts", 
-                value=st.session_state.show_charts,
-                key="toggle_charts"
-            )
-            if BALDWIN_INDICATOR_AVAILABLE:
+            if BALDWIN_AVAILABLE:
                 st.session_state.show_baldwin_indicator = st.checkbox(
-                    "🚦 Baldwin Market Indicator", 
+                    "🚦 Baldwin Indicator", 
                     value=st.session_state.show_baldwin_indicator,
                     key="toggle_baldwin"
                 )
@@ -223,7 +190,6 @@ def create_sidebar_controls():
                         with col:
                             if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
                                 st.session_state.selected_symbol = recent_symbol
-                                st.session_state.last_symbol_input = recent_symbol  # Prevent enter detection
                                 st.rerun()
 
     # Quick Links section
@@ -240,7 +206,6 @@ def create_sidebar_controls():
                             with col:
                                 if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
                                     st.session_state.selected_symbol = sym
-                                    st.session_state.last_symbol_input = sym  # Prevent enter detection
                                     st.rerun()
 
     # Debug toggle
@@ -249,7 +214,7 @@ def create_sidebar_controls():
     return {
         'symbol': symbol,
         'period': period,
-        'analyze_button': analyze_button or enter_pressed or quick_link_clicked,  # Trigger on button OR enter OR quick link
+        'analyze_button': analyze_button,
         'show_debug': show_debug
     }
 
@@ -260,6 +225,158 @@ def add_to_recently_viewed(symbol):
             st.session_state.recently_viewed.remove(symbol)
         st.session_state.recently_viewed.insert(0, symbol)
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
+
+def show_baldwin_indicator_analysis(baldwin_results, show_debug=False):
+    """Display Baldwin Market Regime Indicator analysis"""
+    if not st.session_state.show_baldwin_indicator or not BALDWIN_AVAILABLE:
+        return
+        
+    with st.expander("🚦 Baldwin Market Regime Indicator - Momentum, Liquidity & Sentiment", expanded=True):
+        
+        if baldwin_results and 'error' not in baldwin_results:
+            # Format results for display
+            display_data = format_baldwin_for_display(baldwin_results)
+            
+            if 'error' not in display_data:
+                # Main regime display
+                regime = display_data['regime']
+                regime_color = display_data['regime_color']
+                overall_score = display_data['overall_score']
+                strategy = display_data['strategy']
+                description = display_data['description']
+                
+                # Color mapping for regime
+                regime_colors = {
+                    'GREEN': '#00A86B',    # Jade green  
+                    'YELLOW': '#FFD700',   # Gold
+                    'RED': '#DC143C'       # Crimson
+                }
+                
+                regime_color_hex = regime_colors.get(regime, '#808080')
+                
+                # Main regime header
+                col1, col2, col3 = st.columns([2, 1, 1])
+                
+                with col1:
+                    st.markdown(f"""
+                    <div style="padding: 1.5rem; background: linear-gradient(135deg, {regime_color_hex}20, {regime_color_hex}10); 
+                                border-left: 6px solid {regime_color_hex}; border-radius: 12px; margin-bottom: 1rem;">
+                        <h2 style="color: {regime_color_hex}; margin: 0; font-size: 1.8em;">
+                            {regime_color} Baldwin Regime: {regime}
+                        </h2>
+                        <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 1.1em; font-weight: 500;">
+                            {description}
+                        </p>
+                        <div style="margin-top: 1rem; padding: 0.8rem; background: rgba(0,0,0,0.05); border-radius: 8px;">
+                            <strong style="color: {regime_color_hex};">Strategy:</strong> {strategy}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    st.metric("Baldwin Score", f"{overall_score:.1f}/100", f"{regime}")
+                
+                with col3:
+                    timestamp = display_data.get('timestamp', 'Unknown')
+                    st.metric("Last Updated", timestamp.split()[1] if ' ' in timestamp else timestamp[:5])
+                
+                # Component Summary
+                st.subheader("📊 Component Breakdown")
+                component_summary = display_data.get('component_summary', [])
+                
+                if component_summary:
+                    df_components = pd.DataFrame(component_summary)
+                    st.dataframe(df_components, use_container_width=True, hide_index=True)
+                
+                # Score visualization
+                st.subheader("📈 Score Visualization")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write("**Overall Baldwin Score**")
+                    progress = overall_score / 100
+                    st.progress(progress)
+                    st.write(f"Score: {overall_score:.1f}/100 - {regime}")
+                
+                with col2:
+                    # Component contribution chart
+                    if component_summary:
+                        st.write("**Component Contributions**")
+                        for comp in component_summary:
+                            comp_name = comp['Component']
+                            contribution = float(comp['Contribution'])
+                            st.write(f"• **{comp_name}**: {contribution:.1f} points")
+                
+                # Detailed breakdowns (expandable)
+                detailed_breakdown = display_data.get('detailed_breakdown', {})
+                
+                # Momentum Details
+                if 'momentum' in detailed_breakdown:
+                    with st.expander("⚡ Momentum Component Details (60% Weight)", expanded=False):
+                        st.write("**Sub-components: Broad Market Trend, Market Internals, Leverage & Fear**")
+                        momentum_data = detailed_breakdown['momentum']
+                        if momentum_data:
+                            df_momentum = pd.DataFrame(momentum_data)
+                            st.dataframe(df_momentum, use_container_width=True, hide_index=True)
+                
+                # Liquidity Details  
+                if 'liquidity' in detailed_breakdown:
+                    with st.expander("💧 Liquidity Component Details (25% Weight)", expanded=False):
+                        st.write("**Sub-components: Dollar Trend, Treasury Bond Trend**")
+                        liquidity_data = detailed_breakdown['liquidity']
+                        if liquidity_data:
+                            df_liquidity = pd.DataFrame(liquidity_data)
+                            st.dataframe(df_liquidity, use_container_width=True, hide_index=True)
+                
+                # Sentiment Details
+                if 'sentiment' in detailed_breakdown:
+                    with st.expander("💭 Sentiment Component Details (15% Weight)", expanded=False):
+                        st.write("**Sub-components: Insider Buy-to-Sell Ratio**")
+                        sentiment_data = detailed_breakdown['sentiment']
+                        if sentiment_data:
+                            df_sentiment = pd.DataFrame(sentiment_data)
+                            st.dataframe(df_sentiment, use_container_width=True, hide_index=True)
+                        
+                        st.info("💡 **Note**: Insider data integration pending - requires premium data feed")
+                
+                # Regime interpretation guide
+                with st.expander("📋 Baldwin Regime Guide", expanded=False):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.markdown("""
+                        **🟢 GREEN Regime (≥70)**
+                        - **Conditions**: Favorable
+                        - **Mode**: Risk-on
+                        - **Strategy**: Press longs, buy dips
+                        - **Characteristics**: Positive momentum, sufficient liquidity
+                        """)
+                    
+                    with col2:
+                        st.markdown("""
+                        **🟡 YELLOW Regime (40-69)**
+                        - **Conditions**: Neutral/deteriorating
+                        - **Mode**: Transition
+                        - **Strategy**: Caution, hedge, wait
+                        - **Characteristics**: Mixed signals, uncertainty
+                        """)
+                    
+                    with col3:
+                        st.markdown("""
+                        **🔴 RED Regime (<40)**
+                        - **Conditions**: Unfavorable
+                        - **Mode**: Risk-off
+                        - **Strategy**: Hedge, raise cash
+                        - **Characteristics**: Negative momentum dominates
+                        """)
+            
+            else:
+                st.error(f"❌ Baldwin display formatting error: {display_data.get('error', 'Unknown error')}")
+        
+        else:
+            st.error("❌ Baldwin Indicator calculation failed")
+            if show_debug and baldwin_results:
+                st.error(f"Error details: {baldwin_results.get('error', 'Unknown error')}")
 
 def show_individual_technical_analysis(analysis_results, show_debug=False):
     """Display individual technical analysis section - PRESERVED FUNCTIONALITY"""
@@ -585,465 +702,24 @@ def show_confidence_intervals(analysis_results, show_debug=False):
             df_intervals = pd.DataFrame(final_intervals_data)
             st.dataframe(df_intervals, use_container_width=True, hide_index=True)
 
-def show_interactive_charts(analysis_results, market_data, show_debug=False):
-    """Display interactive charts section - FIRST PRIORITY DISPLAY"""
-    if not st.session_state.show_charts:
-        return
-        
-    with st.expander("📊 Interactive Trading Charts", expanded=True):
-        try:
-            if CHARTS_AVAILABLE and market_data is not None:
-                if show_debug:
-                    st.write("✅ Charts module available, rendering comprehensive charts...")
-                display_trading_charts(market_data, analysis_results)
-            else:
-                # Fallback chart display
-                if show_debug:
-                    st.write(f"⚠️ Charts module available: {CHARTS_AVAILABLE}, Data available: {market_data is not None}")
-                
-                st.subheader("📈 Basic Price Chart (Fallback)")
-                if market_data is not None and not market_data.empty:
-                    # Create simple but informative chart
-                    chart_data = market_data[['Close']].copy()
-                    st.line_chart(chart_data)
-                    
-                    # Add basic info
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Current Price", f"${market_data['Close'].iloc[-1]:.2f}")
-                    with col2:
-                        st.metric("High", f"${market_data['High'].max():.2f}")
-                    with col3:
-                        st.metric("Low", f"${market_data['Low'].min():.2f}")
-                    with col4:
-                        change_pct = ((market_data['Close'].iloc[-1] - market_data['Close'].iloc[0]) / market_data['Close'].iloc[0]) * 100
-                        st.metric("Period Change", f"{change_pct:+.2f}%")
-                else:
-                    st.error("❌ No market data available for charting")
-                    
-        except Exception as e:
-            if show_debug:
-                st.error(f"Chart display error: {str(e)}")
-                st.exception(e)
-            else:
-                st.warning("⚠️ Charts temporarily unavailable. Enable debug mode for details.")
-                # Still show basic fallback
-                if market_data is not None and not market_data.empty:
-                    st.line_chart(market_data[['Close']])
-
-def show_baldwin_indicator_analysis(baldwin_results, show_debug=False):
-    """Display Baldwin Market Sentiment Indicator analysis section"""
-    if not st.session_state.show_baldwin_indicator or not BALDWIN_INDICATOR_AVAILABLE:
-        return
-        
-    with st.expander("🚦 Baldwin Market Sentiment Indicator", expanded=True):
-        
-        if baldwin_results and 'error' not in baldwin_results:
-            # Format results for display
-            display_data = format_baldwin_for_display(baldwin_results)
-            
-            if 'error' not in display_data:
-                summary = display_data['summary_metrics']
-                
-                # Main indicator header with traffic light status
-                status_emoji = baldwin_results['status_emoji']
-                status = baldwin_results['status']
-                composite_score = baldwin_results['composite_score']
-                market_mode = baldwin_results['market_mode']
-                
-                # Large status display
-                st.markdown(f"""
-                <div style="text-align: center; padding: 2rem; 
-                            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d30 50%, #1a1a1a 100%); 
-                            border-radius: 15px; margin-bottom: 1.5rem;
-                            border: 2px solid {'#00ff00' if status == 'GREEN' else '#ffff00' if status == 'YELLOW' else '#ff0000'};">
-                    <h1 style="color: {'#00ff00' if status == 'GREEN' else '#ffff00' if status == 'YELLOW' else '#ff0000'}; 
-                               margin: 0; font-size: 3em;">
-                        {status_emoji} {status}
-                    </h1>
-                    <h2 style="color: #ffffff; margin: 0.5rem 0;">
-                        Market Mode: {market_mode}
-                    </h2>
-                    <h3 style="color: #cccccc; margin: 0;">
-                        Baldwin Score: {composite_score}/100
-                    </h3>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Strategy and interpretation
-                st.subheader("📋 Market Strategy")
-                strategy = baldwin_results['strategy']
-                
-                if status == 'GREEN':
-                    st.success(f"**🟢 RISK-ON Strategy:** {strategy}")
-                elif status == 'YELLOW':
-                    st.warning(f"**🟡 NEUTRAL Strategy:** {strategy}")
-                else:
-                    st.error(f"**🔴 RISK-OFF Strategy:** {strategy}")
-                
-                # Component breakdown
-                st.subheader("📊 Component Analysis")
-                
-                components = baldwin_results['components']
-                col1, col2, col3 = st.columns(3)
-                
-                # Momentum Component (60% weight)
-                with col1:
-                    momentum = components['momentum']
-                    momentum_score = momentum['component_score']
-                    momentum_color = '#00ff00' if momentum_score >= 65 else '#ffff00' if momentum_score >= 35 else '#ff0000'
-                    
-                    st.markdown(f"""
-                    <div style="padding: 1rem; background-color: {momentum_color}20; 
-                                border-left: 4px solid {momentum_color}; border-radius: 8px;">
-                        <h4 style="color: {momentum_color}; margin: 0;">💨 Momentum (60%)</h4>
-                        <h2 style="color: {momentum_color}; margin: 0.2rem 0;">{momentum_score:.1f}/100</h2>
-                        <p style="margin: 0; color: #888; font-size: 0.9em;">{momentum['interpretation']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Liquidity Component (25% weight)
-                with col2:
-                    liquidity = components['liquidity']
-                    liquidity_score = liquidity['component_score']
-                    liquidity_color = '#00ff00' if liquidity_score >= 65 else '#ffff00' if liquidity_score >= 35 else '#ff0000'
-                    
-                    st.markdown(f"""
-                    <div style="padding: 1rem; background-color: {liquidity_color}20; 
-                                border-left: 4px solid {liquidity_color}; border-radius: 8px;">
-                        <h4 style="color: {liquidity_color}; margin: 0;">💧 Liquidity (25%)</h4>
-                        <h2 style="color: {liquidity_color}; margin: 0.2rem 0;">{liquidity_score:.1f}/100</h2>
-                        <p style="margin: 0; color: #888; font-size: 0.9em;">{liquidity['interpretation']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Sentiment Component (15% weight)
-                with col3:
-                    sentiment = components['sentiment']
-                    sentiment_score = sentiment['component_score']
-                    sentiment_color = '#00ff00' if sentiment_score >= 65 else '#ffff00' if sentiment_score >= 35 else '#ff0000'
-                    
-                    st.markdown(f"""
-                    <div style="padding: 1rem; background-color: {sentiment_color}20; 
-                                border-left: 4px solid {sentiment_color}; border-radius: 8px;">
-                        <h4 style="color: {sentiment_color}; margin: 0;">🧠 Sentiment (15%)</h4>
-                        <h2 style="color: {sentiment_color}; margin: 0.2rem 0;">{sentiment_score:.1f}/100</h2>
-                        <p style="margin: 0; color: #888; font-size: 0.9em;">{sentiment['interpretation']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Detailed component breakdown table
-                st.subheader("📋 Detailed Component Breakdown")
-                component_breakdown = display_data['component_breakdown']
-                df_components = pd.DataFrame(component_breakdown)
-                st.dataframe(df_components, use_container_width=True, hide_index=True)
-                
-                # Market internals details
-                with st.expander("🔍 Market Internals Detail", expanded=False):
-                    
-                    # Momentum details
-                    st.write("**💨 Momentum Component Details:**")
-                    momentum_details = momentum['details']
-                    
-                    if 'SPY' in momentum_details:
-                        spy_data = momentum_details['SPY']
-                        st.write(f"• **SPY Position:** {spy_data['position']}")
-                        st.write(f"• **SPY EMAs:** 20: ${spy_data['emas'].get('EMA_20', 'N/A')}, 50: ${spy_data['emas'].get('EMA_50', 'N/A')}, 200: ${spy_data['emas'].get('EMA_200', 'N/A')}")
-                    
-                    if 'QQQ' in momentum_details:
-                        qqq_data = momentum_details['QQQ']
-                        st.write(f"• **QQQ Position:** {qqq_data['position']}")
-                    
-                    if 'IWM' in momentum_details:
-                        iwm_data = momentum_details['IWM']
-                        st.write(f"• **IWM vs SPY Relative Performance:** {iwm_data.get('relative_performance', 0):.2f}%")
-                    
-                    if 'FNGD' in momentum_details:
-                        fngd_data = momentum_details['FNGD']
-                        st.write(f"• **FNGD Stress Gauge:** ${fngd_data['current_price']:.2f} (EMA20: ${fngd_data['ema_20']:.2f})")
-                    
-                    if 'VIX' in momentum_details:
-                        vix_data = momentum_details['VIX']
-                        st.write(f"• **VIX Fear Level:** {vix_data['current_level']:.2f} (Threshold: {vix_data['threshold']})")
-                    
-                    # Liquidity details
-                    st.write("**💧 Liquidity Component Details:**")
-                    liquidity_details = liquidity['details']
-                    
-                    if 'USD' in liquidity_details:
-                        usd_data = liquidity_details['USD']
-                        st.write(f"• **USD Strength:** {usd_data['interpretation']} ({usd_data['trend_10d']:+.2f}% over 10 days)")
-                    
-                    if 'TLT' in liquidity_details:
-                        tlt_data = liquidity_details['TLT']
-                        st.write(f"• **Treasury Trend:** {tlt_data['interpretation']} ({tlt_data['trend_10d']:+.2f}% over 10 days)")
-                    
-                    # Sentiment details
-                    st.write("**🧠 Sentiment Component Details:**")
-                    sentiment_details = sentiment['details']
-                    
-                    if 'Smart_Money_Proxy' in sentiment_details:
-                        smart_money = sentiment_details['Smart_Money_Proxy']
-                        st.write(f"• **Smart Money Proxy:** {smart_money['interpretation']}")
-                        st.write(f"• **IWM vs SPY (30d):** {smart_money['relative_performance']:+.2f}%")
-                    
-                    st.info("💡 **Note:** Sentiment component uses market-based proxies. Direct insider trading data would provide more accurate sentiment analysis.")
-                
-                # Threshold information
-                with st.expander("⚙️ Baldwin Indicator Thresholds", expanded=False):
-                    thresholds = baldwin_results['thresholds']
-                    weights = baldwin_results['weights']
-                    
-                    st.write("**🚦 Traffic Light Thresholds:**")
-                    st.write(f"• **🟢 GREEN:** Score ≥ {thresholds['green_min']} (Risk-On)")
-                    st.write(f"• **🟡 YELLOW:** Score {thresholds['yellow_min']}-{thresholds['green_min']-1} (Neutral)")
-                    st.write(f"• **🔴 RED:** Score ≤ {thresholds['red_max']} (Risk-Off)")
-                    
-                    st.write("**⚖️ Component Weights:**")
-                    st.write(f"• **Momentum:** {weights['momentum']*100:.0f}% (Market trends, internals, fear)")
-                    st.write(f"• **Liquidity:** {weights['liquidity']*100:.0f}% (USD strength, Treasury flows)")
-                    st.write(f"• **Sentiment:** {weights['sentiment']*100:.0f}% (Smart money positioning)")
-                    
-                    symbols_analyzed = baldwin_results.get('symbols_analyzed', [])
-                    st.write(f"**📊 Symbols Analyzed:** {', '.join([s.upper() for s in symbols_analyzed])}")
-                
-            else:
-                st.error(f"❌ Baldwin indicator display error: {display_data.get('error', 'Unknown error')}")
-                
-        else:
-            st.warning("⚠️ Baldwin Market Sentiment Indicator not available")
-            if show_debug and baldwin_results and 'error' in baldwin_results:
-                st.error(f"Error details: {baldwin_results['error']}")
-
-def show_interactive_charts(analysis_results, market_data, show_debug=False):
-
 def show_enhanced_debug_information(analysis_results, market_data, show_debug=False):
-    """Display comprehensive debug information"""
+    """Display enhanced debug information - FIXED INDENTATION"""
     if not show_debug:
         return
         
     with st.expander("🐛 Enhanced Debug Information", expanded=False):
+        st.write("### Analysis Results Structure")
+        st.json(analysis_results, expanded=False)
         
-        # System Status Overview
-        st.subheader("🖥️ System Status Overview")
-        col1, col2, col3 = st.columns(3)
+        st.write("### Data Manager Summary")
+        data_manager = get_data_manager()
+        summary = data_manager.get_data_summary()
+        st.json(summary)
         
-        with col1:
-            st.write("**Core Modules:**")
-            st.write(f"✅ Config: Available")
-            st.write(f"✅ Data: Available") 
-            st.write(f"✅ Analysis: Available")
-            st.write(f"✅ UI: Available")
-            st.write(f"✅ Utils: Available")
-            
-        with col2:
-            st.write("**Enhanced Modules:**")
-            st.write(f"{'✅' if VOLUME_ANALYSIS_AVAILABLE else '❌'} Volume Analysis: {VOLUME_ANALYSIS_AVAILABLE}")
-            st.write(f"{'✅' if VOLATILITY_ANALYSIS_AVAILABLE else '❌'} Volatility Analysis: {VOLATILITY_ANALYSIS_AVAILABLE}")
-            st.write(f"{'✅' if CHARTS_AVAILABLE else '❌'} Charts: {CHARTS_AVAILABLE}")
-            st.write(f"{'✅' if BALDWIN_INDICATOR_AVAILABLE else '❌'} Baldwin Indicator: {BALDWIN_INDICATOR_AVAILABLE}")
-            
-        with col3:
-            st.write("**Environment:**")
-            import streamlit as st
-            import pandas as pd
-            import numpy as np
-            try:
-                import plotly
-                plotly_version = plotly.__version__
-            except:
-                plotly_version = "Not Available"
-            
-            st.write(f"**Streamlit:** {st.__version__}")
-            st.write(f"**Pandas:** {pd.__version__}")
-            st.write(f"**NumPy:** {np.__version__}")
-            st.write(f"**Plotly:** {plotly_version}")
-            
-        # Data Quality Assessment
-        st.subheader("📊 Market Data Quality Assessment")
-        if market_data is not None:
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Data Points", len(market_data))
-                st.metric("Missing Values", market_data.isnull().sum().sum())
-                
-            with col2:
-                st.metric("Date Range", f"{len(market_data)} days")
-                st.metric("Columns", len(market_data.columns))
-                
-            with col3:
-                price_range = market_data['High'].max() - market_data['Low'].min()
-                st.metric("Price Range", f"${price_range:.2f}")
-                avg_volume = market_data['Volume'].mean()
-                st.metric("Avg Volume", format_large_number(avg_volume))
-                
-            with col4:
-                returns = market_data['Close'].pct_change().dropna()
-                volatility = returns.std() * (252**0.5) * 100
-                st.metric("Volatility", f"{volatility:.1f}%")
-                st.metric("Data Quality", "✅ Good" if market_data.isnull().sum().sum() == 0 else "⚠️ Issues")
-            
-            # Data structure details
-            st.write("**Market Data Structure:**")
-            st.write(f"Shape: {market_data.shape}")
-            st.write(f"Index: {type(market_data.index)} ({market_data.index[0]} to {market_data.index[-1]})")
-            st.write(f"Columns: {list(market_data.columns)}")
-            st.write(f"Data Types: {dict(market_data.dtypes)}")
-            
-            # Sample data
-            st.write("**Sample Data (First 3 rows):**")
-            st.dataframe(market_data.head(3))
-            
-            st.write("**Sample Data (Last 3 rows):**")
-            st.dataframe(market_data.tail(3))
-            
-        else:
-            st.error("❌ No market data available for quality assessment")
-            
-        # Analysis Results Structure
-        st.subheader("🔍 Analysis Results Structure")
-        if analysis_results:
-            st.write("**Top-Level Keys:**")
-            for key in analysis_results.keys():
-                st.write(f"• **{key}**: {type(analysis_results[key])}")
-                
-            # Enhanced indicators breakdown
-            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-            if enhanced_indicators:
-                st.write("**Enhanced Indicators Keys:**")
-                for key in enhanced_indicators.keys():
-                    value = enhanced_indicators[key]
-                    if isinstance(value, dict):
-                        st.write(f"• **{key}**: Dict with {len(value)} keys")
-                    elif isinstance(value, list):
-                        st.write(f"• **{key}**: List with {len(value)} items")
-                    else:
-                        st.write(f"• **{key}**: {type(value)}")
-            
-            # Complete analysis results (expandable)
-            with st.expander("📋 Complete Analysis Results JSON", expanded=False):
-                st.json(analysis_results, expanded=False)
-        else:
-            st.error("❌ No analysis results available")
-            
-        # Session State Information
-        st.subheader("🔄 Session State Information")
-        session_info = {
-            'recently_viewed': len(st.session_state.get('recently_viewed', [])),
-            'show_technical_analysis': st.session_state.get('show_technical_analysis', False),
-            'show_volume_analysis': st.session_state.get('show_volume_analysis', False),
-            'show_volatility_analysis': st.session_state.get('show_volatility_analysis', False),
-            'show_fundamental_analysis': st.session_state.get('show_fundamental_analysis', False),
-            'show_market_correlation': st.session_state.get('show_market_correlation', False),
-            'show_options_analysis': st.session_state.get('show_options_analysis', False),
-            'show_confidence_intervals': st.session_state.get('show_confidence_intervals', False),
-            'show_charts': st.session_state.get('show_charts', False),
-            'show_baldwin_indicator': st.session_state.get('show_baldwin_indicator', False)
-        }
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("**Toggle States:**")
-            for key, value in session_info.items():
-                if key.startswith('show_'):
-                    st.write(f"• {key}: {'✅' if value else '❌'}")
-                    
-        with col2:
-            st.write("**Session Data:**")
-            st.write(f"• Recently Viewed: {session_info['recently_viewed']} symbols")
-            st.write(f"• Current Symbol: {st.session_state.get('symbol_input', 'Not Set')}")
-            st.write(f"• Last Symbol Input: {st.session_state.get('last_symbol_input', 'Not Set')}")
-            
-            # Data manager summary
-            try:
-                data_manager = get_data_manager()
-                summary = data_manager.get_data_summary()
-                st.write(f"• Stored Symbols: {summary.get('market_data_count', 0)}")
-                st.write(f"• Analysis Cache: {summary.get('analysis_results_count', 0)}")
-            except Exception as e:
-                st.write(f"• Data Manager: Error ({str(e)[:30]}...)")
-                
-        # Performance Metrics
-        st.subheader("⚡ Performance Metrics")
-        import time
-        current_time = time.time()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.write("**Timing Information:**")
-            st.write(f"• Current Time: {datetime.now().strftime('%H:%M:%S')}")
-            st.write(f"• Analysis Timestamp: {analysis_results.get('timestamp', 'N/A')}")
-            
-        with col2:
-            st.write("**Memory Usage:**")
-            try:
-                import psutil
-                import os
-                process = psutil.Process(os.getpid())
-                memory_mb = process.memory_info().rss / 1024 / 1024
-                st.write(f"• Memory Usage: {memory_mb:.1f} MB")
-                st.write(f"• CPU Percent: {process.cpu_percent():.1f}%")
-            except:
-                st.write("• Memory Info: Not Available")
-                
-        with col3:
-            st.write("**Data Sizes:**")
-            if market_data is not None:
-                data_size_mb = market_data.memory_usage(deep=True).sum() / 1024 / 1024
-                st.write(f"• Market Data: {data_size_mb:.2f} MB")
-            if analysis_results:
-                import sys
-                result_size_kb = sys.getsizeof(str(analysis_results)) / 1024
-                st.write(f"• Analysis Results: {result_size_kb:.1f} KB")
-                
-        # Error Log
-        st.subheader("⚠️ System Diagnostics")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("**Import Status:**")
-            st.write(f"• Charts Module: {'✅' if CHARTS_AVAILABLE else '❌'}")
-            st.write(f"• Volume Module: {'✅' if VOLUME_ANALYSIS_AVAILABLE else '❌'}")
-            st.write(f"• Volatility Module: {'✅' if VOLATILITY_ANALYSIS_AVAILABLE else '❌'}")
-            
-        with col2:
-            st.write("**Configuration Status:**")
-            try:
-                st.write(f"• UI Settings: ✅ {len(UI_SETTINGS)} settings")
-                st.write(f"• Quick Links: ✅ {sum(len(symbols) for symbols in QUICK_LINK_CATEGORIES.values())} symbols")
-                st.write(f"• Default Config: ✅ {len(DEFAULT_VWV_CONFIG)} parameters")
-            except Exception as e:
-                st.write(f"• Configuration: ❌ Error loading")
-                
-        # Test Basic Functionality
-        st.subheader("🧪 Basic Functionality Tests")
-        test_col1, test_col2 = st.columns(2)
-        
-        with test_col1:
-            if st.button("Test Chart Creation", key="test_chart"):
-                try:
-                    import plotly.graph_objects as go
-                    test_fig = go.Figure()
-                    test_fig.add_trace(go.Scatter(x=[1, 2, 3], y=[1, 4, 2], name="Test"))
-                    test_fig.update_layout(title="Test Chart", height=300)
-                    st.plotly_chart(test_fig, use_container_width=True)
-                    st.success("✅ Basic chart creation successful")
-                except Exception as e:
-                    st.error(f"❌ Chart creation failed: {str(e)}")
-                    
-        with test_col2:
-            if st.button("Test Data Processing", key="test_data"):
-                try:
-                    test_data = pd.DataFrame({
-                        'A': [1, 2, 3, 4, 5],
-                        'B': [2, 4, 6, 8, 10]
-                    })
-                    test_result = test_data.mean()
-                    st.write("Test calculation result:", test_result)
-                    st.success("✅ Data processing successful")
-                except Exception as e:
-                    st.error(f"❌ Data processing failed: {str(e)}")
+        st.write("### System Status")
+        st.write(f"**Volume Analysis Available:** {VOLUME_ANALYSIS_AVAILABLE}")
+        st.write(f"**Volatility Analysis Available:** {VOLATILITY_ANALYSIS_AVAILABLE}")
+        st.write(f"**Baldwin Indicator Available:** {BALDWIN_AVAILABLE}")
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components - ENHANCED v4.2.1"""
@@ -1053,7 +729,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         
         if market_data is None:
             st.error(f"❌ Could not fetch data for {symbol}")
-            return None
+            return None, None
         
         # Step 2: Store data using data manager
         data_manager = get_data_manager()
@@ -1064,15 +740,43 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         
         if analysis_input is None:
             st.error("❌ Could not prepare analysis data")
-            return None
+            return None, None
         
         # Step 4: Calculate enhanced indicators using modular analysis
-        enhanced_indicators = calculate_enhanced_technical_analysis(analysis_input)
+        daily_vwap = calculate_daily_vwap(analysis_input)
+        fibonacci_emas = calculate_fibonacci_emas(analysis_input)
+        point_of_control = calculate_point_of_control_enhanced(analysis_input)
+        weekly_deviations = calculate_weekly_deviations(analysis_input)
+        comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
         
-        # Step 5: Calculate market correlations
+        # Step 5: Calculate Volume Analysis (NEW v4.2.1)
+        volume_analysis = {}
+        if VOLUME_ANALYSIS_AVAILABLE:
+            try:
+                volume_analysis = calculate_complete_volume_analysis(analysis_input)
+                if show_debug:
+                    st.write("✅ Volume analysis completed")
+            except Exception as e:
+                if show_debug:
+                    st.write(f"❌ Volume analysis failed: {e}")
+                volume_analysis = {'error': 'Volume analysis failed'}
+        
+        # Step 6: Calculate Volatility Analysis (NEW v4.2.1)
+        volatility_analysis = {}
+        if VOLATILITY_ANALYSIS_AVAILABLE:
+            try:
+                volatility_analysis = calculate_complete_volatility_analysis(analysis_input)
+                if show_debug:
+                    st.write("✅ Volatility analysis completed")
+            except Exception as e:
+                if show_debug:
+                    st.write(f"❌ Volatility analysis failed: {e}")
+                volatility_analysis = {'error': 'Volatility analysis failed'}
+        
+        # Step 7: Calculate market correlations
         market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug=show_debug)
         
-        # Step 6: Calculate fundamental analysis (skip for ETFs)
+        # Step 8: Calculate fundamental analysis (skip for ETFs)
         is_etf_symbol = is_etf(symbol)
         
         if is_etf_symbol:
@@ -1082,8 +786,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
         
-        # Step 7: Calculate options levels
-        volatility = enhanced_indicators.get('comprehensive_technicals', {}).get('volatility_20d', 20)
+        # Step 9: Calculate options levels
+        volatility = comprehensive_technicals.get('volatility_20d', 20)
         underlying_beta = 1.0  # Default market beta
         
         if market_correlations:
@@ -1098,23 +802,29 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
         options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
         
-        # Step 8: Calculate confidence intervals
+        # Step 10: Calculate confidence intervals
         confidence_analysis = calculate_confidence_intervals(analysis_input)
         
-        # Step 9: Add fundamental and market data to enhanced indicators
-        enhanced_indicators['market_correlations'] = market_correlations
-        enhanced_indicators['options_levels'] = options_levels
-        enhanced_indicators['graham_score'] = graham_score
-        enhanced_indicators['piotroski_score'] = piotroski_score
-        
-        # Step 10: Build analysis results
+        # Step 11: Build analysis results
         current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
         
         analysis_results = {
             'symbol': symbol,
             'timestamp': current_date,
             'current_price': current_price,
-            'enhanced_indicators': enhanced_indicators,
+            'enhanced_indicators': {
+                'daily_vwap': daily_vwap,
+                'fibonacci_emas': fibonacci_emas,
+                'point_of_control': point_of_control,
+                'weekly_deviations': weekly_deviations,
+                'comprehensive_technicals': comprehensive_technicals,
+                'volume_analysis': volume_analysis,  # NEW v4.2.1
+                'volatility_analysis': volatility_analysis,  # NEW v4.2.1
+                'market_correlations': market_correlations,
+                'options_levels': options_levels,
+                'graham_score': graham_score,
+                'piotroski_score': piotroski_score
+            },
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL v4.2.1'
         }
@@ -1122,14 +832,14 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Store results
         data_manager.store_analysis_results(symbol, analysis_results)
         
-        return analysis_results, market_data, baldwin_results
+        return analysis_results, market_data
         
     except Exception as e:
         st.error(f"❌ Analysis failed: {str(e)}")
-        return None, None, None
+        return None, None
 
 def main():
-    """Main application function - ENHANCED v4.2.1"""
+    """Main application function - ENHANCED v4.2.1 with Baldwin Indicator"""
     # Create header using modular component
     create_header()
     
@@ -1146,21 +856,31 @@ def main():
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             
             # Perform analysis using modular components
-            analysis_results, market_data, baldwin_results = perform_enhanced_analysis(
+            analysis_results, market_data = perform_enhanced_analysis(
                 controls['symbol'], 
                 controls['period'], 
                 controls['show_debug']
             )
             
             if analysis_results and market_data is not None:
-                # CHARTS FIRST - TOP PRIORITY DISPLAY
-                show_interactive_charts(analysis_results, market_data, controls['show_debug'])
-                
-                # BALDWIN MARKET SENTIMENT INDICATOR - HIGH PRIORITY
-                if BALDWIN_INDICATOR_AVAILABLE:
-                    show_baldwin_indicator_analysis(baldwin_results, controls['show_debug'])
+                # Calculate Baldwin Indicator (market-wide analysis)
+                baldwin_results = None
+                if BALDWIN_AVAILABLE:
+                    try:
+                        baldwin_results = calculate_baldwin_indicator_complete(controls['show_debug'])
+                        if controls['show_debug']:
+                            st.write("✅ Baldwin Indicator calculated")
+                    except Exception as e:
+                        if controls['show_debug']:
+                            st.write(f"❌ Baldwin Indicator failed: {e}")
+                        baldwin_results = {'error': f'Baldwin calculation failed: {str(e)}'}
                 
                 # Show all analysis sections using modular functions
+                
+                # NEW: Baldwin Indicator first (market regime)
+                if BALDWIN_AVAILABLE:
+                    show_baldwin_indicator_analysis(baldwin_results, controls['show_debug'])
+                
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
                 # NEW v4.2.1 - Volume and Volatility Analysis
@@ -1175,13 +895,32 @@ def main():
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
-                # Enhanced Debug information
+                # Enhanced debug information
                 show_enhanced_debug_information(analysis_results, market_data, controls['show_debug'])
     
     else:
         # Welcome message
         st.write("## 🚀 VWV Professional Trading System v4.2.1 Enhanced")
-        st.write("**Complete modular architecture with Volume & Volatility analysis**")
+        st.write("**Complete modular architecture with Baldwin Market Regime Indicator**")
+        
+        with st.expander("🚦 NEW: Baldwin Market Regime Indicator", expanded=True):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("### 🎯 **Baldwin Indicator Features**")
+                st.write("🚦 **Traffic Light System** - GREEN/YELLOW/RED market regimes")
+                st.write("⚡ **Momentum Component (60%)** - Broad market, internals, leverage/fear")
+                st.write("💧 **Liquidity Component (25%)** - Dollar trend, Treasury bonds")
+                st.write("💭 **Sentiment Component (15%)** - Insider buy-to-sell ratio")
+                st.write("📊 **Multi-Factor Scoring** - Weighted composite methodology")
+                
+            with col2:
+                st.write("### 🎯 **Market Regime Guide**")
+                st.write("• **🟢 GREEN (≥70)**: Risk-on mode - press longs, buy dips")
+                st.write("• **🟡 YELLOW (40-69)**: Caution - hedge, wait for clarity") 
+                st.write("• **🔴 RED (<40)**: Risk-off - hedge aggressively, raise cash")
+                st.write("• **Real-time Analysis**: Multi-ETF market assessment")
+                st.write("• **Strategy Guidance**: Clear actionable recommendations")
         
         with st.expander("🏗️ System Status v4.2.1", expanded=True):
             col1, col2 = st.columns(2)
@@ -1196,13 +935,17 @@ def main():
                 
             with col2:
                 st.write("### 🎯 **All Sections Working**")
+                if BALDWIN_AVAILABLE:
+                    st.write("• **🆕 🚦 Baldwin Market Regime** ✅")
+                else:
+                    st.write("• **Baldwin Indicator** ⚠️ (Module not available)")
                 st.write("• **Individual Technical Analysis** ✅")
                 if VOLUME_ANALYSIS_AVAILABLE:
-                    st.write("• **🆕 Volume Analysis** ✅")
+                    st.write("• **Volume Analysis** ✅")
                 else:
                     st.write("• **Volume Analysis** ⚠️ (Module not available)")
                 if VOLATILITY_ANALYSIS_AVAILABLE:
-                    st.write("• **🆕 Volatility Analysis** ✅")
+                    st.write("• **Volatility Analysis** ✅")
                 else:
                     st.write("• **Volatility Analysis** ⚠️ (Module not available)")
                 st.write("• **Fundamental Analysis** ✅")
@@ -1214,15 +957,40 @@ def main():
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
         
+        # Baldwin Indicator live preview
+        if BALDWIN_AVAILABLE:
+            with st.expander("🚦 Live Baldwin Market Regime", expanded=False):
+                with st.spinner("Calculating live Baldwin Indicator..."):
+                    try:
+                        live_baldwin = calculate_baldwin_indicator_complete(False)
+                        if live_baldwin and 'error' not in live_baldwin:
+                            regime = live_baldwin.get('market_regime', 'UNKNOWN')
+                            regime_color = live_baldwin.get('regime_color', '⚪')
+                            score = live_baldwin.get('baldwin_score', 0)
+                            strategy = live_baldwin.get('strategy', 'No strategy available')
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Current Regime", f"{regime_color} {regime}")
+                            with col2:
+                                st.metric("Baldwin Score", f"{score:.1f}/100")
+                            with col3:
+                                st.metric("Strategy", strategy.split(':')[0])
+                            
+                            st.info(f"**Current Strategy:** {strategy}")
+                        else:
+                            st.warning("⚠️ Live Baldwin calculation temporarily unavailable")
+                    except Exception as e:
+                        st.error(f"❌ Live Baldwin error: {str(e)}")
+        
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **📊 Charts First** - Interactive price charts display immediately")
-            st.write("2. **Quick Links** - Click any symbol button for instant analysis")
-            st.write("3. **Manual Entry** - Type symbol in sidebar + Enter for analysis")
-            st.write("4. **Analyze Button** - Click 'Analyze Symbol' to run analysis")
-            st.write("5. **View all sections:** Charts, Technical, Volume, Volatility, Fundamental, Market, Options")
-            st.write("6. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("7. **Enhanced Debug Mode** - Comprehensive system diagnostics and performance metrics")
+            st.write("1. **Baldwin Regime First** - Check market-wide GREEN/YELLOW/RED status")
+            st.write("2. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
+            st.write("3. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
+            st.write("4. **View all sections:** Baldwin, Technical, Volume, Volatility, Fundamental, Market, Options")
+            st.write("5. **Toggle sections** on/off in Analysis Sections panel")
+            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
 
     # Footer
     st.markdown("---")
@@ -1234,10 +1002,10 @@ def main():
         st.write(f"**Architecture:** Full Modular Implementation")
     with col2:
         st.write(f"**Status:** ✅ All Core Modules Active")
-        st.write(f"**Features:** Charts First + Volume & Volatility Analysis")
+        st.write(f"**New Feature:** 🚦 Baldwin Market Regime Indicator")
     with col3:
-        st.write(f"**Components:** config, data, analysis, ui, utils, charts")
-        st.write(f"**Debug:** Enhanced diagnostics with performance metrics")
+        st.write(f"**Components:** config, data, analysis, ui, utils")
+        st.write(f"**Interface:** Complete multi-section + regime analysis")
 
 if __name__ == "__main__":
     try:

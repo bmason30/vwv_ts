@@ -89,7 +89,7 @@ st.set_page_config(
 )
 
 def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters"""
+    """Create sidebar controls and return analysis parameters - FIXED NAVIGATION"""
     st.sidebar.title("📊 Trading Analysis v4.2.1")
     
     # Initialize session state
@@ -113,26 +113,69 @@ def create_sidebar_controls():
         st.session_state.show_confidence_intervals = True
     if 'show_charts' not in st.session_state:
         st.session_state.show_charts = True
+    if 'auto_analyze' not in st.session_state:
+        st.session_state.auto_analyze = False
     
-    # Basic controls
+    # Handle selected symbol from quicklinks/recents
     if 'selected_symbol' in st.session_state:
-        default_symbol = st.session_state.selected_symbol
+        current_symbol = st.session_state.selected_symbol
+        st.session_state.auto_analyze = True  # Trigger analysis
         del st.session_state.selected_symbol
     else:
-        default_symbol = UI_SETTINGS['default_symbol']
+        current_symbol = UI_SETTINGS['default_symbol']
         
-    # Create form for Enter key functionality
-    with st.sidebar.form(key='symbol_form'):
-        symbol = st.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
-        
-        # CORRECTED: Default period set to '1mo' (1 month)
-        period_options = ['1mo', '3mo', '6mo', '1y', '2y']
-        period = st.selectbox("Data Period", period_options, index=0)  # Index 0 = '1mo'
-        
-        # Single analyze button in form
-        analyze_button = st.form_submit_button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    # Symbol input and period selection (NO FORM - this was causing issues)
+    symbol = st.sidebar.text_input("Symbol", value=current_symbol, help="Enter stock symbol").upper()
     
-    # Section Control Panel
+    # CORRECTED: Default period set to '1mo' (1 month)
+    period_options = ['1mo', '3mo', '6mo', '1y', '2y']
+    period = st.sidebar.selectbox("Data Period", period_options, index=0)  # Index 0 = '1mo'
+    
+    # Analyze button (outside form to prevent symbol reset)
+    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    
+    # Check for auto-analyze trigger from quicklinks/recents
+    if st.session_state.auto_analyze:
+        st.session_state.auto_analyze = False  # Reset flag
+        analyze_button = True  # Force analysis
+    
+    # CORRECTED SIDEBAR ORDER: Quick Links FIRST, Recently Viewed SECOND, Analysis Sections THIRD
+    
+    # 1. Quick Links section - FIRST
+    with st.sidebar.expander("🔗 Quick Links", expanded=False):
+        st.write("**Popular Symbols by Category**")
+        
+        for category, symbols in QUICK_LINK_CATEGORIES.items():
+            with st.expander(f"{category} ({len(symbols)} symbols)", expanded=False):
+                for i in range(0, len(symbols), 3):
+                    cols = st.columns(3)
+                    for j, col in enumerate(cols):
+                        if i + j < len(symbols):
+                            sym = symbols[i + j]
+                            with col:
+                                if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
+                                    st.session_state.selected_symbol = sym
+                                    st.rerun()
+
+    # 2. Recently Viewed section - SECOND
+    if len(st.session_state.recently_viewed) > 0:
+        with st.sidebar.expander("🕒 Recently Viewed", expanded=False):
+            st.write("**Last 9 Analyzed Symbols**")
+            
+            recent_symbols = st.session_state.recently_viewed[:9]
+            
+            for row in range(0, len(recent_symbols), 3):
+                cols = st.columns(3)
+                for col_idx, col in enumerate(cols):
+                    symbol_idx = row + col_idx
+                    if symbol_idx < len(recent_symbols):
+                        recent_symbol = recent_symbols[symbol_idx]
+                        with col:
+                            if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
+                                st.session_state.selected_symbol = recent_symbol
+                                st.rerun()
+
+    # 3. Analysis Sections Control Panel - THIRD
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
         st.write("**Toggle Analysis Sections:**")
         
@@ -188,40 +231,6 @@ def create_sidebar_controls():
                 value=st.session_state.show_confidence_intervals,
                 key="toggle_confidence"
             )
-    
-    # Recently Viewed section
-    if len(st.session_state.recently_viewed) > 0:
-        with st.sidebar.expander("🕒 Recently Viewed", expanded=False):
-            st.write("**Last 9 Analyzed Symbols**")
-            
-            recent_symbols = st.session_state.recently_viewed[:9]
-            
-            for row in range(0, len(recent_symbols), 3):
-                cols = st.columns(3)
-                for col_idx, col in enumerate(cols):
-                    symbol_idx = row + col_idx
-                    if symbol_idx < len(recent_symbols):
-                        recent_symbol = recent_symbols[symbol_idx]
-                        with col:
-                            if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
-                                st.session_state.selected_symbol = recent_symbol
-                                st.rerun()
-
-    # Quick Links section
-    with st.sidebar.expander("🔗 Quick Links", expanded=False):
-        st.write("**Popular Symbols by Category**")
-        
-        for category, symbols in QUICK_LINK_CATEGORIES.items():
-            with st.expander(f"{category} ({len(symbols)} symbols)", expanded=False):
-                for i in range(0, len(symbols), 3):
-                    cols = st.columns(3)
-                    for j, col in enumerate(cols):
-                        if i + j < len(symbols):
-                            sym = symbols[i + j]
-                            with col:
-                                if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
-                                    st.session_state.selected_symbol = sym
-                                    st.rerun()
 
     # Debug toggle
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)

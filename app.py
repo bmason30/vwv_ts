@@ -104,20 +104,39 @@ def create_sidebar_controls():
     if 'show_charts' not in st.session_state:
         st.session_state.show_charts = True
     
-    # Basic controls
+    # Basic controls - Fixed symbol handling
     if 'selected_symbol' in st.session_state:
         default_symbol = st.session_state.selected_symbol
-        del st.session_state.selected_symbol
+        # Don't delete immediately - let the input field update first
     else:
         default_symbol = UI_SETTINGS['default_symbol']
-        
-    # Create form for Enter key functionality
-    with st.sidebar.form(key='symbol_form'):
-        symbol = st.text_input("Symbol", value=default_symbol, help="Enter stock symbol").upper()
-        period = st.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
-        
-        # Single analyze button in form
-        analyze_button = st.form_submit_button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    
+    # Symbol input without form (to prevent reset issues)
+    symbol = st.sidebar.text_input("Symbol", value=default_symbol, help="Enter stock symbol (press Enter to analyze)", key="symbol_input").upper()
+    period = st.sidebar.selectbox("Data Period", UI_SETTINGS['periods'], index=3)
+    
+    # Analyze button
+    analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
+    
+    # Handle Enter key detection
+    enter_pressed = False
+    quick_link_clicked = False
+    
+    if 'last_symbol_input' not in st.session_state:
+        st.session_state.last_symbol_input = ""
+    
+    # Check if this is from a quick link selection
+    if 'selected_symbol' in st.session_state and st.session_state.selected_symbol == symbol:
+        quick_link_clicked = True
+    
+    # Check if user pressed Enter (symbol changed and is not from quick link)
+    elif symbol != st.session_state.last_symbol_input and symbol != "" and 'selected_symbol' not in st.session_state:
+        enter_pressed = True
+        st.session_state.last_symbol_input = symbol
+    
+    # Clear selected_symbol after processing
+    if 'selected_symbol' in st.session_state:
+        del st.session_state.selected_symbol
     
     # Section Control Panel
     with st.sidebar.expander("📋 Analysis Sections", expanded=False):
@@ -186,6 +205,7 @@ def create_sidebar_controls():
                         with col:
                             if st.button(f"{recent_symbol}", key=f"recent_{recent_symbol}_{symbol_idx}", use_container_width=True):
                                 st.session_state.selected_symbol = recent_symbol
+                                st.session_state.last_symbol_input = recent_symbol  # Prevent enter detection
                                 st.rerun()
 
     # Quick Links section
@@ -202,6 +222,7 @@ def create_sidebar_controls():
                             with col:
                                 if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
                                     st.session_state.selected_symbol = sym
+                                    st.session_state.last_symbol_input = sym  # Prevent enter detection
                                     st.rerun()
 
     # Debug toggle
@@ -210,7 +231,7 @@ def create_sidebar_controls():
     return {
         'symbol': symbol,
         'period': period,
-        'analyze_button': analyze_button,
+        'analyze_button': analyze_button or enter_pressed or quick_link_clicked,  # Trigger on button OR enter OR quick link
         'show_debug': show_debug
     }
 
@@ -725,6 +746,8 @@ def show_enhanced_debug_information(analysis_results, market_data, show_debug=Fa
         with col2:
             st.write("**Session Data:**")
             st.write(f"• Recently Viewed: {session_info['recently_viewed']} symbols")
+            st.write(f"• Current Symbol: {st.session_state.get('symbol_input', 'Not Set')}")
+            st.write(f"• Last Symbol Input: {st.session_state.get('last_symbol_input', 'Not Set')}")
             
             # Data manager summary
             try:
@@ -984,11 +1007,11 @@ def main():
         # Quick start guide
         with st.expander("🚀 Quick Start Guide", expanded=True):
             st.write("1. **📊 Charts First** - Interactive price charts display immediately")
-            st.write("2. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("3. **Press Enter or click 'Analyze Symbol'** to run complete analysis")
-            st.write("4. **View all sections:** Charts, Technical, Volume, Volatility, Fundamental, Market, Options")
-            st.write("5. **Toggle sections** on/off in Analysis Sections panel")
-            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
+            st.write("2. **Quick Links** - Click any symbol button for instant analysis")
+            st.write("3. **Manual Entry** - Type symbol in sidebar + Enter for analysis")
+            st.write("4. **Analyze Button** - Click 'Analyze Symbol' to run analysis")
+            st.write("5. **View all sections:** Charts, Technical, Volume, Volatility, Fundamental, Market, Options")
+            st.write("6. **Toggle sections** on/off in Analysis Sections panel")
             st.write("7. **Enhanced Debug Mode** - Comprehensive system diagnostics and performance metrics")
 
     # Footer

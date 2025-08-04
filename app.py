@@ -488,7 +488,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                     )
                 else:
                     st.metric("Piotroski %", "0%", "No Data")
-            
+        
             # ENHANCED: Detailed Interpretations
             st.subheader("📈 Investment Analysis Summary")
             
@@ -722,7 +722,7 @@ def show_baldwin_indicator_analysis(baldwin_results=None, show_debug=False):
                 with col1:
                     st.markdown(f"""
                     <div style="padding: 1rem; background: linear-gradient(135deg, {regime_color}20, {regime_color}10); 
-                                border-left: 4px solid {regime_color}; border-radius: 8px; margin-bottom: 1rem;">
+                                 border-left: 4px solid {regime_color}; border-radius: 8px; margin-bottom: 1rem;">
                         <h3 style="color: {regime_color}; margin: 0;">
                             🚦 Market Regime: {regime}
                         </h3>
@@ -1066,7 +1066,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
                 with col3:
                     net_ratio = overall_data['net_ratio']
                     st.metric("Net Bias", f"{net_ratio:+.1f}%", 
-                             "📈 Bullish" if net_ratio > 0 else "📉 Bearish" if net_ratio < 0 else "⚖️ Neutral")
+                              "📈 Bullish" if net_ratio > 0 else "📉 Bearish" if net_ratio < 0 else "⚖️ Neutral")
                 with col4:
                     st.metric("Market Regime", overall_data.get('market_regime', 'Unknown'))
 
@@ -1101,349 +1101,14 @@ def show_options_analysis(analysis_results, show_debug=False):
             
             with col2:
                 st.metric("20D Volatility", f"{volatility:.1f}%", "Premium Level")
-                
+            
             with col3:
                 # Calculate average expected move from options data
                 if len(options_levels) > 0:
                     try:
                         # Parse expected move from first DTE
                         expected_move_str = options_levels[0].get('Expected Move', '±0.00')
-                        expected_move = float(expected_move_str.replace('±
-
-def show_confidence_intervals(analysis_results, show_debug=False):
-    """Display confidence intervals section - PRESERVED FUNCTIONALITY"""
-    if not st.session_state.show_confidence_intervals:
-        return
-        
-    confidence_analysis = analysis_results.get('confidence_analysis')
-    if confidence_analysis:
-        with st.expander("📊 Statistical Confidence Intervals", expanded=True):
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Mean Weekly Return", f"{confidence_analysis['mean_weekly_return']:.3f}%")
-            with col2:
-                st.metric("Weekly Volatility", f"{confidence_analysis['weekly_volatility']:.2f}%")
-            with col3:
-                st.metric("Sample Size", f"{confidence_analysis['sample_size']} weeks")
-            
-            final_intervals_data = []
-            for level, level_data in confidence_analysis['confidence_intervals'].items():
-                final_intervals_data.append({
-                    'Confidence Level': level,
-                    'Upper Bound': f"${level_data['upper_bound']}",
-                    'Lower Bound': f"${level_data['lower_bound']}",
-                    'Expected Move': f"±{level_data['expected_move_pct']:.2f}%"
-                })
-            
-            df_intervals = pd.DataFrame(final_intervals_data)
-            st.dataframe(df_intervals, use_container_width=True, hide_index=True)
-
-def perform_enhanced_analysis(symbol, period, show_debug=False):
-    """Perform enhanced analysis using modular components - ENHANCED v4.2.1"""
-    try:
-        # Step 1: Fetch data using modular data fetcher
-        market_data = get_market_data_enhanced(symbol, period, show_debug)
-        
-        if market_data is None:
-            st.error(f"❌ Could not fetch data for {symbol}")
-            return None, None
-        
-        # Step 2: Store data using data manager
-        data_manager = get_data_manager()
-        data_manager.store_market_data(symbol, market_data, show_debug)
-        
-        # Step 3: Get analysis copy
-        analysis_input = data_manager.get_market_data_for_analysis(symbol)
-        
-        if analysis_input is None:
-            st.error("❌ Could not prepare analysis data")
-            return None, None
-        
-        # Step 4: Calculate enhanced indicators using modular analysis
-        daily_vwap = calculate_daily_vwap(analysis_input)
-        fibonacci_emas = calculate_fibonacci_emas(analysis_input)
-        point_of_control = calculate_point_of_control_enhanced(analysis_input)
-        weekly_deviations = calculate_weekly_deviations(analysis_input)
-        comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
-        
-        # Step 5: Calculate Volume Analysis (NEW v4.2.1)
-        volume_analysis = {}
-        if VOLUME_ANALYSIS_AVAILABLE:
-            try:
-                volume_analysis = calculate_complete_volume_analysis(analysis_input)
-                if show_debug:
-                    st.write("✅ Volume analysis completed")
-            except Exception as e:
-                if show_debug:
-                    st.write(f"❌ Volume analysis failed: {e}")
-                volume_analysis = {'error': 'Volume analysis failed'}
-        
-        # Step 6: Calculate Volatility Analysis (NEW v4.2.1)
-        volatility_analysis = {}
-        if VOLATILITY_ANALYSIS_AVAILABLE:
-            try:
-                volatility_analysis = calculate_complete_volatility_analysis(analysis_input)
-                if show_debug:
-                    st.write("✅ Volatility analysis completed")
-            except Exception as e:
-                if show_debug:
-                    st.write(f"❌ Volatility analysis failed: {e}")
-                volatility_analysis = {'error': 'Volatility analysis failed'}
-        
-        # Step 7: Calculate market correlations
-        market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug=show_debug)
-        
-        # Step 8: Calculate fundamental analysis (skip for ETFs)
-        is_etf_symbol = is_etf(symbol)
-        
-        if is_etf_symbol:
-            graham_score = {'score': 0, 'total_possible': 10, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
-            piotroski_score = {'score': 0, 'total_possible': 9, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
-        else:
-            graham_score = calculate_graham_score(symbol, show_debug)
-            piotroski_score = calculate_piotroski_score(symbol, show_debug)
-        
-        # Step 9: Calculate options levels
-        volatility = comprehensive_technicals.get('volatility_20d', 20)
-        underlying_beta = 1.0  # Default market beta
-        
-        if market_correlations:
-            for etf in ['SPY', 'QQQ', 'MAGS']:
-                if etf in market_correlations and 'beta' in market_correlations[etf]:
-                    try:
-                        underlying_beta = abs(float(market_correlations[etf]['beta']))
-                        break
-                    except:
-                        continue
-        
-        current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
-        options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
-        
-        # Step 10: Calculate confidence intervals
-        confidence_analysis = calculate_confidence_intervals(analysis_input)
-        
-        # Step 11: Build analysis results
-        current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
-        
-        analysis_results = {
-            'symbol': symbol,
-            'timestamp': current_date,
-            'current_price': current_price,
-            'enhanced_indicators': {
-                'daily_vwap': daily_vwap,
-                'fibonacci_emas': fibonacci_emas,
-                'point_of_control': point_of_control,
-                'weekly_deviations': weekly_deviations,
-                'comprehensive_technicals': comprehensive_technicals,
-                'volume_analysis': volume_analysis,  # NEW v4.2.1
-                'volatility_analysis': volatility_analysis,  # NEW v4.2.1
-                'market_correlations': market_correlations,
-                'options_levels': options_levels,
-                'graham_score': graham_score,
-                'piotroski_score': piotroski_score
-            },
-            'confidence_analysis': confidence_analysis,
-            'system_status': 'OPERATIONAL v4.2.1'
-        }
-        
-        # Store results
-        data_manager.store_analysis_results(symbol, analysis_results)
-        
-        # Get chart data
-        chart_data = data_manager.get_market_data_for_chart(symbol)
-        
-        return analysis_results, chart_data
-        
-    except Exception as e:
-        st.error(f"❌ Analysis failed: {str(e)}")
-        return None, None
-
-def main():
-    """Main application function - CORRECTED v4.2.1 with PROPER DISPLAY ORDER"""
-    # Create header using modular component
-    create_header()
-    
-    # Create sidebar and get controls
-    controls = create_sidebar_controls()
-    
-    # Main logic flow
-    if controls['analyze_button'] and controls['symbol']:
-        # Add symbol to recently viewed
-        add_to_recently_viewed(controls['symbol'])
-        
-        st.write("## 📊 VWV Trading Analysis v4.2.1 Enhanced")
-        
-        with st.spinner(f"Analyzing {controls['symbol']}..."):
-            
-            # Perform analysis using modular components
-            analysis_results, chart_data = perform_enhanced_analysis(
-                controls['symbol'], 
-                controls['period'], 
-                controls['show_debug']
-            )
-            
-            if analysis_results and chart_data is not None:
-                
-                # CORRECTED DISPLAY ORDER - MANDATORY SEQUENCE:
-                
-                # 1. CHARTS FIRST (MANDATORY)
-                show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
-                
-                # 2. INDIVIDUAL TECHNICAL ANALYSIS SECOND (MANDATORY)
-                show_individual_technical_analysis(analysis_results, controls['show_debug'])
-                
-                # 3. Volume Analysis (Optional - when available)
-                if VOLUME_ANALYSIS_AVAILABLE:
-                    show_volume_analysis(analysis_results, controls['show_debug'])
-                
-                # 4. Volatility Analysis (Optional - when available)
-                if VOLATILITY_ANALYSIS_AVAILABLE:
-                    show_volatility_analysis(analysis_results, controls['show_debug'])
-                
-                # 5. Fundamental Analysis
-                show_fundamental_analysis(analysis_results, controls['show_debug'])
-                
-                # 6. BALDWIN INDICATOR (Before Market Correlation)
-                if BALDWIN_INDICATOR_AVAILABLE:
-                    show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
-                
-                # 7. Market Correlation Analysis (After Baldwin)
-                show_market_correlation_analysis(analysis_results, controls['show_debug'])
-                
-                # 8. Options Analysis
-                show_options_analysis(analysis_results, controls['show_debug'])
-                
-                # 9. Confidence Intervals
-                show_confidence_intervals(analysis_results, controls['show_debug'])
-                
-                # Debug information
-                if controls['show_debug']:
-                    with st.expander("🐛 Debug Information", expanded=False):
-                        st.write("### Analysis Results Structure")
-                        st.json(analysis_results, expanded=False)
-                        
-                        st.write("### Data Manager Summary")
-                        data_manager = get_data_manager()
-                        summary = data_manager.get_data_summary()
-                        st.json(summary)
-                        
-                        st.write("### System Status")
-                        st.write(f"**Default Period Confirmed:** {controls['period']} (Should be '1mo')")
-                        st.write(f"**Volume Analysis Available:** {VOLUME_ANALYSIS_AVAILABLE}")
-                        st.write(f"**Volatility Analysis Available:** {VOLATILITY_ANALYSIS_AVAILABLE}")
-                        st.write(f"**Baldwin Indicator Available:** {BALDWIN_INDICATOR_AVAILABLE}")
-    
-    else:
-        # Welcome message
-        st.write("## 🚀 VWV Professional Trading System v4.2.1 - CORRECTED")
-        st.write("**CRITICAL FIXES APPLIED:** Charts First + Technical Second + Baldwin Positioned + 1mo Default")
-        
-        # Baldwin Market Preview (if available)
-        if BALDWIN_INDICATOR_AVAILABLE:
-            with st.expander("🚦 Live Baldwin Market Regime Preview", expanded=True):
-                with st.spinner("Calculating current market regime..."):
-                    baldwin_preview = calculate_baldwin_indicator_complete(show_debug=False)
-                    if baldwin_preview and 'error' not in baldwin_preview:
-                        display_data = format_baldwin_for_display(baldwin_preview)
-                        if 'error' not in display_data:
-                            regime = display_data.get('regime', 'YELLOW')
-                            regime_score = display_data.get('regime_score', 50)
-                            
-                            # Color coding
-                            regime_colors = {'GREEN': '#32CD32', 'YELLOW': '#FFD700', 'RED': '#DC143C'}
-                            regime_color = regime_colors.get(regime, '#FFD700')
-                            
-                            col1, col2, col3 = st.columns(3)
-                            with col1:
-                                st.markdown(f"""
-                                <div style="padding: 1rem; background: linear-gradient(135deg, {regime_color}20, {regime_color}10); 
-                                            border-left: 4px solid {regime_color}; border-radius: 8px;">
-                                    <h3 style="color: {regime_color}; margin: 0;">🚦 Current: {regime}</h3>
-                                    <p style="margin: 0; color: #666;">Score: {regime_score:.1f}/100</p>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            
-                            with col2:
-                                if regime == 'GREEN':
-                                    st.success("🟢 **Risk-On Mode**\nPress longs, buy dips")
-                                elif regime == 'RED':
-                                    st.error("🔴 **Risk-Off Mode**\nHedge aggressively, raise cash")
-                                else:
-                                    st.warning("🟡 **Caution Mode**\nWait for clarity, hedge")
-                            
-                            with col3:
-                                components = display_data.get('components', {})
-                                if components:
-                                    momentum = components.get('momentum', {}).get('score', 50)
-                                    liquidity = components.get('liquidity', {}).get('score', 50)
-                                    sentiment = components.get('sentiment', {}).get('score', 50)
-                                    
-                                    st.write("**Component Scores:**")
-                                    st.write(f"• Momentum: {momentum:.1f}/100")
-                                    st.write(f"• Liquidity: {liquidity:.1f}/100")
-                                    st.write(f"• Sentiment: {sentiment:.1f}/100")
-                        else:
-                            st.warning("⚠️ Baldwin preview temporarily unavailable")
-                    else:
-                        st.warning("⚠️ Baldwin preview calculation failed")
-        
-        with st.expander("✅ CORRECTED Display Order - v4.2.1", expanded=True):
-            st.write("**MANDATORY SEQUENCE IMPLEMENTED:**")
-            st.write("1. **📊 Interactive Charts** - FIRST (Comprehensive trading visualization)")
-            st.write("2. **📊 Individual Technical Analysis** - SECOND (Professional score bar, Fibonacci EMAs)")
-            st.write("3. **📊 Volume Analysis** - Optional when module available")
-            st.write("4. **📊 Volatility Analysis** - Optional when module available")
-            st.write("5. **📊 Fundamental Analysis** - Graham & Piotroski scores")
-            st.write("6. **🚦 Baldwin Market Regime** - Before Market Correlation")
-            st.write("7. **🌐 Market Correlation** - After Baldwin Indicator")
-            st.write("8. **🎯 Options Analysis** - Strike levels with Greeks")
-            st.write("9. **📊 Confidence Intervals** - Statistical projections")
-            
-            st.write("**✅ CRITICAL CORRECTIONS VERIFIED:**")
-            st.write("• **Default Period:** 1 month ('1mo') - ✅ CORRECTED")
-            st.write("• **Charts Priority:** Display FIRST - ✅ CORRECTED")
-            st.write("• **Technical Second:** Individual analysis SECOND - ✅ CORRECTED")
-            st.write("• **Baldwin Position:** Before Market Correlation - ✅ CORRECTED")
-        
-        # Show current market status
-        market_status = get_market_status()
-        st.info(f"**Market Status:** {market_status}")
-        
-        # Quick start guide
-        with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("2. **Default period is 1 month** - optimal for most analysis")
-            st.write("3. **Charts display FIRST** - immediate visual analysis")
-            st.write("4. **Technical analysis SECOND** - professional scoring with Fibonacci EMAs")
-            st.write("5. **Baldwin regime indicator** - market-wide assessment")
-            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
-
-    # Footer
-    st.markdown("---")
-    st.write("### 📊 System Information v4.2.1 CORRECTED")
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.write(f"**Version:** VWV Professional v4.2.1 CORRECTED")
-        st.write(f"**Status:** ✅ All Critical Fixes Applied")
-    with col2:
-        st.write(f"**Display Order:** Charts First + Technical Second ✅")
-        st.write(f"**Default Period:** 1 month ('1mo') ✅")
-    with col3:
-        st.write(f"**Baldwin Integration:** 🚦 Market Regime Analysis ✅")
-        st.write(f"**Enhanced Features:** Volume & Volatility Available")
-
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        st.error(f"❌ Application Error: {str(e)}")
-        st.write("Please refresh the page and try again.")
-        
-        if st.checkbox("Show Error Details"):
-            st.exception(e)
-, '').replace('±', ''))
+                        expected_move = float(expected_move_str.replace('±', ''))
                         expected_move_pct = (expected_move / current_price) * 100 if current_price > 0 else 0
                         st.metric("Expected Move", f"±{expected_move_pct:.1f}%", "1-Week Range")
                     except:
@@ -2001,7 +1666,7 @@ def main():
                             with col1:
                                 st.markdown(f"""
                                 <div style="padding: 1rem; background: linear-gradient(135deg, {regime_color}20, {regime_color}10); 
-                                            border-left: 4px solid {regime_color}; border-radius: 8px;">
+                                             border-left: 4px solid {regime_color}; border-radius: 8px;">
                                     <h3 style="color: {regime_color}; margin: 0;">🚦 Current: {regime}</h3>
                                     <p style="margin: 0; color: #666;">Score: {regime_score:.1f}/100</p>
                                 </div>

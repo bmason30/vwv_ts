@@ -22,7 +22,7 @@ class DataQualityChecker:
         quality_score = 100
         
         # Check for missing 
-        missing_pct = .isnull().sum().sum() / (len() * len(.columns)) * 100
+        missing_pct = data.isnull().sum().sum() / (len(data) * len(data.columns)) * 100
         if missing_pct > 5:
             issues.append(f"High missing : {missing_pct:.1f}%")
             quality_score -= 20
@@ -101,100 +101,3 @@ def is_etf(symbol: str) -> bool:
             
             # More specific checks for ETF identification
             quote_type = info.get('quoteType', '').upper()
-            
-            # Only consider it an ETF if quoteType is specifically "ETF"
-            if quote_type == 'ETF':
-                return True
-                
-            # Check category field but be more specific
-            category = info.get('category', '').upper()
-            if 'ETF' in category and ('EXCHANGE' in category or 'TRADED' in category):
-                return True
-                
-            # Check fund family but only if other indicators suggest ETF
-            fund_family = info.get('fundFamily', '').upper()
-            if fund_family and ('ETF' in fund_family or 'FUND' in fund_family):
-                # Double-check with security type
-                if quote_type in ['ETF', 'MUTUALFUND']:
-                    return True
-                    
-            # Be very specific about name checks to avoid false positives
-            long_name = info.get('longName', '').upper()
-            short_name = info.get('shortName', '').upper()
-            
-            # Only flag as ETF if name explicitly contains ETF-specific terms
-            etf_name_indicators = ['EXCHANGE TRADED FUND', 'ETF']
-            for indicator in etf_name_indicators:
-                if indicator in long_name and quote_type != 'EQUITY':
-                    return True
-                    
-        except Exception as e:
-            # If yfinance lookup fails, use conservative pattern matching
-            logger.debug(f"yfinance lookup failed for {symbol}: {e}")
-        
-        # Default to False (assume it's a stock) if uncertain
-        return False
-        
-    except Exception as e:
-        logger.error(f"ETF detection error for {symbol}: {e}")
-        return False
-
-@safe_calculation_wrapper
-def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug: bool = False) -> Optional[pd.DataFrame]:
-    """Enhanced market data fetching with debug control - SUPPRESS MESSAGES FOR BULK OPERATIONS"""
-    try:
-        if show_debug:
-            st.write(f"📡 Fetching data for {symbol}...")
-
-        ticker = yf.Ticker(symbol)
-        raw_data = ticker.history(period="6mo")
-
-        if raw_data is None or len(raw_data) == 0:
-            if show_debug:
-                st.error(f"❌ No data returned for {symbol}")
-            return None
-
-        if show_debug:
-            st.write(f"📊 Retrieved {len(raw_data)} rows")
-
-        # Check for required columns
-        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        available_columns = list(raw_data.columns)
-
-        if show_debug:
-            st.write(f"📋 Available columns: {available_columns}")
-
-        missing_columns = [col for col in required_columns if col not in available_columns]
-        if missing_columns:
-            if show_debug:
-                st.error(f"❌ Missing columns: {missing_columns}")
-            return None
-
-        # Clean data
-        clean_data = raw_data[required_columns].copy()
-        clean_data = clean_data.dropna()
-
-        if len(clean_data) == 0:
-            if show_debug:
-                st.error(f"❌ No data after cleaning")
-            return None
-
-        # Add typical price
-        clean_data['Typical_Price'] = (clean_data['High'] + clean_data['Low'] + clean_data['Close']) / 3
-
-        # Data quality check
-        quality_check = DataQualityChecker.validate_market_data(clean_data)
-        
-        if not quality_check['is_acceptable'] and show_debug:
-            st.warning(f"⚠️ Data quality issues detected for {symbol}: {quality_check['issues']}")
-
-        # ONLY show success messages when show_debug=True (prevents screener clutter)
-        if show_debug:
-            st.success(f"✅ Data ready: {clean_data.shape} | Quality Score: {quality_check['quality_score']}")
-
-        return clean_data
-
-    except Exception as e:
-        if show_debug:
-            st.error(f"❌ Error fetching {symbol}: {str(e)}")
-        return None

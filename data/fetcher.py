@@ -70,7 +70,6 @@ def is_etf(symbol: str) -> bool:
             'DIS', 'BMY', 'RTX', 'HON', 'QCOM', 'UPS', 'T', 'AIG', 'LOW', 'MDT'
         }
         
-        # If it's a known individual stock, it's definitely not an ETF
         if symbol.upper() in known_stocks:
             return False
         
@@ -85,11 +84,9 @@ def is_etf(symbol: str) -> bool:
             'SPHB', 'SOXL', 'QQI', 'DIVO', 'URNM', 'GDX', 'FETH'
         }
         
-        # Check if symbol is in known ETFs list
         if symbol.upper() in common_etfs:
             return True
         
-        # Check for ETF suffixes
         for suffix in etf_suffixes:
             if symbol.upper().endswith(suffix):
                 return True
@@ -99,5 +96,34 @@ def is_etf(symbol: str) -> bool:
             ticker = yf.Ticker(symbol)
             info = ticker.info
             
-            # More specific checks for ETF identification
             quote_type = info.get('quoteType', '').upper()
+            
+            if quote_type == 'ETF':
+                return True
+                
+            category = info.get('category', '').upper()
+            if 'ETF' in category and ('EXCHANGE' in category or 'TRADED' in category):
+                return True
+                
+            fund_family = info.get('fundFamily', '').upper()
+            if fund_family and ('ETF' in fund_family or 'FUND' in fund_family):
+                if quote_type in ['ETF', 'MUTUALFUND']:
+                    return True
+                    
+            long_name = info.get('longName', '').upper()
+            etf_name_indicators = ['EXCHANGE TRADED FUND', 'ETF']
+            for indicator in etf_name_indicators:
+                if indicator in long_name and quote_type != 'EQUITY':
+                    return True
+                    
+        except Exception as e:
+            # This 'except' block correctly closes the inner 'try'
+            logger.debug(f"yfinance lookup failed for {symbol}: {e}")
+        
+        # Default to False if the API call fails or doesn't confirm it's an ETF
+        return False
+        
+    except Exception as e:
+        # This 'except' block correctly closes the outer 'try'
+        logger.error(f"ETF detection error for {symbol}: {e}")
+        return False

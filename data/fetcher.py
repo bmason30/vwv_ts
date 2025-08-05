@@ -21,10 +21,16 @@ class DataQualityChecker:
         issues = []
         quality_score = 100
         
-        # Check for missing 
+        # Check for missing data
+        if data.empty or len(data.columns) == 0:
+            return {
+                'quality_score': 0, 'issues': ['Data is empty'],
+                'data_points': 0, 'date_range': None, 'is_acceptable': False
+            }
+        
         missing_pct = data.isnull().sum().sum() / (len(data) * len(data.columns)) * 100
         if missing_pct > 5:
-            issues.append(f"High missing : {missing_pct:.1f}%")
+            issues.append(f"High missing data: {missing_pct:.1f}%")
             quality_score -= 20
             
         # Check for price anomalies
@@ -54,76 +60,82 @@ class DataQualityChecker:
             'quality_score': max(0, quality_score),
             'issues': issues,
             'data_points': len(data),
-            'date_range': (data.index[0], data.index[-1]) if len(data) > 0 else None,
+            'date_range': (data.index[0].strftime('%Y-%m-%d'), data.index[-1].strftime('%Y-%m-%d')) if len(data) > 0 else None,
             'is_acceptable': quality_score >= 70
         }
 
 def is_etf(symbol: str) -> bool:
     """Detect if a symbol is an ETF"""
     try:
-        # Known individual stocks that should never be considered ETFs
         known_stocks = {
-            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
-            'JPM', 'JNJ', 'UNH', 'V', 'PG', 'HD', 'MA', 'BAC', 'ABBV', 'PFE',
-            'KO', 'ADBE', 'PEP', 'TMO', 'COST', 'AVGO', 'NKE', 'MRK', 'ABT', 'CRM',
-            'LLY', 'ACN', 'TXN', 'DHR', 'WMT', 'NEE', 'VZ', 'ORCL', 'CMCSA', 'PM',
-            'DIS', 'BMY', 'RTX', 'HON', 'QCOM', 'UPS', 'T', 'AIG', 'LOW', 'MDT'
+            'AAPL', 'MSFT', 'GOOGL', 'GOOG', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX', 'JPM', 'JNJ', 'UNH', 'V', 'PG', 'HD', 'MA', 'BAC', 'ABBV', 'PFE'
         }
-        
         if symbol.upper() in known_stocks:
             return False
         
-        # Common ETF patterns and known ETFs
-        etf_suffixes = ['ETF', 'FUND']
         common_etfs = {
-            'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VEA', 'VWO', 'AGG', 'BND', 'TLT',
-            'GLD', 'SLV', 'USO', 'UNG', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP',
-            'XLY', 'XLU', 'XLRE', 'XLB', 'EFA', 'EEM', 'FXI', 'EWJ', 'EWG', 'EWU',
-            'ARKK', 'ARKQ', 'ARKW', 'ARKG', 'ARKF', 'FNGU', 'FNGD', 'MAGS', 'SOXX',
-            'SMH', 'IBB', 'XBI', 'JETS', 'HACK', 'ESPO', 'ICLN', 'PBW', 'KWEB',
-            'SPHB', 'SOXL', 'QQI', 'DIVO', 'URNM', 'GDX', 'FETH'
+            'SPY', 'QQQ', 'IWM', 'VTI', 'VOO', 'VEA', 'VWO', 'AGG', 'BND', 'TLT', 'GLD', 'SLV', 'USO', 'UNG', 'XLF', 'XLE', 'XLK', 'XLV', 'XLI', 'XLP', 'ARKK'
         }
-        
         if symbol.upper() in common_etfs:
             return True
         
-        for suffix in etf_suffixes:
-            if symbol.upper().endswith(suffix):
-                return True
-        
-        # Try to get security type from yfinance (more reliable but slower)
         try:
             ticker = yf.Ticker(symbol)
             info = ticker.info
-            
             quote_type = info.get('quoteType', '').upper()
-            
             if quote_type == 'ETF':
                 return True
-                
-            category = info.get('category', '').upper()
-            if 'ETF' in category and ('EXCHANGE' in category or 'TRADED' in category):
+            category = info.get('category', '')
+            if category and 'ETF' in category:
                 return True
-                
-            fund_family = info.get('fundFamily', '').upper()
-            if fund_family and ('ETF' in fund_family or 'FUND' in fund_family):
-                if quote_type in ['ETF', 'MUTUALFUND']:
-                    return True
-                    
-            long_name = info.get('longName', '').upper()
-            etf_name_indicators = ['EXCHANGE TRADED FUND', 'ETF']
-            for indicator in etf_name_indicators:
-                if indicator in long_name and quote_type != 'EQUITY':
-                    return True
-                    
         except Exception as e:
-            # This 'except' block correctly closes the inner 'try'
             logger.debug(f"yfinance lookup failed for {symbol}: {e}")
         
-        # Default to False if the API call fails or doesn't confirm it's an ETF
         return False
-        
     except Exception as e:
-        # This 'except' block correctly closes the outer 'try'
         logger.error(f"ETF detection error for {symbol}: {e}")
         return False
+
+@safe_calculation_wrapper
+def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug: bool = False) -> Optional[pd.DataFrame]:
+    """Enhanced market data fetching with debug control"""
+    try:
+        if show_debug:
+            st.write(f"📡 Fetching data for {symbol}...")
+
+        ticker = yf.Ticker(symbol)
+        raw_data = ticker.history(period="6mo")
+
+        if raw_data.empty:
+            if show_debug:
+                st.error(f"❌ No data returned for {symbol}")
+            return None
+
+        required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        if not all(col in raw_data.columns for col in required_columns):
+            if show_debug:
+                st.error(f"❌ Missing required columns for {symbol}")
+            return None
+
+        clean_data = raw_data[required_columns].copy().dropna()
+
+        if clean_data.empty:
+            if show_debug:
+                st.error(f"❌ No data after cleaning for {symbol}")
+            return None
+
+        clean_data['Typical_Price'] = (clean_data['High'] + clean_data['Low'] + clean_data['Close']) / 3
+        
+        quality_check = DataQualityChecker.validate_market_data(clean_data)
+        if not quality_check['is_acceptable'] and show_debug:
+            st.warning(f"⚠️ Data quality issues for {symbol}: {quality_check['issues']}")
+
+        if show_debug:
+            st.success(f"✅ Data ready for {symbol}: {clean_data.shape}")
+
+        return clean_data
+
+    except Exception as e:
+        if show_debug:
+            st.error(f"❌ Error fetching {symbol}: {str(e)}")
+        return None

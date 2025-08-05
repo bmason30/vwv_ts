@@ -288,57 +288,72 @@ def show_interactive_charts(data, analysis_results, show_debug=False):
                     st.error("No data available for charting")
 
 def show_individual_technical_analysis(analysis_results, show_debug=False):
-    """PRIORITY 2: Display individual technical analysis section - MUST BE SECOND"""
-    if not st.session_state.show_technical_analysis:
+    """
+    PRIORITY 2: Display individual technical analysis section - MUST BE SECOND
+    ENHANCED to display all calculated technical metrics and a new score bar.
+    """
+    if not st.session_state.get('show_technical_analysis', True):
         return
         
     with st.expander(f"📊 {analysis_results['symbol']} - Individual Technical Analysis", expanded=True):
         
-        # COMPOSITE TECHNICAL SCORE - Use modular component with PROPER HTML RENDERING
+        # --- 1. COMPOSITE TECHNICAL SCORE BAR (ENHANCED) ---
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
-        st.components.v1.html(score_bar_html, height=110)
+        # Height is adjusted for the new, more detailed component
+        st.components.v1.html(score_bar_html, height=160)
         
+        # Prepare data references
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
         fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
         
-        # Primary metrics row
+        # --- 2. KEY MOMENTUM OSCILLATORS ---
+        st.subheader("Key Momentum Oscillators")
         col1, col2, col3, col4 = st.columns(4)
         with col1:
-            st.metric("Current Price", f"${analysis_results['current_price']}")
+            rsi = comprehensive_technicals.get('rsi_14', 50)
+            st.metric("RSI (14)", f"{rsi:.2f}", "Oversold < 30")
         with col2:
-            price_change_1d = comprehensive_technicals.get('price_change_1d', 0)
-            st.metric("1-Day Change", f"{price_change_1d:+.2f}%")
+            mfi = comprehensive_technicals.get('mfi_14', 50)
+            st.metric("MFI (14)", f"{mfi:.2f}", "Oversold < 20")
         with col3:
-            price_change_5d = comprehensive_technicals.get('price_change_5d', 0)
-            st.metric("5-Day Change", f"{price_change_5d:+.2f}%")
+            stoch = comprehensive_technicals.get('stochastic', {})
+            st.metric("Stochastic %K", f"{stoch.get('k', 50):.2f}", "Oversold < 20")
         with col4:
-            volatility = comprehensive_technicals.get('volatility_20d', 0)
-            st.metric("20D Volatility", f"{volatility:.1f}%")
-        
-        # Technical indicators table
-        st.subheader("📋 Technical Indicators")
+            williams_r = comprehensive_technicals.get('williams_r', -50)
+            st.metric("Williams %R", f"{williams_r:.2f}", "Oversold < -80")
+
+        # --- 3. TREND ANALYSIS ---
+        st.subheader("Trend Analysis")
+        col1, col2 = st.columns(2)
+        with col1:
+            macd_data = comprehensive_technicals.get('macd', {})
+            macd_hist = macd_data.get('histogram', 0)
+            macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
+            st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
+        with col2:
+             # Placeholder for another trend indicator like ADX if you add it later
+             pass
+
+        # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
+        st.subheader("Price-Based Indicators & Key Levels")
         current_price = analysis_results['current_price']
         daily_vwap = enhanced_indicators.get('daily_vwap', 0)
         point_of_control = enhanced_indicators.get('point_of_control', 0)
 
         indicators_data = []
         
-        # Current Price
         indicators_data.append(("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current"))
         
-        # Daily VWAP
         vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A"
         vwap_status = "Above" if current_price > daily_vwap else "Below"
         indicators_data.append(("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", vwap_distance, vwap_status))
         
-        # Point of Control
         poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A"
         poc_status = "Above" if current_price > point_of_control else "Below"
         indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status))
         
-        # Add Fibonacci EMAs
         for ema_name, ema_value in fibonacci_emas.items():
             period = ema_name.split('_')[1]
             distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"

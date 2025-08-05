@@ -21,10 +21,10 @@ class DataQualityChecker:
         issues = []
         quality_score = 100
         
-        # Check for missing data
-        missing_pct = data.isnull().sum().sum() / (len(data) * len(data.columns)) * 100
+        # Check for missing 
+        missing_pct = .isnull().sum().sum() / (len() * len(.columns)) * 100
         if missing_pct > 5:
-            issues.append(f"High missing data: {missing_pct:.1f}%")
+            issues.append(f"High missing : {missing_pct:.1f}%")
             quality_score -= 20
             
         # Check for price anomalies
@@ -147,7 +147,7 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
             st.write(f"📡 Fetching data for {symbol}...")
 
         ticker = yf.Ticker(symbol)
-        raw_data = ticker.history(period=period)
+        raw_data = ticker.history(period=6mo)
 
         if raw_data is None or len(raw_data) == 0:
             if show_debug:

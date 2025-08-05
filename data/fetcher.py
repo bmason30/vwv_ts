@@ -147,7 +147,7 @@ def get_market_data_enhanced(symbol: str = 'SPY', period: str = '1y', show_debug
             st.write(f"📡 Fetching data for {symbol}...")
 
         ticker = yf.Ticker(symbol)
-        raw_data = ticker.history(period=6mo)
+        raw_data = ticker.history(period="6mo")
 
         if raw_data is None or len(raw_data) == 0:
             if show_debug:

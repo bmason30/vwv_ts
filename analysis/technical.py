@@ -250,4 +250,16 @@ def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:
         # Combine all indicators
         enhanced_indicators = {
             'daily_vwap': daily_vwap,
-            'fibonacci_emas':
+            'fibonacci_emas': fibonacci_emas,
+            'point_of_control': point_of_control,
+            'weekly_deviations': weekly_deviations,
+            'comprehensive_technicals': comprehensive_technicals,
+            'volume_analysis': volume_analysis,
+            'volatility_analysis': volatility_analysis
+        } # <-- This closing brace was missing
+        
+        return enhanced_indicators
+        
+    except Exception as e:
+        logger.error(f"Enhanced technical analysis error: {e}")
+        return {'error': f'Enhanced analysis error: {str(e)}'}

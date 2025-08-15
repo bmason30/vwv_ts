@@ -1,9 +1,12 @@
 """
-VWV Trading System - Enhanced Technical Analysis Module v5.0.0
-Major functionality change: Complete composite scoring algorithm implementation
+VWV Trading System - Enhanced Technical Analysis Module v7.0.0
+Major functionality enhancement: Momentum Divergence integrated into composite score
 
-This file replaces the placeholder calculate_composite_technical_score function
-with a comprehensive weighted scoring system.
+ENHANCEMENTS:
+- Momentum Divergence Analysis (catches reversals early)
+- Enhanced composite scoring with divergence factor
+- Improved trend analysis
+- All existing functionality preserved
 """
 
 import pandas as pd
@@ -139,13 +142,115 @@ def calculate_weekly_deviations(data: pd.DataFrame) -> Dict[str, Any]:
     return deviations
 
 @safe_calculation_wrapper
+def calculate_momentum_divergence(data: pd.DataFrame, period: int = 14) -> Dict[str, Any]:
+    """
+    NEW FEATURE v7.0.0: Calculate momentum divergence analysis
+    
+    Detects when price and momentum indicators diverge, often signaling reversals
+    """
+    try:
+        if len(data) < period * 2:
+            return {'divergence_score': 50, 'signals': [], 'strength': 'Neutral'}
+        
+        close = data['Close']
+        
+        # Calculate indicators
+        rsi = safe_rsi(close, period)
+        macd_data = calculate_macd(close)
+        macd = pd.Series([macd_data['histogram']] * len(close), index=close.index)
+        
+        # Look for divergences in last 20 periods
+        lookback = min(20, len(data) - period)
+        if lookback < 10:
+            return {'divergence_score': 50, 'signals': [], 'strength': 'Neutral'}
+        
+        recent_close = close.tail(lookback)
+        recent_rsi = rsi.tail(lookback)
+        recent_macd = macd.tail(lookback)
+        
+        divergence_signals = []
+        divergence_score = 50  # Neutral starting point
+        
+        # Calculate price and indicator trends
+        price_trend = np.polyfit(range(lookback), recent_close.values, 1)[0]
+        rsi_trend = np.polyfit(range(lookback), recent_rsi.values, 1)[0]
+        macd_trend = np.polyfit(range(lookback), recent_macd.values, 1)[0]
+        
+        # Bullish divergence: price declining, momentum rising
+        if price_trend < -0.001 and rsi_trend > 0.1:
+            divergence_signals.append('Bullish RSI Divergence')
+            divergence_score += 20
+            
+        if price_trend < -0.001 and macd_trend > 0:
+            divergence_signals.append('Bullish MACD Divergence')
+            divergence_score += 20
+        
+        # Bearish divergence: price rising, momentum falling
+        if price_trend > 0.001 and rsi_trend < -0.1:
+            divergence_signals.append('Bearish RSI Divergence')
+            divergence_score -= 20
+            
+        if price_trend > 0.001 and macd_trend < 0:
+            divergence_signals.append('Bearish MACD Divergence')
+            divergence_score -= 20
+        
+        # Hidden divergences (trend continuation)
+        if len(recent_close) >= 10:
+            current_price = recent_close.iloc[-1]
+            prev_price = recent_close.iloc[-10]
+            current_rsi = recent_rsi.iloc[-1]
+            prev_rsi = recent_rsi.iloc[-10]
+            
+            # Hidden bullish: higher lows in price, lower lows in RSI
+            if current_price > prev_price and current_rsi < prev_rsi and price_trend > 0:
+                divergence_signals.append('Hidden Bullish Divergence')
+                divergence_score += 10
+            
+            # Hidden bearish: lower highs in price, higher highs in RSI
+            if current_price < prev_price and current_rsi > prev_rsi and price_trend < 0:
+                divergence_signals.append('Hidden Bearish Divergence')
+                divergence_score -= 10
+        
+        # Clamp score
+        divergence_score = max(0, min(100, divergence_score))
+        
+        # Strength classification
+        if divergence_score >= 70:
+            strength = 'Strong Bullish'
+        elif divergence_score >= 60:
+            strength = 'Bullish'
+        elif divergence_score >= 40:
+            strength = 'Neutral'
+        elif divergence_score >= 30:
+            strength = 'Bearish'
+        else:
+            strength = 'Strong Bearish'
+        
+        return {
+            'divergence_score': round(divergence_score, 1),
+            'signals': divergence_signals,
+            'strength': strength,
+            'price_trend': round(price_trend * 1000, 2),
+            'rsi_trend': round(rsi_trend, 2),
+            'macd_trend': round(macd_trend * 1000, 2),
+            'signal_count': len(divergence_signals)
+        }
+        
+    except Exception as e:
+        return {'divergence_score': 50, 'signals': [], 'strength': 'Neutral', 'error': str(e)}
+
+@safe_calculation_wrapper
 def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate a comprehensive set of technical indicators."""
+    """Calculate a comprehensive set of technical indicators including momentum divergence."""
     if len(data) < 50: return {}
     close, volume = data['Close'], data['Volume']
     volume_sma_20 = volume.rolling(20).mean().iloc[-1]
     returns = close.pct_change().dropna()
     volatility_20d = returns.rolling(20).std().iloc[-1] * (252 ** 0.5) * 100 if len(returns) >= 20 else 0
+    
+    # Calculate momentum divergence
+    momentum_divergence = calculate_momentum_divergence(data)
+    
     return {
         'rsi_14': round(float(safe_rsi(close, 14).iloc[-1]), 2),
         'mfi_14': round(float(calculate_mfi(data, 14)), 2),
@@ -154,30 +259,24 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
         'stochastic': calculate_stochastic(data),
         'williams_r': calculate_williams_r(data),
         'volume_ratio': round(float(volume.iloc[-1] / volume_sma_20), 2) if volume_sma_20 > 0 else 1,
-        'volatility_20d': round(float(volatility_20d), 2)
+        'volatility_20d': round(float(volatility_20d), 2),
+        'momentum_divergence': momentum_divergence  # NEW: Add divergence analysis
     }
 
 def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
     """
-    Calculate a comprehensive technical composite score from multiple indicators.
+    Enhanced v7.0.0: Calculate comprehensive technical composite score with momentum divergence
     
-    MAJOR CHANGE v5.0.0: Replaced placeholder with full weighted scoring algorithm
-    
-    Score Range: 0-100
-    - 0-20: Very Bearish
-    - 21-40: Bearish  
-    - 41-60: Neutral
-    - 61-80: Bullish
-    - 81-100: Very Bullish
+    MAJOR ENHANCEMENT: Added momentum divergence as 6th component (10% weight)
     
     Component Weights:
-    - Momentum Indicators: 40% (RSI 12%, MFI 10%, Stochastic 10%, Williams 8%)
+    - Momentum Indicators: 35% (RSI 10%, MFI 9%, Stochastic 8%, Williams 8%)
     - Trend Indicators: 30% (MACD 15%, Bollinger 10%, EMA Trend 5%)
     - Volume Confirmation: 20% (Volume Ratio 20%)
-    - Volatility Assessment: 10% (20-day Volatility 10%)
+    - Volatility Assessment: 5% (20-day Volatility 5%)
+    - Momentum Divergence: 10% (NEW - Early reversal signals)
     
-    Returns:
-        Tuple of (composite_score, component_details)
+    Score Range: 0-100
     """
     try:
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
@@ -189,20 +288,19 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
         total_weight = 0
         weighted_sum = 0
         
-        # === 1. MOMENTUM INDICATORS (40% total weight) ===
+        # === 1. MOMENTUM INDICATORS (35% total weight) ===
         
-        # RSI (14) - 12% weight
+        # RSI (14) - 10% weight (reduced from 12%)
         rsi_14 = comprehensive_technicals.get('rsi_14', 50)
         if rsi_14 is not None:
-            # RSI scoring: optimal around 45-55, penalize extremes
             if rsi_14 < 30:
-                rsi_score = 20 + (rsi_14 / 30) * 30  # 20-50 for oversold recovery
+                rsi_score = 20 + (rsi_14 / 30) * 30
             elif rsi_14 > 70:
-                rsi_score = 100 - ((rsi_14 - 70) / 30) * 30  # 70-100 for overbought
+                rsi_score = 100 - ((rsi_14 - 70) / 30) * 30
             else:
-                rsi_score = 30 + ((rsi_14 - 30) / 40) * 40  # 30-70 linear
+                rsi_score = 30 + ((rsi_14 - 30) / 40) * 40
             
-            rsi_weight = 12.0
+            rsi_weight = 10.0  # Reduced from 12.0
             component_scores['rsi'] = {
                 'value': rsi_14,
                 'score': rsi_score,
@@ -212,10 +310,9 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             weighted_sum += rsi_score * rsi_weight
             total_weight += rsi_weight
         
-        # MFI (14) - 10% weight 
+        # MFI (14) - 9% weight (reduced from 10%)
         mfi_14 = comprehensive_technicals.get('mfi_14', 50)
         if mfi_14 is not None:
-            # MFI scoring: similar to RSI but slightly different thresholds
             if mfi_14 < 20:
                 mfi_score = 15 + (mfi_14 / 20) * 35
             elif mfi_14 > 80:
@@ -223,7 +320,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             else:
                 mfi_score = 25 + ((mfi_14 - 20) / 60) * 50
             
-            mfi_weight = 10.0
+            mfi_weight = 9.0  # Reduced from 10.0
             component_scores['mfi'] = {
                 'value': mfi_14,
                 'score': mfi_score,
@@ -233,19 +330,18 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             weighted_sum += mfi_score * mfi_weight
             total_weight += mfi_weight
         
-        # Stochastic %K - 10% weight
+        # Stochastic %K - 8% weight (reduced from 10%)
         stochastic = comprehensive_technicals.get('stochastic', {})
         stoch_k = stochastic.get('k', 50) if stochastic else 50
         if stoch_k is not None:
-            # Stochastic: penalize extreme overbought more heavily
             if stoch_k < 20:
-                stoch_score = 25 + (stoch_k / 20) * 25  # Oversold can be bullish
+                stoch_score = 25 + (stoch_k / 20) * 25
             elif stoch_k > 80:
-                stoch_score = 80 - ((stoch_k - 80) / 20) * 40  # Heavily penalize extreme overbought
+                stoch_score = 80 - ((stoch_k - 80) / 20) * 40
             else:
                 stoch_score = 40 + ((stoch_k - 20) / 60) * 35
             
-            stoch_weight = 10.0
+            stoch_weight = 8.0  # Reduced from 10.0
             component_scores['stochastic'] = {
                 'value': stoch_k,
                 'score': stoch_score,
@@ -255,11 +351,10 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             weighted_sum += stoch_score * stoch_weight
             total_weight += stoch_weight
         
-        # Williams %R - 8% weight
+        # Williams %R - 8% weight (unchanged)
         williams_r = comprehensive_technicals.get('williams_r', -50)
         if williams_r is not None:
-            # Convert Williams %R (-100 to 0) to 0-100 scale
-            williams_normalized = (williams_r + 100)  # Now 0-100
+            williams_normalized = (williams_r + 100)
             
             if williams_normalized < 20:
                 williams_score = 20 + (williams_normalized / 20) * 30
@@ -284,10 +379,8 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
         macd_data = comprehensive_technicals.get('macd', {})
         macd_hist = macd_data.get('histogram', 0) if macd_data else 0
         if macd_hist is not None:
-            # MACD Histogram: positive = bullish, negative = bearish
-            # Normalize around typical MACD values
-            macd_normalized = max(-1, min(1, macd_hist * 100))  # Scale and clamp
-            macd_score = 50 + (macd_normalized * 40)  # -1 to 1 becomes 10 to 90
+            macd_normalized = max(-1, min(1, macd_hist * 100))
+            macd_score = 50 + (macd_normalized * 40)
             
             macd_weight = 15.0
             component_scores['macd'] = {
@@ -303,13 +396,12 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
         bb_data = comprehensive_technicals.get('bollinger_bands', {})
         bb_position = bb_data.get('position', 50) if bb_data else 50
         if bb_position is not None:
-            # BB Position: 0-100, but extreme positions can be reversal signals
             if bb_position < 10:
-                bb_score = 35 + (bb_position / 10) * 15  # Oversold bounce potential
+                bb_score = 35 + (bb_position / 10) * 15
             elif bb_position > 90:
-                bb_score = 75 - ((bb_position - 90) / 10) * 25  # Overbought risk
+                bb_score = 75 - ((bb_position - 90) / 10) * 25
             else:
-                bb_score = 25 + (bb_position / 100) * 50  # Linear for middle range
+                bb_score = 25 + (bb_position / 100) * 50
             
             bb_weight = 10.0
             component_scores['bollinger'] = {
@@ -328,14 +420,13 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             ema_55 = fibonacci_emas.get('ema_55', current_price)
             ema_89 = fibonacci_emas.get('ema_89', current_price)
             
-            # Count how many EMAs price is above
             emas_above = sum([
                 current_price > ema_21,
                 current_price > ema_55, 
                 current_price > ema_89
             ])
             
-            ema_score = 20 + (emas_above / 3) * 60  # 0-3 EMAs above = 20-80 score
+            ema_score = 20 + (emas_above / 3) * 60
             ema_weight = 5.0
             
             component_scores['ema_trend'] = {
@@ -349,10 +440,8 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
         
         # === 3. VOLUME CONFIRMATION (20% total weight) ===
         
-        # Volume Ratio - 20% weight
         volume_ratio = comprehensive_technicals.get('volume_ratio', 1.0)
         if volume_ratio is not None:
-            # Volume ratio scoring: >1.5 very bullish, <0.7 bearish
             if volume_ratio >= 2.0:
                 vol_score = 90
             elif volume_ratio >= 1.5:
@@ -374,24 +463,22 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             weighted_sum += vol_score * vol_weight
             total_weight += vol_weight
         
-        # === 4. VOLATILITY ASSESSMENT (10% total weight) ===
+        # === 4. VOLATILITY ASSESSMENT (5% total weight, reduced from 10%) ===
         
-        # 20-day Volatility - 10% weight
         volatility_20d = comprehensive_technicals.get('volatility_20d', 20)
         if volatility_20d is not None and volatility_20d > 0:
-            # Volatility scoring: moderate vol (15-25%) optimal, extreme vol penalized
             if volatility_20d < 10:
-                vol_score = 40  # Very low vol - stagnant
+                vol_score = 40
             elif volatility_20d < 15:
                 vol_score = 60 + ((15 - volatility_20d) / 5) * 10
             elif volatility_20d <= 25:
-                vol_score = 75  # Optimal range
+                vol_score = 75
             elif volatility_20d <= 40:
                 vol_score = 75 - ((volatility_20d - 25) / 15) * 25
             else:
-                vol_score = 30  # Extreme volatility
+                vol_score = 30
             
-            vol_weight = 10.0
+            vol_weight = 5.0  # Reduced from 10.0
             component_scores['volatility'] = {
                 'value': volatility_20d,
                 'score': vol_score,
@@ -401,13 +488,29 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             weighted_sum += vol_score * vol_weight
             total_weight += vol_weight
         
+        # === 5. MOMENTUM DIVERGENCE (10% total weight - NEW) ===
+        
+        divergence_data = comprehensive_technicals.get('momentum_divergence', {})
+        divergence_score_raw = divergence_data.get('divergence_score', 50)
+        if divergence_score_raw is not None:
+            divergence_weight = 10.0
+            component_scores['momentum_divergence'] = {
+                'value': divergence_data.get('signal_count', 0),
+                'score': divergence_score_raw,
+                'weight': divergence_weight,
+                'description': f"Divergence({divergence_data.get('strength', 'Neutral')})",
+                'signals': divergence_data.get('signals', [])
+            }
+            weighted_sum += divergence_score_raw * divergence_weight
+            total_weight += divergence_weight
+        
         # === FINAL CALCULATION ===
         
         if total_weight > 0:
             composite_score = weighted_sum / total_weight
-            composite_score = max(0, min(100, composite_score))  # Clamp to 0-100
+            composite_score = max(0, min(100, composite_score))
         else:
-            composite_score = 50.0  # Default if no data
+            composite_score = 50.0
         
         # Create detailed breakdown
         score_details = {
@@ -416,13 +519,13 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tup
             'components': component_scores,
             'interpretation': get_score_interpretation(composite_score),
             'signal_strength': get_signal_strength(composite_score),
-            'component_count': len(component_scores)
+            'component_count': len(component_scores),
+            'divergence_signals': divergence_data.get('signals', [])  # Include divergence signals
         }
         
         return round(composite_score, 1), score_details
         
     except Exception as e:
-        # Fallback on error
         return 50.0, {'error': f'Calculation failed: {str(e)}'}
 
 def get_score_interpretation(score: float) -> str:
@@ -455,7 +558,7 @@ def get_signal_strength(score: float) -> str:
 
 @safe_calculation_wrapper
 def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate all technical, volume, and volatility analyses."""
+    """Calculate all technical, volume, and volatility analyses including momentum divergence."""
     if len(data) < 50: return {'error': 'Insufficient data'}
     enhanced_indicators = {
         'daily_vwap': calculate_daily_vwap(data),
@@ -464,6 +567,7 @@ def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:
         'weekly_deviations': calculate_weekly_deviations(data),
         'comprehensive_technicals': calculate_comprehensive_technicals(data),
     }
+    
     # Safe imports for optional modules
     try:
         from .volume import calculate_complete_volume_analysis
@@ -480,13 +584,32 @@ def calculate_enhanced_technical_analysis(data: pd.DataFrame) -> Dict[str, Any]:
     return enhanced_indicators
 
 def generate_technical_signals(analysis_results: Dict[str, Any]) -> str:
-    """Generates a discrete trading signal based on the composite score and other indicators."""
+    """Enhanced signal generation including divergence analysis."""
     if not analysis_results or 'enhanced_indicators' not in analysis_results: return 'HOLD'
-    score, _ = calculate_composite_technical_score(analysis_results)
+    
+    score, score_details = calculate_composite_technical_score(analysis_results)
     technicals = analysis_results.get('enhanced_indicators', {}).get('comprehensive_technicals', {})
     macd_hist = technicals.get('macd', {}).get('histogram', 0)
-    if score >= 80 and macd_hist > 0: return "STRONG_BUY"
-    elif score >= 60 and macd_hist > 0: return "BUY"
-    elif score <= 20 and macd_hist < 0: return "STRONG_SELL"
-    elif score <= 40 and macd_hist < 0: return "SELL"
-    else: return "HOLD"
+    
+    # Check for divergence signals
+    divergence_data = technicals.get('momentum_divergence', {})
+    divergence_signals = divergence_data.get('signals', [])
+    
+    # Enhanced signal logic with divergence consideration
+    has_bullish_divergence = any('Bullish' in signal for signal in divergence_signals)
+    has_bearish_divergence = any('Bearish' in signal for signal in divergence_signals)
+    
+    if score >= 80 and macd_hist > 0:
+        return "STRONG_BUY"
+    elif score >= 65 and (macd_hist > 0 or has_bullish_divergence):
+        return "BUY"
+    elif score <= 20 and macd_hist < 0:
+        return "STRONG_SELL"
+    elif score <= 35 and (macd_hist < 0 or has_bearish_divergence):
+        return "SELL"
+    elif has_bullish_divergence and score > 40:
+        return "BUY"  # Divergence override
+    elif has_bearish_divergence and score < 60:
+        return "SELL"  # Divergence override
+    else:
+        return "HOLD"

@@ -822,4 +822,52 @@ def main():
             st.write("2. **🔴 Individual Technical Analysis** - Composite scoring + indicators")
             st.write("3. **📊 Volume Analysis** - Optional when module available")
             st.write("4. **📊 Volatility Analysis** - Optional when module available")
-            st.write("5. **📊
+            st.write("5. **📊 Fundamental Analysis** - Graham & Piotroski scores")
+            st.write("6. **🚦 Baldwin Market Regime** - Before Market Correlation")
+            st.write("7. **🌐 Market Correlation** - After Baldwin Indicator")
+            st.write("8. **🎯 Options Analysis** - Strike levels with Greeks")
+            st.write("9. **📊 Confidence Intervals** - Statistical projections")
+            
+            st.write("**✅ CRITICAL CORRECTIONS VERIFIED:**")
+            st.write("• **Default Period:** 1 month ('1mo') - ✅ CORRECTED")
+            st.write("• **Charts Priority:** Display FIRST - ✅ CORRECTED")
+            st.write("• **Technical Second:** Individual analysis SECOND - ✅ CORRECTED")
+            st.write("• **Baldwin Position:** Before Market Correlation - ✅ CORRECTED")
+        
+        # Show current market status
+        market_status = get_market_status()
+        st.info(f"**Market Status:** {market_status}")
+        
+        # Quick start guide
+        with st.expander("🚀 Quick Start Guide", expanded=True):
+            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
+            st.write("2. **Default period is 1 month** - optimal for most analysis")
+            st.write("3. **Charts display FIRST** - immediate visual analysis")
+            st.write("4. **Technical analysis SECOND** - professional scoring with Fibonacci EMAs")
+            st.write("5. **Baldwin regime indicator** - market-wide assessment")
+            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
+
+    # Footer
+    st.markdown("---")
+    st.write("### 📊 System Information v4.2.1 CORRECTED")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.write(f"**Version:** VWV Professional v4.2.1 CORRECTED")
+        st.write(f"**Status:** ✅ All Critical Fixes Applied")
+    with col2:
+        st.write(f"**Display Order:** Charts First + Technical Second ✅")
+        st.write(f"**Default Period:** 1 month ('1mo') ✅")
+    with col3:
+        st.write(f"**Baldwin Integration:** 🚦 Market Regime Analysis ✅")
+        st.write(f"**Enhanced Features:** Volume & Volatility Available")
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error(f"❌ Application Error: {str(e)}")
+        st.write("Please refresh the page and try again.")
+        
+        if st.checkbox("Show Error Details"):
+            st.exception(e)

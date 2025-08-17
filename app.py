@@ -1,8 +1,8 @@
 """
 VWV Professional Trading System v4.2.1 - Complete Application
-Date: August 17, 2025 - 1:00 AM EST  
-Enhancement: Charts First + Technical Second + Baldwin Integration + Function Signature Fix
-Status: SURGICAL FIX - Confidence Intervals Function Call Corrected
+Date: August 17, 2025 - 1:15 AM EST  
+Enhancement: Charts First + Technical Second + Baldwin Integration + All Function Signatures Fixed
+Status: COMPLETE FIX - Breakout Analysis + Sidebar Layout Corrected
 """
 
 import streamlit as st
@@ -64,7 +64,7 @@ st.set_page_config(
 )
 
 def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters"""
+    """Create sidebar controls and return analysis parameters - FIXED LAYOUT"""
     st.sidebar.title("📊 Trading Analysis")
     
     # Initialize session state
@@ -86,10 +86,10 @@ def create_sidebar_controls():
     # Quick Links section FIRST
     st.sidebar.markdown("### 🚀 Quick Links")
     
-    # Organize quick links by category
+    # Organize quick links by category with proper expanders
     for category, symbols in QUICK_LINK_CATEGORIES.items():
         with st.sidebar.expander(f"📊 {category}", expanded=(category == "Major Indices")):
-            cols = st.columns(2)
+            cols = st.sidebar.columns(2)
             for i, symbol in enumerate(symbols):
                 col = cols[i % 2]
                 with col:
@@ -101,16 +101,17 @@ def create_sidebar_controls():
     # Recently viewed symbols
     if st.session_state.recently_viewed:
         st.sidebar.markdown("### 🕒 Recently Viewed")
-        recent_cols = st.columns(2)
-        for i, symbol in enumerate(st.session_state.recently_viewed[-6:]):
-            col = recent_cols[i % 2]
-            with col:
-                if st.button(symbol, key=f"recent_{symbol}_{i}", use_container_width=True):
-                    st.session_state.symbol_input = symbol
-                    st.session_state.analyze_clicked = True
-                    st.rerun()
+        with st.sidebar.expander("Recent Symbols", expanded=False):
+            recent_cols = st.sidebar.columns(2)
+            for i, symbol in enumerate(st.session_state.recently_viewed[-6:]):
+                col = recent_cols[i % 2]
+                with col:
+                    if st.button(symbol, key=f"recent_{symbol}_{i}", use_container_width=True):
+                        st.session_state.symbol_input = symbol
+                        st.session_state.analyze_clicked = True
+                        st.rerun()
 
-    # Symbol input
+    # Symbol input section
     st.sidebar.markdown("### 🎯 Symbol Analysis")
     
     # Get symbol from session state if available
@@ -136,17 +137,16 @@ def create_sidebar_controls():
         st.session_state.analyze_clicked = False
         symbol = st.session_state.symbol_input
 
-    # Section toggles
-    st.sidebar.markdown("### 📊 Display Sections")
-    
-    show_vwv_analysis = st.sidebar.checkbox("VWV System Analysis", value=st.session_state.show_vwv_analysis, key="vwv_check")
-    show_fundamental = st.sidebar.checkbox("Fundamental Analysis", value=st.session_state.show_fundamental_analysis, key="fundamental_check")
-    show_market_correlation = st.sidebar.checkbox("Market Correlation", value=st.session_state.show_market_correlation, key="correlation_check")
-    show_options = st.sidebar.checkbox("Options Analysis", value=st.session_state.show_options_analysis, key="options_check")
-    show_confidence_intervals = st.sidebar.checkbox("Confidence Intervals", value=st.session_state.show_confidence_intervals, key="confidence_check")
-    
-    # Debug mode
-    show_debug = st.sidebar.checkbox("Debug Mode", value=st.session_state.show_debug, key="debug_check")
+    # Section toggles in expandable section
+    with st.sidebar.expander("📊 Display Sections", expanded=True):
+        show_vwv_analysis = st.checkbox("VWV System Analysis", value=st.session_state.show_vwv_analysis, key="vwv_check")
+        show_fundamental = st.checkbox("Fundamental Analysis", value=st.session_state.show_fundamental_analysis, key="fundamental_check")
+        show_market_correlation = st.checkbox("Market Correlation", value=st.session_state.show_market_correlation, key="correlation_check")
+        show_options = st.checkbox("Options Analysis", value=st.session_state.show_options_analysis, key="options_check")
+        show_confidence_intervals = st.checkbox("Confidence Intervals", value=st.session_state.show_confidence_intervals, key="confidence_check")
+        
+        # Debug mode
+        show_debug = st.checkbox("Debug Mode", value=st.session_state.show_debug, key="debug_check")
     
     # Update session state
     st.session_state.show_vwv_analysis = show_vwv_analysis
@@ -451,10 +451,10 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         weekly_deviation = calculate_weekly_deviations(analysis_input, show_debug)
         
         # Step 6: Calculate market correlations
-        market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug)
+        market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, period, show_debug)
         
-        # Step 7: Calculate breakout analysis  
-        breakout_analysis = calculate_breakout_breakdown_analysis(analysis_input, symbol, show_debug)
+        # Step 7: Calculate breakout analysis - FIXED: Only show_debug parameter
+        breakout_analysis = calculate_breakout_breakdown_analysis(show_debug)
         
         # Step 8: Calculate fundamental analysis (skip for ETFs)
         is_etf_symbol = is_etf(symbol)

@@ -1,8 +1,8 @@
 """
 VWV Professional Trading System v4.2.1 - Complete Application
-Date: August 17, 2025 - 1:15 AM EST  
-Enhancement: Charts First + Technical Second + Baldwin Integration + All Function Signatures Fixed
-Status: COMPLETE FIX - Breakout Analysis + Sidebar Layout Corrected
+Date: August 17, 2025 - 1:20 AM EST  
+Enhancement: Charts First + Technical Second + All Function Signatures Fixed + Sidebar Layout Fixed
+Status: COMPLETE RESOLUTION - All Function Signatures + Sidebar + NoneType Fixed
 """
 
 import streamlit as st
@@ -64,7 +64,7 @@ st.set_page_config(
 )
 
 def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters - FIXED LAYOUT"""
+    """Create sidebar controls and return analysis parameters - FIXED LAYOUT & STRUCTURE"""
     st.sidebar.title("📊 Trading Analysis")
     
     # Initialize session state
@@ -82,34 +82,6 @@ def create_sidebar_controls():
         st.session_state.show_confidence_intervals = True
     if 'show_debug' not in st.session_state:
         st.session_state.show_debug = False
-
-    # Quick Links section FIRST
-    st.sidebar.markdown("### 🚀 Quick Links")
-    
-    # Organize quick links by category with proper expanders
-    for category, symbols in QUICK_LINK_CATEGORIES.items():
-        with st.sidebar.expander(f"📊 {category}", expanded=(category == "Major Indices")):
-            cols = st.sidebar.columns(2)
-            for i, symbol in enumerate(symbols):
-                col = cols[i % 2]
-                with col:
-                    if st.button(symbol, key=f"quick_{symbol}_{category}", use_container_width=True):
-                        st.session_state.symbol_input = symbol
-                        st.session_state.analyze_clicked = True
-                        st.rerun()
-
-    # Recently viewed symbols
-    if st.session_state.recently_viewed:
-        st.sidebar.markdown("### 🕒 Recently Viewed")
-        with st.sidebar.expander("Recent Symbols", expanded=False):
-            recent_cols = st.sidebar.columns(2)
-            for i, symbol in enumerate(st.session_state.recently_viewed[-6:]):
-                col = recent_cols[i % 2]
-                with col:
-                    if st.button(symbol, key=f"recent_{symbol}_{i}", use_container_width=True):
-                        st.session_state.symbol_input = symbol
-                        st.session_state.analyze_clicked = True
-                        st.rerun()
 
     # Symbol input section
     st.sidebar.markdown("### 🎯 Symbol Analysis")
@@ -136,6 +108,35 @@ def create_sidebar_controls():
         analyze_button = True
         st.session_state.analyze_clicked = False
         symbol = st.session_state.symbol_input
+
+    # Quick Links section - FIXED STRUCTURE
+    st.sidebar.markdown("### 🚀 Quick Links")
+    
+    # Organize quick links by category - categories already have emojis
+    for category, symbols in QUICK_LINK_CATEGORIES.items():
+        # Use category name as-is since it already has emoji
+        with st.sidebar.expander(category, expanded=(category == "📈 Index ETFs")):
+            cols = st.sidebar.columns(2)
+            for i, symbol_quick in enumerate(symbols):
+                col = cols[i % 2]
+                with col:
+                    if st.button(symbol_quick, key=f"quick_{symbol_quick}_{category.replace(' ', '_')}", use_container_width=True):
+                        st.session_state.symbol_input = symbol_quick
+                        st.session_state.analyze_clicked = True
+                        st.rerun()
+
+    # Recently viewed symbols
+    if st.session_state.recently_viewed:
+        st.sidebar.markdown("### 🕒 Recently Viewed")
+        with st.sidebar.expander("Recent Symbols", expanded=False):
+            recent_cols = st.sidebar.columns(2)
+            for i, symbol_recent in enumerate(st.session_state.recently_viewed[-6:]):
+                col = recent_cols[i % 2]
+                with col:
+                    if st.button(symbol_recent, key=f"recent_{symbol_recent}_{i}", use_container_width=True):
+                        st.session_state.symbol_input = symbol_recent
+                        st.session_state.analyze_clicked = True
+                        st.rerun()
 
     # Section toggles in expandable section
     with st.sidebar.expander("📊 Display Sections", expanded=True):
@@ -229,19 +230,20 @@ def show_combined_vwv_technical_analysis(analysis_results, vwv_results, show_deb
                 tech_col1, tech_col2, tech_col3, tech_col4 = st.columns(4)
                 
                 with tech_col1:
-                    if 'daily_vwap' in enhanced_indicators:
-                        vwap = enhanced_indicators['daily_vwap']
-                        st.metric("Daily VWAP", f"${vwap:.2f}")
+                    daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+                    if daily_vwap:
+                        st.metric("Daily VWAP", f"${daily_vwap:.2f}")
                 
                 with tech_col2:
-                    if 'point_of_control' in enhanced_indicators:
-                        poc = enhanced_indicators['point_of_control']
-                        st.metric("Point of Control", f"${poc:.2f}")
+                    point_of_control = enhanced_indicators.get('point_of_control', 0)
+                    if point_of_control:
+                        st.metric("Point of Control", f"${point_of_control:.2f}")
                 
                 with tech_col3:
-                    if 'weekly_deviation' in enhanced_indicators:
-                        weekly_dev = enhanced_indicators['weekly_deviation']
-                        st.metric("Weekly Deviation", f"{weekly_dev:.2f}%")
+                    weekly_deviation = enhanced_indicators.get('weekly_deviation', {})
+                    if isinstance(weekly_deviation, dict) and 'std_price' in weekly_deviation:
+                        std_price = weekly_deviation.get('std_price', 0)
+                        st.metric("Weekly Std Dev", f"{std_price:.2f}%")
                 
                 with tech_col4:
                     current_price = analysis_results.get('current_price', 0)
@@ -326,29 +328,24 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
         if breakout_analysis:
             st.markdown("#### 🚀 Breakout/Breakdown Analysis")
             
-            breakout_col1, breakout_col2 = st.columns(2)
-            
-            with breakout_col1:
-                breakout_score = breakout_analysis.get('breakout_score', 0)
-                st.metric("Breakout Score", f"{breakout_score:.1f}/100")
+            # Check if OVERALL data exists in breakout_analysis
+            overall_data = breakout_analysis.get('OVERALL', {})
+            if overall_data:
+                breakout_col1, breakout_col2 = st.columns(2)
                 
-                if breakout_score >= 70:
-                    st.success("Strong breakout potential")
-                elif breakout_score >= 40:
-                    st.warning("Moderate breakout potential")
-                else:
-                    st.error("Low breakout potential")
-            
-            with breakout_col2:
-                breakdown_score = breakout_analysis.get('breakdown_score', 0)
-                st.metric("Breakdown Score", f"{breakdown_score:.1f}/100")
+                with breakout_col1:
+                    breakout_ratio = overall_data.get('breakout_ratio', 0)
+                    st.metric("Market Breakouts", f"{breakout_ratio:.1f}%")
                 
-                if breakdown_score >= 70:
-                    st.error("High breakdown risk")
-                elif breakdown_score >= 40:
-                    st.warning("Moderate breakdown risk")
-                else:
-                    st.success("Low breakdown risk")
+                with breakout_col2:
+                    breakdown_ratio = overall_data.get('breakdown_ratio', 0)
+                    st.metric("Market Breakdowns", f"{breakdown_ratio:.1f}%")
+                
+                # Market regime
+                market_regime = overall_data.get('market_regime', 'Unknown')
+                st.info(f"**Market Regime**: {market_regime}")
+            else:
+                st.warning("Breakout analysis data not available")
 
 def show_options_analysis(analysis_results, show_debug=False):
     """Display options analysis section"""
@@ -424,14 +421,14 @@ def show_confidence_intervals(analysis_results, show_debug=False):
             st.dataframe(df_intervals, use_container_width=True, hide_index=True)
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
-    """Perform enhanced analysis using modular components - ENHANCED v4.2.1"""
+    """Perform enhanced analysis using modular components - ENHANCED v4.2.1 - ALL FUNCTION SIGNATURES FIXED"""
     try:
         # Step 1: Fetch data using modular data fetcher
         market_data = get_market_data_enhanced(symbol, period, show_debug)
         
         if market_data is None:
             st.error(f"❌ Could not fetch data for {symbol}")
-            return None, None
+            return None, None, None
         
         # Step 2: Store data using data manager
         data_manager = get_data_manager()
@@ -443,12 +440,12 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Step 4: Calculate VWV system indicators
         vwv_results = calculate_vwv_system_complete(analysis_input, show_debug)
         
-        # Step 5: Calculate enhanced technical indicators  
+        # Step 5: Calculate enhanced technical indicators - FIXED: Only pass data parameter
         daily_vwap = calculate_daily_vwap(analysis_input)
         fibonacci_emas = calculate_fibonacci_emas(analysis_input)
         point_of_control = calculate_point_of_control_enhanced(analysis_input)
-        comprehensive_technicals = calculate_comprehensive_technicals(analysis_input, symbol, show_debug)
-        weekly_deviation = calculate_weekly_deviations(analysis_input, show_debug)
+        comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)  # FIXED: Only 1 argument
+        weekly_deviation = calculate_weekly_deviations(analysis_input)  # FIXED: Only 1 argument
         
         # Step 6: Calculate market correlations
         market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, period, show_debug)
@@ -467,12 +464,15 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
         
         # Step 9: Calculate options levels
-        volatility = comprehensive_technicals.get('volatility_20d', 20)
+        volatility = 20  # Default fallback
+        if comprehensive_technicals and 'volatility_20d' in comprehensive_technicals:
+            volatility = comprehensive_technicals.get('volatility_20d', 20)
+        
         underlying_beta = 1.0  # Default market beta
         
         if market_correlations:
             for etf in ['SPY', 'QQQ', 'MAGS']:
-                if etf in market_correlations and 'beta' in market_correlations[etf]:
+                if etf in market_correlations and isinstance(market_correlations[etf], dict) and 'beta' in market_correlations[etf]:
                     try:
                         underlying_beta = abs(float(market_correlations[etf]['beta']))
                         break
@@ -485,7 +485,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Step 10: Calculate confidence intervals - FIXED: Only 1 argument
         confidence_analysis = calculate_confidence_intervals(analysis_input)
         
-        # Step 11: Build analysis results
+        # Step 11: Build analysis results - SAFE HANDLING OF NONE VALUES
         current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
         
         analysis_results = {
@@ -493,17 +493,17 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             'timestamp': current_date,
             'current_price': current_price,
             'enhanced_indicators': {
-                'daily_vwap': daily_vwap,
-                'fibonacci_emas': fibonacci_emas,
-                'point_of_control': point_of_control,
-                'weekly_deviation': weekly_deviation
+                'daily_vwap': daily_vwap if daily_vwap else 0,
+                'fibonacci_emas': fibonacci_emas if fibonacci_emas else {},
+                'point_of_control': point_of_control if point_of_control else 0,
+                'weekly_deviation': weekly_deviation if weekly_deviation else {}
             },
-            'comprehensive_technicals': comprehensive_technicals,
-            'market_correlations': market_correlations,
-            'breakout_analysis': breakout_analysis,
+            'comprehensive_technicals': comprehensive_technicals if comprehensive_technicals else {},
+            'market_correlations': market_correlations if market_correlations else {},
+            'breakout_analysis': breakout_analysis if breakout_analysis else {},
             'graham_score': graham_score,
             'piotroski_score': piotroski_score,
-            'options_data': options_levels,
+            'options_data': options_levels if options_levels else [],
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL'
         }

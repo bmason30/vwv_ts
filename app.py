@@ -1,8 +1,8 @@
 """
 VWV Professional Trading System v4.2.1 - Complete Application
-Date: August 17, 2025 - 1:25 AM EST  
-Enhancement: Charts First + Technical Second + All Modules Restored + Fixed Quick Links Expanders
-Status: COMPLETE RESTORATION - Volume + Volatility + Baldwin + Function Signatures + Sidebar Fixed
+Date: August 17, 2025 - Current EST Time
+Enhancement: Charts First + Technical Second + All Modules + Fixed Composite Scores + Gradient Bars + Quick Links Structure + Debug Toggle
+Status: COMPLETE FIX - Composite Scoring + Gradient Bars + Quick Links Expander + Debug Toggle Restored
 """
 
 import streamlit as st
@@ -42,7 +42,8 @@ from analysis.options_advanced import (
 )
 from analysis.vwv_core import (
     calculate_vwv_system_complete,
-    get_vwv_signal_interpretation
+    get_vwv_signal_interpretation,
+    calculate_vwv_composite_score
 )
 
 # Volume Analysis imports with safe fallback
@@ -95,7 +96,7 @@ st.set_page_config(
 )
 
 def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters - COMPLETE WITH ALL MODULES"""
+    """Create sidebar controls and return analysis parameters - COMPLETE WITH ALL MODULES + DEBUG TOGGLE"""
     st.sidebar.title("📊 Trading Analysis")
     
     # Initialize session state for ALL modules
@@ -146,22 +147,22 @@ def create_sidebar_controls():
         st.session_state.analyze_clicked = False
         symbol = st.session_state.symbol_input
 
-    # Quick Links section - FIXED EXPANDER STRUCTURE
-    st.sidebar.markdown("### 🚀 Quick Links")
-    
-    # Create proper expanders for each category
-    for category, symbols in QUICK_LINK_CATEGORIES.items():
-        # Use category name as-is since it already has emoji
-        with st.sidebar.expander(category, expanded=(category == "📈 Index ETFs")):
-            # Create button grid within each expander
-            cols = st.columns(2)
-            for i, symbol_quick in enumerate(symbols):
-                col = cols[i % 2]
-                with col:
-                    if st.button(symbol_quick, key=f"quick_{symbol_quick}_{category.replace(' ', '_').replace(':', '').replace('📈', '').replace('🌍', '').replace('🥇', '').replace('💰', '').replace('🚀', '').replace('💾', '').replace('🌐', '').replace('🏢', '').replace('⚡', '').replace('🪙', '').replace('📺', '')}", use_container_width=True):
-                        st.session_state.symbol_input = symbol_quick
-                        st.session_state.analyze_clicked = True
-                        st.rerun()
+    # Quick Links section - FIXED: OVERALL EXPANDER CONTAINING CATEGORIES
+    with st.sidebar.expander("🔗 Quick Links", expanded=False):
+        st.write("**Popular Symbols by Category**")
+        
+        for category, symbols in QUICK_LINK_CATEGORIES.items():
+            with st.expander(f"{category} ({len(symbols)} symbols)", expanded=False):
+                for i in range(0, len(symbols), 3):
+                    cols = st.columns(3)
+                    for j, col in enumerate(cols):
+                        if i + j < len(symbols):
+                            sym = symbols[i + j]
+                            with col:
+                                if st.button(sym, help=SYMBOL_DESCRIPTIONS.get(sym, f"{sym} - Financial Symbol"), key=f"quick_link_{sym}", use_container_width=True):
+                                    st.session_state.symbol_input = sym
+                                    st.session_state.analyze_clicked = True
+                                    st.rerun()
 
     # Recently viewed symbols
     if st.session_state.recently_viewed:
@@ -203,9 +204,9 @@ def create_sidebar_controls():
         show_market_correlation = st.checkbox("🌐 Market Correlation", value=st.session_state.show_market_correlation, key="correlation_check")
         show_options = st.checkbox("🎯 Options Analysis", value=st.session_state.show_options_analysis, key="options_check")
         show_confidence_intervals = st.checkbox("📊 Confidence Intervals", value=st.session_state.show_confidence_intervals, key="confidence_check")
-        
-        # Debug mode
-        show_debug = st.checkbox("🔧 Debug Mode", value=st.session_state.show_debug, key="debug_check")
+
+    # Debug toggle - RESTORED
+    show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=st.session_state.show_debug, key="debug_check")
     
     # Update session state
     st.session_state.show_vwv_analysis = show_vwv_analysis
@@ -254,7 +255,7 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
         st.warning("⚠️ Chart data not available")
 
 def show_combined_vwv_technical_analysis(analysis_results, vwv_results, show_debug=False):
-    """Display VWV system and technical analysis - SECOND PRIORITY"""
+    """Display VWV system and technical analysis - SECOND PRIORITY WITH PROPER SCORING"""
     if not st.session_state.show_vwv_analysis:
         return
     
@@ -262,24 +263,97 @@ def show_combined_vwv_technical_analysis(analysis_results, vwv_results, show_deb
     if vwv_results:
         with st.expander("🔴 VWV Professional Trading System", expanded=True):
             
-            # VWV Signal and composite score
-            vwv_signal = vwv_results.get('vwv_signal', 'NEUTRAL')
-            composite_score = vwv_results.get('composite_score', 0)
+            # Combined Header with both scores
+            col1, col2, col3, col4 = st.columns(4)
             
-            col1, col2, col3 = st.columns(3)
+            # VWV Signal
+            signal_strength = vwv_results.get('signal_strength', 'WEAK')
+            signal_color = vwv_results.get('signal_color', '⚪')
+            vwv_score = vwv_results.get('vwv_score', 0)
+            
+            # Technical Composite Score - FIXED: Use proper VWV composite scoring
+            try:
+                # Calculate proper composite score using VWV system
+                if 'enhanced_indicators' in analysis_results:
+                    chart_data_for_scoring = analysis_results.get('chart_data')
+                    if chart_data_for_scoring is None:
+                        # Fallback to using analysis input data
+                        data_manager = get_data_manager()
+                        chart_data_for_scoring = data_manager.get_market_data_for_analysis(analysis_results['symbol'])
+                    
+                    if chart_data_for_scoring is not None:
+                        composite_score, score_details = calculate_vwv_composite_score(chart_data_for_scoring, DEFAULT_VWV_CONFIG)
+                    else:
+                        composite_score, score_details = 50.0, {}
+                else:
+                    composite_score, score_details = 50.0, {}
+            except Exception as e:
+                if show_debug:
+                    st.warning(f"Composite score calculation failed: {e}")
+                composite_score, score_details = 50.0, {}
+            
+            # Color mapping for signal strength
+            strength_colors = {
+                'VERY_STRONG': '#DC143C',  # Crimson red
+                'STRONG': '#FFD700',       # Gold
+                'GOOD': '#32CD32',         # Lime green
+                'WEAK': '#808080'          # Gray
+            }
+            
+            signal_color_hex = strength_colors.get(signal_strength, '#808080')
+            
             with col1:
-                st.metric("VWV Signal", vwv_signal)
-            with col2:
-                st.metric("Composite Score", f"{composite_score:.1f}/100")
-            with col3:
-                confidence = vwv_results.get('signal_confidence', 0)
-                st.metric("Signal Confidence", f"{confidence:.1f}%")
+                st.markdown(f"""
+                <div style="padding: 1rem; background: linear-gradient(135deg, {signal_color_hex}20, {signal_color_hex}10); 
+                            border-left: 4px solid {signal_color_hex}; border-radius: 8px;">
+                    <h4 style="color: {signal_color_hex}; margin: 0;">VWV Signal</h4>
+                    <h2 style="color: {signal_color_hex}; margin: 0.2rem 0;">{signal_color} {signal_strength}</h2>
+                    <p style="margin: 0; color: #666; font-size: 0.9em;">Score: {vwv_score:.1f}/100</p>
+                </div>
+                """, unsafe_allow_html=True)
             
-            # Create technical score bar
-            create_technical_score_bar(composite_score)
+            with col2:
+                # Technical composite score with color
+                if composite_score >= 70:
+                    tech_color = "#32CD32"  # Green
+                    tech_interpretation = "Bullish"
+                elif composite_score >= 50:
+                    tech_color = "#FFD700"  # Gold
+                    tech_interpretation = "Neutral"
+                else:
+                    tech_color = "#FF6B6B"  # Red
+                    tech_interpretation = "Bearish"
+                
+                st.markdown(f"""
+                <div style="padding: 1rem; background: linear-gradient(135deg, {tech_color}20, {tech_color}10); 
+                            border-left: 4px solid {tech_color}; border-radius: 8px;">
+                    <h4 style="color: {tech_color}; margin: 0;">Technical Score</h4>
+                    <h2 style="color: {tech_color}; margin: 0.2rem 0;">{composite_score:.1f}/100</h2>
+                    <p style="margin: 0; color: #666; font-size: 0.9em;">{tech_interpretation}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.metric("Current Price", f"${vwv_results.get('current_price', analysis_results.get('current_price', 0)):.2f}")
+            
+            with col4:
+                st.metric("Timestamp", vwv_results.get('timestamp', 'N/A'))
+            
+            # GRADIENT SCORE BAR - FIXED: Use proper UI component
+            st.markdown("#### 📊 Technical Composite Score")
+            try:
+                # Use the proper gradient score bar component
+                score_bar_html = create_technical_score_bar(composite_score, score_details)
+                st.components.v1.html(score_bar_html, height=160)
+            except Exception as e:
+                if show_debug:
+                    st.warning(f"Score bar display failed: {e}")
+                # Fallback to simple progress bar
+                st.progress(composite_score / 100)
+                st.write(f"**Technical Score: {composite_score:.1f}/100** - {tech_interpretation}")
             
             # VWV interpretation
-            interpretation = get_vwv_signal_interpretation(vwv_signal, composite_score)
+            interpretation = get_vwv_signal_interpretation(signal_strength, composite_score)
             if interpretation:
                 st.info(f"**VWV Interpretation:** {interpretation}")
             
@@ -700,6 +774,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             'symbol': symbol,
             'timestamp': current_date,
             'current_price': current_price,
+            'chart_data': analysis_input,  # Include for scoring calculations
             'enhanced_indicators': {
                 'daily_vwap': daily_vwap if daily_vwap else 0,
                 'fibonacci_emas': fibonacci_emas if fibonacci_emas else {},
@@ -781,7 +856,7 @@ def main():
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
-                # Debug information
+                # Debug information - RESTORED
                 if controls['show_debug']:
                     with st.expander("🔧 Debug Information", expanded=False):
                         st.json({

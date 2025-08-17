@@ -223,14 +223,8 @@ def create_sidebar_controls():
         # VWV Configuration
         st.write("**VWV Configuration:**")
         vwv_config = DEFAULT_VWV_CONFIG.copy()
-        
-        # Access weights from nested structure
-        current_weights = vwv_config.get('weights', {})
-        momentum_weight = current_weights.get('momentum', 0.5)
-        ma_weight = current_weights.get('ma', 1.2)
-        
-        vwv_config['weights']['momentum'] = st.slider("Momentum Weight", 0.1, 0.9, momentum_weight, 0.1)
-        vwv_config['weights']['ma'] = st.slider("Trend Weight", 0.1, 1.5, ma_weight, 0.1)
+        vwv_config['momentum_weight'] = st.slider("Momentum Weight", 0.1, 0.9, vwv_config['momentum_weight'], 0.1)
+        vwv_config['trend_weight'] = st.slider("Trend Weight", 0.1, 0.9, vwv_config['trend_weight'], 0.1)
 
     # Update session state
     st.session_state.show_vwv_analysis = show_vwv_analysis

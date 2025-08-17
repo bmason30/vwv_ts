@@ -261,12 +261,7 @@ def perform_complete_analysis(symbol, period, vwv_config, show_debug=False):
     
     # Get market data
     data_manager = get_data_manager()
-    data = data_manager.get_cached_data(symbol, period)
-    
-    if data is None:
-        data = get_market_data_enhanced(symbol, period)
-        if data is not None:
-            data_manager.cache_data(symbol, period, data)
+    data = get_market_data_enhanced(symbol, period)
     
     if data is None:
         return None, None, None

@@ -1,10 +1,10 @@
 """
 VWV Trading System v4.2.1 - Main Application
-Created: 2025-08-17 05:45:00 UTC
-Updated: 2025-08-17 05:45:00 UTC
-Purpose: Main Streamlit application with complete session state initialization
+Created: 2025-08-17 05:50:00 UTC
+Updated: 2025-08-17 05:50:00 UTC
+Purpose: Main Streamlit application with FIXED Quick Links and UI components
 Version: v4.2.1
-CRITICAL FIX: Completed broken session state initialization that was causing startup crash
+CRITICAL FIX: Fixed Quick Links string indices error and ensured complete functionality
 """
 
 import html
@@ -144,7 +144,7 @@ def create_sidebar_controls():
     show_debug = st.sidebar.checkbox("🐛 Debug Mode", value=st.session_state.show_debug)
     st.session_state.show_debug = show_debug
 
-    # Quick Links section - FIRST
+    # Quick Links section - FIRST - FIXED: Corrected string indices issue
     st.sidebar.markdown("---")
     with st.sidebar.expander("🔗 Quick Links", expanded=True):
         st.write("**Popular Symbols for Quick Analysis:**")
@@ -152,13 +152,16 @@ def create_sidebar_controls():
         for category, symbols in QUICK_LINK_CATEGORIES.items():
             st.write(f"**{category}:**")
             
-            # Create columns for symbols
-            cols = st.columns(len(symbols))
-            for idx, symbol_info in enumerate(symbols):
-                with cols[idx]:
-                    if st.button(symbol_info['symbol'], key=f"quick_{symbol_info['symbol']}", use_container_width=True):
-                        st.session_state.selected_symbol = symbol_info['symbol']
-                        st.rerun()
+            # Create columns for symbols - FIXED: symbols is a list of strings, not dictionaries
+            cols = st.columns(len(symbols) if len(symbols) <= 3 else 3)
+            for idx, symbol_str in enumerate(symbols):
+                col_idx = idx % 3
+                if col_idx < len(cols):
+                    with cols[col_idx]:
+                        # FIXED: symbol_str is a string, not a dictionary
+                        if st.button(symbol_str, key=f"quick_{symbol_str}_{idx}", use_container_width=True):
+                            st.session_state.selected_symbol = symbol_str
+                            st.rerun()
 
     # Recently Viewed section - SECOND
     if len(st.session_state.recently_viewed) > 0:

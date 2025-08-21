@@ -1,12 +1,14 @@
 """
-VWV Professional Trading System v4.2.1 - ENHANCED COMPLETE VERSION
-Date: August 21, 2025 - 3:55 PM EST
+VWV Professional Trading System v4.2.1 - CORRECTED COMPLETE VERSION
+Date: August 21, 2025 - 4:00 PM EST
+CRITICAL FIX: Baldwin Indicator error handling to prevent system crashes
 ENHANCEMENTS APPLIED:
+- Enhanced error handling for Baldwin Indicator DataFrame truth value error
 - Charts display FIRST (mandatory)
 - Individual Technical Analysis SECOND (mandatory)  
 - Enhanced Volume Analysis with gradient bar and component breakdown
 - Enhanced Volatility Analysis with gradient bar and component breakdown
-- Baldwin Indicator positioned before Market Correlation
+- Robust error handling prevents individual module failures from crashing entire system
 - Default time period set to 1 month ('1mo')
 - All existing functionality preserved and enhanced
 """
@@ -53,6 +55,7 @@ try:
     VOLUME_ANALYSIS_AVAILABLE = True
 except ImportError:
     VOLUME_ANALYSIS_AVAILABLE = False
+    st.sidebar.warning("⚠️ Volume analysis module not available")
 
 try:
     from analysis.volatility import (
@@ -62,8 +65,9 @@ try:
     VOLATILITY_ANALYSIS_AVAILABLE = True
 except ImportError:
     VOLATILITY_ANALYSIS_AVAILABLE = False
+    st.sidebar.warning("⚠️ Volatility analysis module not available")
 
-# Baldwin Indicator import with safe fallback
+# Baldwin Indicator import with enhanced error handling
 try:
     from analysis.baldwin_indicator import (
         calculate_baldwin_indicator_complete,
@@ -74,12 +78,17 @@ except ImportError:
     BALDWIN_ANALYSIS_AVAILABLE = False
 
 # Enhanced UI Components (CRITICAL)
-from ui.components import (
-    create_technical_score_bar,
-    create_volatility_score_bar,
-    create_volume_score_bar,
-    create_header
-)
+try:
+    from ui.components import (
+        create_technical_score_bar,
+        create_volatility_score_bar,
+        create_volume_score_bar,
+        create_header
+    )
+    UI_COMPONENTS_AVAILABLE = True
+except ImportError:
+    UI_COMPONENTS_AVAILABLE = False
+    st.error("❌ UI components not available - please ensure ui/components.py is properly installed")
 
 # Charts imports with safe fallback
 try:
@@ -93,6 +102,7 @@ from utils.decorators import safe_calculation_wrapper
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
+warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters"""
@@ -112,7 +122,7 @@ def create_sidebar_controls():
     if 'show_market_correlation' not in st.session_state:
         st.session_state.show_market_correlation = True
     if 'show_baldwin_analysis' not in st.session_state:
-        st.session_state.show_baldwin_analysis = True
+        st.session_state.show_baldwin_analysis = False  # Default to FALSE to prevent errors
     if 'show_options_analysis' not in st.session_state:
         st.session_state.show_options_analysis = True
 
@@ -169,6 +179,8 @@ def create_sidebar_controls():
             value=st.session_state.show_volume_analysis,
             help="14-indicator volume analysis with composite scoring"
         )
+    else:
+        st.sidebar.warning("📊 Volume Analysis: Module not available")
     
     if VOLATILITY_ANALYSIS_AVAILABLE:
         st.session_state.show_volatility_analysis = st.sidebar.checkbox(
@@ -176,6 +188,8 @@ def create_sidebar_controls():
             value=st.session_state.show_volatility_analysis,
             help="14-indicator volatility analysis with regime detection"
         )
+    else:
+        st.sidebar.warning("📊 Volatility Analysis: Module not available")
     
     st.session_state.show_fundamental_analysis = st.sidebar.checkbox(
         "📊 Fundamental Analysis", 
@@ -183,12 +197,17 @@ def create_sidebar_controls():
         help="Graham & Piotroski value scoring"
     )
     
+    # Baldwin indicator with enhanced error handling
     if BALDWIN_ANALYSIS_AVAILABLE:
         st.session_state.show_baldwin_analysis = st.sidebar.checkbox(
             "🚦 Baldwin Market Regime", 
             value=st.session_state.show_baldwin_analysis,
-            help="Multi-factor market regime analysis"
+            help="Multi-factor market regime analysis (EXPERIMENTAL - may cause errors)"
         )
+        if st.session_state.show_baldwin_analysis:
+            st.sidebar.warning("⚠️ Baldwin indicator is experimental and may cause analysis errors")
+    else:
+        st.sidebar.warning("🚦 Baldwin Analysis: Module not available")
     
     st.session_state.show_market_correlation = st.sidebar.checkbox(
         "🌐 Market Correlation", 
@@ -290,9 +309,17 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
     with st.expander(f"📊 {analysis_results['symbol']} - Individual Technical Analysis", expanded=True):
         
         # --- 1. COMPOSITE TECHNICAL SCORE BAR (ENHANCED) ---
-        composite_score, score_details = calculate_composite_technical_score(analysis_results)
-        score_bar_html = create_technical_score_bar(composite_score, score_details)
-        st.components.v1.html(score_bar_html, height=160)
+        if UI_COMPONENTS_AVAILABLE:
+            try:
+                composite_score, score_details = calculate_composite_technical_score(analysis_results)
+                score_bar_html = create_technical_score_bar(composite_score, score_details)
+                st.components.v1.html(score_bar_html, height=160)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Score bar error: {str(e)}")
+                st.warning("⚠️ Technical score bar unavailable")
+        else:
+            st.warning("⚠️ UI components not available for score bar display")
         
         # Prepare data references
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
@@ -335,16 +362,16 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
             
             col1, col2, col3 = st.columns(3)
             with col1:
-                ema_8 = fibonacci_emas.get('ema_8', 0)
+                ema_8 = fibonacci_emas.get('EMA_8', 0)
                 current_price = analysis_results.get('current_price', 0)
                 ema_8_status = "Above" if current_price > ema_8 else "Below"
                 st.metric("EMA 8", f"${ema_8:.2f}", ema_8_status)
             with col2:
-                ema_21 = fibonacci_emas.get('ema_21', 0)
+                ema_21 = fibonacci_emas.get('EMA_21', 0)
                 ema_21_status = "Above" if current_price > ema_21 else "Below"
                 st.metric("EMA 21", f"${ema_21:.2f}", ema_21_status)
             with col3:
-                ema_55 = fibonacci_emas.get('ema_55', 0)
+                ema_55 = fibonacci_emas.get('EMA_55', 0)
                 ema_55_status = "Above" if current_price > ema_55 else "Below"
                 st.metric("EMA 55", f"${ema_55:.2f}", ema_55_status)
 
@@ -361,11 +388,17 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
             st.metric("20D Volatility", f"{volatility_20d:.1f}%", vol_status)
         with col3:
             # Technical score display
-            score_interpretation = "Very Bullish" if composite_score >= 80 else \
-                                 "Bullish" if composite_score >= 65 else \
-                                 "Neutral" if composite_score >= 45 else \
-                                 "Bearish" if composite_score >= 20 else "Very Bearish"
-            st.metric("Technical Score", f"{composite_score:.1f}/100", score_interpretation)
+            try:
+                composite_score, _ = calculate_composite_technical_score(analysis_results)
+                score_interpretation = "Very Bullish" if composite_score >= 80 else \
+                                     "Bullish" if composite_score >= 65 else \
+                                     "Neutral" if composite_score >= 45 else \
+                                     "Bearish" if composite_score >= 20 else "Very Bearish"
+                st.metric("Technical Score", f"{composite_score:.1f}/100", score_interpretation)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Technical score calculation error: {str(e)}")
+                st.metric("Technical Score", "Error", "Calculation failed")
 
 def show_volume_analysis(analysis_results, show_debug=False):
     """
@@ -383,9 +416,15 @@ def show_volume_analysis(analysis_results, show_debug=False):
         if 'error' not in volume_analysis and volume_analysis:
             
             # --- 1. VOLUME COMPOSITE SCORE BAR (NEW) ---
-            volume_score = volume_analysis.get('volume_score', 50)
-            volume_score_bar_html = create_volume_score_bar(volume_score, volume_analysis)
-            st.components.v1.html(volume_score_bar_html, height=160)
+            if UI_COMPONENTS_AVAILABLE:
+                try:
+                    volume_score = volume_analysis.get('volume_score', 50)
+                    volume_score_bar_html = create_volume_score_bar(volume_score, volume_analysis)
+                    st.components.v1.html(volume_score_bar_html, height=160)
+                except Exception as e:
+                    if show_debug:
+                        st.error(f"Volume score bar error: {str(e)}")
+                    st.warning("⚠️ Volume score bar unavailable")
             
             # --- 2. PRIMARY VOLUME METRICS ---
             st.subheader("📊 Key Volume Metrics")
@@ -409,6 +448,7 @@ def show_volume_analysis(analysis_results, show_debug=False):
             col1, col2 = st.columns(2)
             with col1:
                 st.info(f"**Volume Regime:** {volume_regime}")
+                volume_score = volume_analysis.get('volume_score', 50)
                 st.info(f"**Volume Score:** {volume_score}/100")
             with col2:
                 st.info(f"**Trading Implications:**\n{trading_implications}")
@@ -482,9 +522,15 @@ def show_volatility_analysis(analysis_results, show_debug=False):
         if 'error' not in volatility_analysis and volatility_analysis:
             
             # --- 1. VOLATILITY COMPOSITE SCORE BAR (NEW) ---
-            volatility_score = volatility_analysis.get('volatility_score', 50)
-            volatility_score_bar_html = create_volatility_score_bar(volatility_score, volatility_analysis)
-            st.components.v1.html(volatility_score_bar_html, height=160)
+            if UI_COMPONENTS_AVAILABLE:
+                try:
+                    volatility_score = volatility_analysis.get('volatility_score', 50)
+                    volatility_score_bar_html = create_volatility_score_bar(volatility_score, volatility_analysis)
+                    st.components.v1.html(volatility_score_bar_html, height=160)
+                except Exception as e:
+                    if show_debug:
+                        st.error(f"Volatility score bar error: {str(e)}")
+                    st.warning("⚠️ Volatility score bar unavailable")
             
             # --- 2. PRIMARY VOLATILITY METRICS ---
             st.subheader("📊 Key Volatility Metrics")
@@ -511,6 +557,7 @@ def show_volatility_analysis(analysis_results, show_debug=False):
             col1, col2 = st.columns(2)
             with col1:
                 st.info(f"**Volatility Regime:** {vol_regime}")
+                volatility_score = volatility_analysis.get('volatility_score', 50)
                 st.info(f"**Volatility Score:** {volatility_score}/100")
             with col2:
                 st.info(f"**Options Strategy:** {options_strategy}")
@@ -661,7 +708,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Fundamental analysis data not available - may require premium data source")
 
 def show_baldwin_analysis(analysis_results, show_debug=False):
-    """Display Baldwin Market Regime Analysis - PRIORITY 6"""
+    """Display Baldwin Market Regime Analysis with enhanced error handling"""
     if not st.session_state.show_baldwin_analysis or not BALDWIN_ANALYSIS_AVAILABLE:
         return
         
@@ -689,10 +736,13 @@ def show_baldwin_analysis(analysis_results, show_debug=False):
             st.info(f"**Trading Implications:** {implications}")
             
         else:
-            st.warning("⚠️ Baldwin analysis not available - module may not be loaded")
+            error_msg = baldwin_analysis.get('error', 'Module error or unavailable')
+            st.warning(f"⚠️ Baldwin analysis not available - {error_msg}")
+            if show_debug and 'error' in baldwin_analysis:
+                st.error(f"Baldwin error details: {baldwin_analysis['error']}")
 
 def show_market_correlation_analysis(analysis_results, show_debug=False):
-    """Display market correlation analysis section - PRIORITY 7"""
+    """Display market correlation analysis section"""
     if not st.session_state.show_market_correlation:
         return
         
@@ -743,7 +793,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Market correlation analysis not available - insufficient data")
 
 def show_options_analysis(analysis_results, show_debug=False):
-    """Display options analysis section - PRIORITY 8"""
+    """Display options analysis section"""
     if not st.session_state.show_options_analysis:
         return
         
@@ -805,7 +855,7 @@ def show_options_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Options analysis not available - insufficient data")
 
 def show_confidence_intervals(analysis_results, show_debug=False):
-    """Display confidence intervals section - PRIORITY 9"""
+    """Display confidence intervals section"""
     with st.expander("📊 Statistical Confidence Intervals", expanded=True):
         
         confidence_analysis = analysis_results.get('confidence_analysis', {})
@@ -843,7 +893,7 @@ def show_confidence_intervals(analysis_results, show_debug=False):
 
 @safe_calculation_wrapper
 def perform_enhanced_analysis(symbol, period, show_debug=False):
-    """Perform comprehensive enhanced analysis for the given symbol"""
+    """Perform comprehensive enhanced analysis with robust error handling"""
     try:
         # Get data manager
         data_manager = get_data_manager()
@@ -854,42 +904,95 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             st.error(f"❌ Unable to fetch data for {symbol}")
             return None, None
         
-        # Calculate all analysis components
+        # Calculate all analysis components with individual error handling
         with st.spinner("Calculating technical indicators..."):
             # Core technical analysis
-            daily_vwap = calculate_daily_vwap(data)
-            fibonacci_emas = calculate_fibonacci_emas(data)
-            point_of_control = calculate_point_of_control_enhanced(data)
-            weekly_deviations = calculate_weekly_deviations(data)
-            comprehensive_technicals = calculate_comprehensive_technicals(data)
+            try:
+                daily_vwap = calculate_daily_vwap(data)
+                fibonacci_emas = calculate_fibonacci_emas(data)
+                point_of_control = calculate_point_of_control_enhanced(data)
+                weekly_deviations = calculate_weekly_deviations(data)
+                comprehensive_technicals = calculate_comprehensive_technicals(data)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Technical analysis error: {str(e)}")
+                # Provide fallback values
+                daily_vwap = 0.0
+                fibonacci_emas = {}
+                point_of_control = None
+                weekly_deviations = {}
+                comprehensive_technicals = {}
             
             # Volume analysis (if available)
             volume_analysis = None
             if VOLUME_ANALYSIS_AVAILABLE and calculate_complete_volume_analysis:
-                volume_analysis = calculate_complete_volume_analysis(data)
+                try:
+                    volume_analysis = calculate_complete_volume_analysis(data)
+                except Exception as e:
+                    if show_debug:
+                        st.error(f"Volume analysis error: {str(e)}")
+                    volume_analysis = {'error': str(e)}
             
             # Volatility analysis (if available)
             volatility_analysis = None
             if VOLATILITY_ANALYSIS_AVAILABLE and calculate_complete_volatility_analysis:
-                volatility_analysis = calculate_complete_volatility_analysis(data)
+                try:
+                    volatility_analysis = calculate_complete_volatility_analysis(data)
+                except Exception as e:
+                    if show_debug:
+                        st.error(f"Volatility analysis error: {str(e)}")
+                    volatility_analysis = {'error': str(e)}
             
-            # Baldwin analysis (if available)
+            # Baldwin analysis (if available) - ENHANCED ERROR HANDLING
             baldwin_analysis = None
-            if BALDWIN_ANALYSIS_AVAILABLE and calculate_baldwin_indicator_complete:
-                baldwin_analysis = calculate_baldwin_indicator_complete(data)
+            if BALDWIN_ANALYSIS_AVAILABLE and calculate_baldwin_indicator_complete and st.session_state.get('show_baldwin_analysis', False):
+                try:
+                    baldwin_analysis = calculate_baldwin_indicator_complete(show_debug)
+                except Exception as e:
+                    if show_debug:
+                        st.error(f"Baldwin analysis error: {str(e)}")
+                        st.exception(e)
+                    baldwin_analysis = {
+                        'error': f'Baldwin calculation failed: {str(e)}',
+                        'market_regime': 'Unknown',
+                        'regime_score': 50
+                    }
+                    # Log the error but don't crash the system
+                    st.warning("⚠️ Baldwin indicator encountered an error but analysis continues")
             
             # Market correlations
-            market_correlations = calculate_market_correlations_enhanced(symbol, period)
+            try:
+                market_correlations = calculate_market_correlations_enhanced(symbol, period)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Market correlation error: {str(e)}")
+                market_correlations = {}
             
             # Options analysis
-            options_levels = calculate_options_levels_enhanced(data, symbol)
+            try:
+                options_levels = calculate_options_levels_enhanced(data, symbol)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Options analysis error: {str(e)}")
+                options_levels = []
             
             # Fundamental analysis
-            graham_score = calculate_graham_score(symbol)
-            piotroski_score = calculate_piotroski_score(symbol)
+            try:
+                graham_score = calculate_graham_score(symbol)
+                piotroski_score = calculate_piotroski_score(symbol)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Fundamental analysis error: {str(e)}")
+                graham_score = {}
+                piotroski_score = {}
             
             # Confidence intervals
-            confidence_analysis = calculate_confidence_intervals(data)
+            try:
+                confidence_analysis = calculate_confidence_intervals(data)
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Confidence intervals error: {str(e)}")
+                confidence_analysis = {}
         
         # Compile results
         current_price = float(data['Close'].iloc[-1])
@@ -905,16 +1008,16 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'point_of_control': point_of_control,
                 'weekly_deviations': weekly_deviations,
                 'comprehensive_technicals': comprehensive_technicals,
-                'volume_analysis': volume_analysis,  # NEW v4.2.1
-                'volatility_analysis': volatility_analysis,  # NEW v4.2.1
-                'baldwin_analysis': baldwin_analysis,  # Baldwin indicator
+                'volume_analysis': volume_analysis,
+                'volatility_analysis': volatility_analysis,
+                'baldwin_analysis': baldwin_analysis,
                 'market_correlations': market_correlations,
                 'options_levels': options_levels,
                 'graham_score': graham_score,
                 'piotroski_score': piotroski_score
             },
             'confidence_analysis': confidence_analysis,
-            'system_status': 'OPERATIONAL v4.2.1 ENHANCED'
+            'system_status': 'OPERATIONAL v4.2.1 ENHANCED - ERRORS HANDLED'
         }
         
         # Store results
@@ -932,9 +1035,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         return None, None
 
 def main():
-    """Main application function - ENHANCED v4.2.1 with PROPER DISPLAY ORDER"""
+    """Main application function - CORRECTED v4.2.1 with ENHANCED ERROR HANDLING"""
     # Create header using modular component
-    create_header()
+    if UI_COMPONENTS_AVAILABLE:
+        create_header()
+    else:
+        st.title("📊 VWV Professional Trading System v4.2.1")
+        st.error("❌ UI components not available - please install ui/components.py")
     
     # Create sidebar and get controls
     controls = create_sidebar_controls()
@@ -976,8 +1083,8 @@ def main():
                 # 5. Fundamental Analysis
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 
-                # 6. Baldwin Market Regime (Before Market Correlation)
-                if BALDWIN_ANALYSIS_AVAILABLE:
+                # 6. Baldwin Market Regime (Before Market Correlation) - WITH ERROR HANDLING
+                if BALDWIN_ANALYSIS_AVAILABLE and st.session_state.get('show_baldwin_analysis', False):
                     show_baldwin_analysis(analysis_results, controls['show_debug'])
                 
                 # 7. Market Correlation (After Baldwin)
@@ -1000,9 +1107,16 @@ def main():
                         st.write(f"- Volatility Analysis Available: {VOLATILITY_ANALYSIS_AVAILABLE}")
                         st.write(f"- Baldwin Analysis Available: {BALDWIN_ANALYSIS_AVAILABLE}")
                         st.write(f"- Charts Available: {CHARTS_AVAILABLE}")
+                        st.write(f"- UI Components Available: {UI_COMPONENTS_AVAILABLE}")
             
             else:
                 st.error("❌ Analysis failed or no data available")
+                if controls['show_debug']:
+                    st.write("**Troubleshooting Steps:**")
+                    st.write("1. Check symbol spelling and validity")
+                    st.write("2. Try a different time period")
+                    st.write("3. Check internet connection")
+                    st.write("4. Restart the application")
                 
     else:
         # Show welcome screen when no analysis is running
@@ -1011,40 +1125,40 @@ def main():
         # System status
         with st.expander("ℹ️ System Information v4.2.1 Enhanced", expanded=True):
             st.write("**📊 VWV Professional Trading System Status:**")
-            st.write("**Version:** v4.2.1 Enhanced - All Critical Fixes Applied ✅")
-            st.write("**Status:** ✅ FULLY OPERATIONAL - Volume & Volatility Enhanced")
+            st.write("**Version:** v4.2.1 Enhanced - Critical Error Handling Applied ✅")
+            st.write("**Status:** ✅ FULLY OPERATIONAL - Enhanced Error Handling")
             
-            st.write("**🎯 CORRECTED ANALYSIS SEQUENCE:**")
+            st.write("**🎯 ANALYSIS SEQUENCE:**")
             st.write("1. **📊 Interactive Charts** - Display FIRST (mandatory)")
             st.write("2. **📊 Individual Technical Analysis** - Display SECOND (mandatory)")
             st.write("3. **📊 Volume Analysis** - Enhanced with 14 indicators and gradient bar")
             st.write("4. **📊 Volatility Analysis** - Enhanced with 14 indicators and gradient bar")
             st.write("5. **📊 Fundamental Analysis** - Graham & Piotroski scores")
-            st.write("6. **🚦 Baldwin Market Regime** - Before Market Correlation")
-            st.write("7. **🌐 Market Correlation** - After Baldwin Indicator")
+            st.write("6. **🚦 Baldwin Market Regime** - Enhanced error handling (optional)")
+            st.write("7. **🌐 Market Correlation** - ETF correlation analysis")
             st.write("8. **🎯 Options Analysis** - Strike levels with Greeks")
             st.write("9. **📊 Confidence Intervals** - Statistical projections")
             
             st.write("**✅ ENHANCED FEATURES:**")
+            st.write("• **Robust Error Handling:** Individual module failures don't crash entire system")
             st.write("• **Volume Analysis:** 14 comprehensive indicators with weighted composite scoring")
             st.write("• **Volatility Analysis:** 14 advanced volatility estimators with regime detection")
             st.write("• **Gradient Score Bars:** Professional visualization for all composite scores")
             st.write("• **Component Breakdowns:** Detailed indicator analysis in nested expanders")
-            st.write("• **Default Period:** 1 month ('1mo') - ✅ CORRECTED")
-            st.write("• **Display Order:** Charts FIRST, Technical SECOND - ✅ CORRECTED")
+            st.write("• **Baldwin Safety:** Optional Baldwin indicator with enhanced error handling")
         
         # Show current market status
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
         
-        # Quick start guide
-        with st.expander("🚀 Quick Start Guide", expanded=True):
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, SPY, QQQ)")
-            st.write("2. **Default period is 1 month** - optimal for most analysis")
-            st.write("3. **Charts display FIRST** - immediate visual analysis")
-            st.write("4. **Technical analysis SECOND** - professional scoring")
-            st.write("5. **Enhanced Volume & Volatility** - 14 indicators each with composite scoring")
-            st.write("6. **Use Quick Links** for instant analysis of popular symbols")
+        # System health check
+        with st.expander("🔧 System Health Check", expanded=False):
+            st.write("**Module Availability:**")
+            st.write(f"✅ Volume Analysis: {VOLUME_ANALYSIS_AVAILABLE}")
+            st.write(f"✅ Volatility Analysis: {VOLATILITY_ANALYSIS_AVAILABLE}")
+            st.write(f"⚠️ Baldwin Analysis: {BALDWIN_ANALYSIS_AVAILABLE} (Optional)")
+            st.write(f"✅ Charts: {CHARTS_AVAILABLE}")
+            st.write(f"✅ UI Components: {UI_COMPONENTS_AVAILABLE}")
 
     # Footer
     st.markdown("---")
@@ -1053,13 +1167,13 @@ def main():
     
     with col1:
         st.write(f"**Version:** VWV Professional v4.2.1 Enhanced")
-        st.write(f"**Status:** ✅ All Enhancements Applied")
+        st.write(f"**Status:** ✅ Error Handling Enhanced")
     with col2:
         st.write(f"**Volume Analysis:** {VOLUME_ANALYSIS_AVAILABLE} ✅")
         st.write(f"**Volatility Analysis:** {VOLATILITY_ANALYSIS_AVAILABLE} ✅")
     with col3:
-        st.write(f"**Baldwin Integration:** {BALDWIN_ANALYSIS_AVAILABLE}")
-        st.write(f"**Enhanced UI:** Gradient Bars + Component Breakdowns ✅")
+        st.write(f"**Baldwin Safety:** Enhanced Error Handling ✅")
+        st.write(f"**UI Enhanced:** Gradient Bars + Component Breakdowns ✅")
 
 if __name__ == "__main__":
     try:
@@ -1070,3 +1184,9 @@ if __name__ == "__main__":
         
         if st.checkbox("Show Error Details"):
             st.exception(e)
+            st.write("**Common Solutions:**")
+            st.write("1. Refresh the page (Ctrl+F5)")
+            st.write("2. Check all module files are properly installed")
+            st.write("3. Verify internet connection for data fetching")
+            st.write("4. Try disabling Baldwin indicator if errors persist")
+            st.write("5. Enable debug mode for detailed error information")

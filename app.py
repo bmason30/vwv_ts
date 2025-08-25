@@ -544,38 +544,337 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Market correlation analysis not available")
 
 def show_options_analysis(analysis_results, show_debug=False):
-    """Display options analysis section"""
+    """Display options analysis section - FIXED for list structure"""
     if not st.session_state.show_options_analysis:
         return
         
     enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-    options_levels = enhanced_indicators.get('options_levels', {})
+    options_levels = enhanced_indicators.get('options_levels', [])  # Expected to be a list
+    comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
     
     with st.expander(f"🎯 {analysis_results['symbol']} - Options Analysis", expanded=True):
         
-        if options_levels and 'error' not in options_levels:
+        if options_levels:  # Check if list has items
             current_price = analysis_results.get('current_price', 0)
-            st.metric("Current Price", f"${current_price:.2f}")
+            volatility = comprehensive_technicals.get('volatility_20d', 20)
             
-            # Options levels by risk category
-            for risk_level, levels in options_levels.items():
-                if isinstance(levels, dict):
-                    st.subheader(f"📊 {risk_level.title()} Risk Options")
+            # Header metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Current Price", f"${current_price:.2f}")
+            with col2:
+                st.metric("20D Volatility", f"{volatility:.1f}%")
+            with col3:
+                # Calculate average expected move if available in data
+                if len(options_levels) > 0 and isinstance(options_levels[0], dict):
+                    expected_move_str = options_levels[0].get('Expected Move', '±0.00')
+                    try:
+                        expected_move = float(expected_move_str.replace('±', '').replace('
+
+def show_confidence_intervals(analysis_results, show_debug=False):
+    """Display confidence intervals section"""
+    if not st.session_state.show_confidence_intervals:
+        return
+        
+    confidence_analysis = analysis_results.get('confidence_analysis')
+    if confidence_analysis:
+        with st.expander("📊 Statistical Confidence Intervals", expanded=True):
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mean Weekly Return", f"{confidence_analysis['mean_weekly_return']:.3f}%")
+            with col2:
+                st.metric("Weekly Volatility", f"{confidence_analysis['weekly_volatility']:.2f}%")
+            with col3:
+                st.metric("Sample Size", f"{confidence_analysis['sample_size']} weeks")
+            
+            final_intervals_data = []
+            for level, level_data in confidence_analysis['confidence_intervals'].items():
+                final_intervals_data.append({
+                    'Confidence Level': level,
+                    'Upper Bound': f"${level_data['upper_bound']}",
+                    'Lower Bound': f"${level_data['lower_bound']}",
+                    'Expected Move': f"±{level_data['expected_move_pct']:.2f}%"
+                })
+            
+            df_intervals = pd.DataFrame(final_intervals_data)
+            st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+
+def show_interactive_charts(data, analysis_results, show_debug=False):
+    """Display interactive charts section"""
+    if not st.session_state.show_charts:
+        return
+        
+    with st.expander("📊 Interactive Trading Charts", expanded=True):
+        try:
+            # Check if we have the charts module
+            try:
+                display_trading_charts(data, analysis_results)
+            except ImportError as e:
+                st.error("📊 Charts module not available")
+                if show_debug:
+                    st.error(f"Import error: {str(e)}")
+                
+                # Fallback simple chart
+                st.subheader("Basic Price Chart (Fallback)")
+                if data is not None and not data.empty:
+                    st.line_chart(data['Close'])
+                else:
+                    st.error("No data available for charting")
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write("**Call Levels:**")
-                        if 'calls' in levels:
-                            for strike, data in levels['calls'].items():
-                                st.write(f"${strike}: {data.get('description', 'N/A')}")
-                    
-                    with col2:
-                        st.write("**Put Levels:**")
-                        if 'puts' in levels:
-                            for strike, data in levels['puts'].items():
-                                st.write(f"${strike}: {data.get('description', 'N/A')}")
+        except Exception as e:
+            if show_debug:
+                st.error(f"Chart display error: {str(e)}")
+                st.exception(e)
+            else:
+                st.warning("⚠️ Charts temporarily unavailable. Try refreshing or enable debug mode for details.")
+
+def perform_enhanced_analysis(symbol, period, show_debug=False):
+    """Perform enhanced analysis using modular components - WITH VOLUME/VOLATILITY INTEGRATION"""
+    try:
+        # Step 1: Fetch data using modular data fetcher
+        market_data = get_market_data_enhanced(symbol, period, show_debug)
+        
+        if market_data is None:
+            st.error(f"❌ Could not fetch data for {symbol}")
+            return None, None, None
+        
+        # Step 2: Store data using data manager
+        data_manager = get_data_manager()
+        data_manager.store_market_data(symbol, market_data, show_debug)
+        
+        # Step 3: Get analysis copy
+        analysis_input = data_manager.get_market_data_for_analysis(symbol)
+        
+        if analysis_input is None:
+            st.error("❌ Could not prepare analysis data")
+            return None, None, None
+        
+        # Step 4: Calculate enhanced indicators using modular analysis
+        daily_vwap = calculate_daily_vwap(analysis_input)
+        fibonacci_emas = calculate_fibonacci_emas(analysis_input)
+        point_of_control = calculate_point_of_control_enhanced(analysis_input)
+        weekly_deviations = calculate_weekly_deviations(analysis_input)
+        comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
+        
+        # Step 5: Calculate Volume Analysis - NEW v4.2.1 WITH ENHANCEMENTS
+        volume_analysis = {}
+        if VOLUME_ANALYSIS_AVAILABLE:
+            try:
+                volume_analysis = calculate_complete_volume_analysis(analysis_input)
+                if show_debug:
+                    st.write("✅ Volume analysis completed")
+            except Exception as e:
+                if show_debug:
+                    st.write(f"❌ Volume analysis failed: {e}")
+                volume_analysis = {'error': 'Volume analysis failed'}
         else:
-            st.warning("⚠️ Options analysis not available")
+            volume_analysis = {'error': 'Volume analysis module not available'}
+        
+        # Step 6: Calculate Volatility Analysis - NEW v4.2.1 WITH ENHANCEMENTS
+        volatility_analysis = {}
+        if VOLATILITY_ANALYSIS_AVAILABLE:
+            try:
+                volatility_analysis = calculate_complete_volatility_analysis(analysis_input)
+                if show_debug:
+                    st.write("✅ Volatility analysis completed")
+            except Exception as e:
+                if show_debug:
+                    st.write(f"❌ Volatility analysis failed: {e}")
+                volatility_analysis = {'error': 'Volatility analysis failed'}
+        else:
+            volatility_analysis = {'error': 'Volatility analysis module not available'}
+        
+        # Step 7: Calculate market correlations
+        market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug=show_debug)
+        
+        # Step 8: Calculate fundamental analysis (skip for ETFs)
+        is_etf_symbol = is_etf(symbol)
+        
+        if is_etf_symbol:
+            graham_score = {'score': 0, 'total_possible': 10, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
+            piotroski_score = {'score': 0, 'total_possible': 9, 'criteria': [], 'error': 'ETF - Fundamental analysis not applicable'}
+        else:
+            graham_score = calculate_graham_score(symbol, show_debug)
+            piotroski_score = calculate_piotroski_score(symbol, show_debug)
+        
+        # Step 9: Calculate options levels
+        volatility = comprehensive_technicals.get('volatility_20d', 20)
+        underlying_beta = 1.0  # Default market beta
+        
+        if market_correlations:
+            for etf in ['SPY', 'QQQ', 'MAGS']:
+                if etf in market_correlations and 'beta' in market_correlations[etf]:
+                    try:
+                        underlying_beta = abs(float(market_correlations[etf]['beta']))
+                        break
+                    except:
+                        continue
+        
+        current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
+        options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
+        
+        # Step 10: Calculate VWV System Analysis
+        vwv_results = calculate_vwv_system_complete(analysis_input, symbol, DEFAULT_VWV_CONFIG)
+        
+        # Step 11: Calculate confidence intervals
+        confidence_analysis = calculate_confidence_intervals(analysis_input)
+        
+        # Step 12: Build analysis results - INCLUDES ENHANCED VOLUME/VOLATILITY
+        current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
+        
+        analysis_results = {
+            'symbol': symbol,
+            'timestamp': current_date,
+            'current_price': current_price,
+            'enhanced_indicators': {
+                'daily_vwap': daily_vwap,
+                'fibonacci_emas': fibonacci_emas,
+                'point_of_control': point_of_control,
+                'weekly_deviations': weekly_deviations,
+                'comprehensive_technicals': comprehensive_technicals,
+                'volume_analysis': volume_analysis,  # NEW v4.2.1 - ENHANCED
+                'volatility_analysis': volatility_analysis,  # NEW v4.2.1 - ENHANCED
+                'market_correlations': market_correlations,
+                'options_levels': options_levels,
+                'graham_score': graham_score,
+                'piotroski_score': piotroski_score
+            },
+            'confidence_analysis': confidence_analysis,
+            'system_status': 'OPERATIONAL'
+        }
+        
+        # Store results
+        data_manager.store_analysis_results(symbol, analysis_results)
+        
+        # Get chart data
+        chart_data = data_manager.get_market_data_for_chart(symbol)
+        
+        return analysis_results, chart_data, vwv_results
+        
+    except Exception as e:
+        st.error(f"❌ Analysis failed: {str(e)}")
+        if show_debug:
+            st.exception(e)
+        return None, None, None
+
+def main():
+    """Main application function - WITH ENHANCED VOLUME/VOLATILITY ANALYSIS"""
+    # Create header using modular component
+    create_header()
+    
+    # Create sidebar and get controls
+    controls = create_sidebar_controls()
+    
+    # Main logic flow
+    if controls['analyze_button'] and controls['symbol']:
+        # Add symbol to recently viewed
+        add_to_recently_viewed(controls['symbol'])
+        
+        st.write("## 📊 VWV Trading Analysis v4.2.1 Enhanced")
+        
+        with st.spinner(f"Analyzing {controls['symbol']}..."):
+            
+            # Perform analysis using modular components
+            analysis_results, chart_data, vwv_results = perform_enhanced_analysis(
+                controls['symbol'], 
+                controls['period'], 
+                controls['show_debug']
+            )
+            
+            if analysis_results and chart_data is not None:
+                
+                # CORRECTED DISPLAY ORDER - Charts First, VWV/Technical Second, Volume/Volatility Third/Fourth
+                
+                # 1. Show charts FIRST at the top
+                show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+                
+                # 2. Show VWV/Technical analysis SECOND
+                show_combined_vwv_technical_analysis(analysis_results, vwv_results, controls['show_debug'])
+                
+                # 3. Show Volume Analysis THIRD - NEW v4.2.1 ENHANCED
+                if VOLUME_ANALYSIS_AVAILABLE:
+                    show_volume_analysis(analysis_results, controls['show_debug'])
+                
+                # 4. Show Volatility Analysis FOURTH - NEW v4.2.1 ENHANCED
+                if VOLATILITY_ANALYSIS_AVAILABLE:
+                    show_volatility_analysis(analysis_results, controls['show_debug'])
+                
+                # 5. Show all other analysis sections using modular functions
+                show_fundamental_analysis(analysis_results, controls['show_debug'])
+                show_market_correlation_analysis(analysis_results, controls['show_debug'])
+                show_options_analysis(analysis_results, controls['show_debug'])
+                show_confidence_intervals(analysis_results, controls['show_debug'])
+                
+                # Debug information
+                if controls['show_debug']:
+                    with st.expander("🔧 Debug Information", expanded=False):
+                        st.write("**System Status:**")
+                        st.write(f"- Volume Analysis Available: {VOLUME_ANALYSIS_AVAILABLE}")
+                        st.write(f"- Volatility Analysis Available: {VOLATILITY_ANALYSIS_AVAILABLE}")
+                        st.write(f"- Analysis Results Keys: {list(analysis_results.keys())}")
+                        if 'enhanced_indicators' in analysis_results:
+                            st.write(f"- Enhanced Indicators Keys: {list(analysis_results['enhanced_indicators'].keys())}")
+                        st.write("**VWV Results:**")
+                        st.json(vwv_results)
+            else:
+                st.error("❌ Analysis failed. Please try a different symbol or enable debug mode for details.")
+    else:
+        # Show market status and welcome message
+        st.write("## 📊 VWV Professional Trading System v4.2.1 Enhanced")
+        
+        market_status = get_market_status()
+        if market_status:
+            st.info(f"🕒 **Market Status:** {market_status}")
+        
+        st.info("👈 **Enter a stock symbol in the sidebar to begin comprehensive analysis**")
+        
+        # Show recently viewed symbols if available
+        if len(st.session_state.recently_viewed) > 0:
+            st.subheader("🕒 Recently Analyzed Symbols")
+            
+            # Create a grid of recently viewed symbols
+            cols = st.columns(min(6, len(st.session_state.recently_viewed)))
+            for i, recent_symbol in enumerate(st.session_state.recently_viewed[:6]):
+                with cols[i]:
+                    if st.button(f"📊 {recent_symbol}", key=f"main_recent_{recent_symbol}", use_container_width=True):
+                        st.session_state.selected_symbol = recent_symbol
+                        st.session_state.auto_analyze = True
+                        st.rerun()
+
+if __name__ == "__main__":
+    main()
+, ''))
+                        expected_move_pct = (expected_move / current_price) * 100 if current_price > 0 else 0
+                        st.metric("Expected Move", f"±{expected_move_pct:.1f}%")
+                    except:
+                        st.metric("Expected Move", "N/A")
+                else:
+                    st.metric("Expected Move", "N/A")
+            with col4:
+                # Volatility regime
+                if volatility >= 35:
+                    vol_regime = "High Vol"
+                elif volatility >= 25:
+                    vol_regime = "Normal Vol"
+                else:
+                    vol_regime = "Low Vol"
+                st.metric("Vol Regime", vol_regime)
+            
+            # Options data table
+            st.subheader("💰 Options Strike Levels")
+            
+            # Convert list to DataFrame for display
+            if options_levels and isinstance(options_levels, list):
+                df_options = pd.DataFrame(options_levels)
+                st.dataframe(df_options, use_container_width=True, hide_index=True)
+            else:
+                st.info("Options level data format not recognized")
+                if show_debug:
+                    st.write("Debug - Options levels structure:")
+                    st.json(options_levels)
+        else:
+            st.warning("⚠️ Options analysis not available - insufficient data")
 
 def show_confidence_intervals(analysis_results, show_debug=False):
     """Display confidence intervals section"""

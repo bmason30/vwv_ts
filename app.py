@@ -380,8 +380,11 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 
                 if 'criteria' in graham_score:
                     for criterion in graham_score['criteria']:
-                        status = "✅" if criterion['passed'] else "❌"
-                        st.write(f"{status} {criterion['name']}: {criterion['value']}")
+                        if isinstance(criterion, dict):
+                            status = "✅" if criterion.get('passed', False) else "❌"
+                            st.write(f"{status} {criterion.get('name', 'Unknown')}: {criterion.get('value', 'N/A')}")
+                        else:
+                            st.write(f"• {criterion}")
             
             with col2:
                 st.subheader("📊 Piotroski F-Score")
@@ -391,8 +394,11 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 
                 if 'criteria' in piotroski_score:
                     for criterion in piotroski_score['criteria']:
-                        status = "✅" if criterion['passed'] else "❌"
-                        st.write(f"{status} {criterion['name']}: {criterion['value']}")
+                        if isinstance(criterion, dict):
+                            status = "✅" if criterion.get('passed', False) else "❌"
+                            st.write(f"{status} {criterion.get('name', 'Unknown')}: {criterion.get('value', 'N/A')}")
+                        else:
+                            st.write(f"• {criterion}")
         else:
             if 'error' in graham_score:
                 st.info(f"Graham Analysis: {graham_score['error']}")

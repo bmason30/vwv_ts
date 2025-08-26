@@ -1,6 +1,8 @@
 """
 VWV Professional Trading System - Working Baseline v4.2.1
+Version: v4.2.1-SIDEBAR-FIX-2025-08-26-16-18-45-EST
 Based on test_imports.py structure + minimal Volume/Volatility additions
+Last Updated: August 26, 2025 - 4:18 PM EST
 """
 
 import streamlit as st
@@ -126,26 +128,7 @@ def create_sidebar_controls():
         st.session_state.auto_analyze = False
         analyze_button = True
     
-    # Analysis sections checkboxes
-    st.sidebar.markdown("### Analysis Sections")
-    
-    col1, col2 = st.sidebar.columns(2)
-    with col1:
-        st.session_state.show_charts = st.checkbox("📊 Charts", value=st.session_state.show_charts)
-        st.session_state.show_vwv_analysis = st.checkbox("🔴 VWV/Tech", value=st.session_state.show_vwv_analysis)
-        if VOLUME_ANALYSIS_AVAILABLE:
-            st.session_state.show_volume_analysis = st.checkbox("📊 Volume", value=st.session_state.show_volume_analysis)
-        if VOLATILITY_ANALYSIS_AVAILABLE:
-            st.session_state.show_volatility_analysis = st.checkbox("📊 Volatility", value=st.session_state.show_volatility_analysis)
-        st.session_state.show_fundamental_analysis = st.checkbox("📈 Fundamental", value=st.session_state.show_fundamental_analysis)
-    
-    with col2:
-        st.session_state.show_market_correlation = st.checkbox("🌐 Correlation", value=st.session_state.show_market_correlation)
-        st.session_state.show_options_analysis = st.checkbox("🎯 Options", value=st.session_state.show_options_analysis)
-        st.session_state.show_confidence_intervals = st.checkbox("📊 Confidence", value=st.session_state.show_confidence_intervals)
-        st.session_state.show_risk_management = st.checkbox("🎯 Risk Mgmt", value=st.session_state.show_risk_management)
-    
-    # Recently viewed section
+    # Recently viewed section - FIRST
     if len(st.session_state.recently_viewed) > 0:
         with st.sidebar.expander("🕒 Recently Viewed"):
             recent_cols = st.columns(3)
@@ -157,7 +140,7 @@ def create_sidebar_controls():
                         st.session_state.auto_analyze = True
                         st.rerun()
 
-    # Quick Links section
+    # Quick Links section - SECOND
     with st.sidebar.expander("🔗 Quick Links"):
         st.write("**Popular Symbols by Category**")
         
@@ -173,6 +156,24 @@ def create_sidebar_controls():
                                     st.session_state.selected_symbol = sym
                                     st.session_state.auto_analyze = True
                                     st.rerun()
+
+    # Analysis sections checkboxes - THIRD - In collapsed expander
+    with st.sidebar.expander("📋 Analysis Sections", expanded=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.show_charts = st.checkbox("📊 Charts", value=st.session_state.show_charts)
+            st.session_state.show_vwv_analysis = st.checkbox("🔴 VWV/Tech", value=st.session_state.show_vwv_analysis)
+            if VOLUME_ANALYSIS_AVAILABLE:
+                st.session_state.show_volume_analysis = st.checkbox("📊 Volume", value=st.session_state.show_volume_analysis)
+            if VOLATILITY_ANALYSIS_AVAILABLE:
+                st.session_state.show_volatility_analysis = st.checkbox("📊 Volatility", value=st.session_state.show_volatility_analysis)
+            st.session_state.show_fundamental_analysis = st.checkbox("📈 Fundamental", value=st.session_state.show_fundamental_analysis)
+        
+        with col2:
+            st.session_state.show_market_correlation = st.checkbox("🌐 Correlation", value=st.session_state.show_market_correlation)
+            st.session_state.show_options_analysis = st.checkbox("🎯 Options", value=st.session_state.show_options_analysis)
+            st.session_state.show_confidence_intervals = st.checkbox("📊 Confidence", value=st.session_state.show_confidence_intervals)
+            st.session_state.show_risk_management = st.checkbox("🎯 Risk Mgmt", value=st.session_state.show_risk_management)
 
     # Debug toggle
     show_debug = st.sidebar.checkbox("🐛 Show Debug Info", value=False)

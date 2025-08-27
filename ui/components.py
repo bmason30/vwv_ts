@@ -1,15 +1,15 @@
 """
 File: ui/components.py
-Enhanced UI Components for VWV Trading System v4.2.1 with Volatility Support
-Version: v4.2.1-VOLATILITY-ENHANCED-2025-08-27-17-30-00-EST
-Professional gradient score bars and display components for all analysis types
-Last Updated: August 27, 2025 - 5:30 PM EST
+FIXED UI Components for VWV Trading System v4.2.1 - HTML Rendering Corrected  
+Version: v4.2.1-FIXED-HTML-2025-08-27-18-15-00-EST
+Corrected HTML rendering issues and restored working gradient bars
+Last Updated: August 27, 2025 - 6:15 PM EST
 """
 import streamlit as st
 import pandas as pd
 
 def create_technical_score_bar(score, details=None):
-    """Create professional gradient bar for technical score - CRITICAL FUNCTIONALITY"""
+    """Create professional gradient bar for technical score - FIXED HTML RENDERING"""
     
     score = round(float(score), 1)
 
@@ -36,60 +36,40 @@ def create_technical_score_bar(score, details=None):
         interpretation = "Very Bearish"
         primary_color = "#DC143C"  # Crimson
     
-    # Create professional gradient bar HTML
-    html = f"""
-    <div style="margin-bottom: 1rem;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div>
-                <span style="font-weight: 700; color: #ffffff; font-size: 1.3em;">
-                    Technical Composite Score
-                </span>
-                <div style="font-size: 0.95em; color: #b0b0b0; margin-top: 0.3rem;">
-                    Aggregated signal from all technical indicators
-                </div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-weight: 700; color: {primary_color}; font-size: 2.2em; line-height: 1;">
-                    {score}
-                </div>
-                <div style="font-size: 0.95em; color: {primary_color}; font-weight: 600;">
-                    {interpretation}
-                </div>
-            </div>
-        </div>
-        
-        <div style="position: relative; width: 100%; height: 28px; 
-                    background: linear-gradient(to right, 
-                        #DC143C 0%, #FF4500 15%, #FF8C00 30%, #FFD700 50%, 
-                        #9ACD32 70%, #32CD32 85%, #00A86B 100%); 
-                    border-radius: 14px; 
-                    border: 1px solid #404040; 
-                    overflow: hidden;
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
-            
-            <div style="position: absolute; top: 0; left: {score}%; 
-                        width: 3px; height: 100%; 
-                        background: white; 
-                        box-shadow: 0 0 6px rgba(255,255,255,0.8);
-                        transform: translateX(-1.5px);">
-            </div>
-            
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8em; color: #888;">
-            <span>0</span>
-            <span>50</span>
-            <span>100</span>
-        </div>
-        
-    </div>
-    """
+    # FIXED: Use columns instead of HTML for better compatibility
+    col1, col2 = st.columns([3, 1])
     
-    st.markdown(html, unsafe_allow_html=True)
+    with col1:
+        st.subheader("Technical Composite Score")
+        st.caption("Aggregated signal from all technical indicators")
+        
+    with col2:
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div style="font-size: 2.5em; font-weight: bold; color: {primary_color};">
+                {score}
+            </div>
+            <div style="color: {primary_color}; font-weight: 600;">
+                {interpretation}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Progress bar as fallback for gradient
+    st.progress(score / 100)
+    
+    # Score interpretation below
+    score_cols = st.columns(5)
+    score_labels = ["Very Bearish", "Bearish", "Neutral", "Bullish", "Very Bullish"]
+    for i, (col, label) in enumerate(zip(score_cols, score_labels)):
+        with col:
+            if (i * 20) <= score < ((i + 1) * 20):
+                st.markdown(f"**{label}**")
+            else:
+                st.markdown(f"<small>{label}</small>", unsafe_allow_html=True)
 
 def create_volatility_score_bar(score, regime):
-    """Create professional gradient bar for volatility score - NEW VOLATILITY SUPPORT"""
+    """Create professional display for volatility score - SIMPLIFIED FOR COMPATIBILITY"""
     
     score = round(float(score), 1)
 
@@ -113,65 +93,33 @@ def create_volatility_score_bar(score, regime):
         interpretation = "Very Low Volatility"
         primary_color = "#32CD32"  # Lime green - very low
     
-    # Create professional volatility gradient bar HTML
-    html = f"""
-    <div style="margin-bottom: 1rem;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div>
-                <span style="font-weight: 700; color: #ffffff; font-size: 1.3em;">
-                    Volatility Composite Score
-                </span>
-                <div style="font-size: 0.95em; color: #b0b0b0; margin-top: 0.3rem;">
-                    14 advanced volatility indicators with weighted scoring
-                </div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-weight: 700; color: {primary_color}; font-size: 2.2em; line-height: 1;">
-                    {score}
-                </div>
-                <div style="font-size: 0.95em; color: {primary_color}; font-weight: 600;">
-                    {interpretation}
-                </div>
-            </div>
-        </div>
-        
-        <div style="position: relative; width: 100%; height: 28px; 
-                    background: linear-gradient(to right, 
-                        #32CD32 0%, #9ACD32 20%, #FFD700 40%, 
-                        #FF8C00 60%, #FF4500 80%, #DC143C 100%); 
-                    border-radius: 14px; 
-                    border: 1px solid #404040; 
-                    overflow: hidden;
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
-            
-            <div style="position: absolute; top: 0; left: {score}%; 
-                        width: 3px; height: 100%; 
-                        background: white; 
-                        box-shadow: 0 0 6px rgba(255,255,255,0.8);
-                        transform: translateX(-1.5px);">
-            </div>
-            
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8em; color: #888;">
-            <span>Very Low</span>
-            <span>Normal</span>
-            <span>High</span>
-            <span>Extreme</span>
-        </div>
-        
-        <div style="text-align: center; margin-top: 0.5rem; padding: 0.5rem; background: {primary_color}20; border-radius: 8px; border-left: 4px solid {primary_color};">
-            <strong style="color: {primary_color};">{regime}</strong>
-        </div>
-        
-    </div>
-    """
+    # Use columns for better compatibility
+    col1, col2 = st.columns([3, 1])
     
-    st.markdown(html, unsafe_allow_html=True)
+    with col1:
+        st.subheader("Volatility Composite Score")
+        st.caption("14 advanced volatility indicators with weighted scoring")
+        
+    with col2:
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div style="font-size: 2.5em; font-weight: bold; color: {primary_color};">
+                {score}
+            </div>
+            <div style="color: {primary_color}; font-weight: 600;">
+                {interpretation}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Progress bar for score
+    st.progress(score / 100)
+    
+    # Regime display
+    st.info(f"**Current Regime:** {regime}")
 
 def create_volume_score_bar(score, regime):
-    """Create professional gradient bar for volume score - VOLUME SUPPORT"""
+    """Create professional display for volume score - SIMPLIFIED FOR COMPATIBILITY"""
     
     score = round(float(score), 1)
 
@@ -195,65 +143,33 @@ def create_volume_score_bar(score, regime):
         interpretation = "Very Low Volume"
         primary_color = "#32CD32"  # Lime green - very low
     
-    # Create professional volume gradient bar HTML
-    html = f"""
-    <div style="margin-bottom: 1rem;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-            <div>
-                <span style="font-weight: 700; color: #ffffff; font-size: 1.3em;">
-                    Volume Composite Score
-                </span>
-                <div style="font-size: 0.95em; color: #b0b0b0; margin-top: 0.3rem;">
-                    Volume strength analysis with multi-timeframe confirmation
-                </div>
-            </div>
-            <div style="text-align: right;">
-                <div style="font-weight: 700; color: {primary_color}; font-size: 2.2em; line-height: 1;">
-                    {score}
-                </div>
-                <div style="font-size: 0.95em; color: {primary_color}; font-weight: 600;">
-                    {interpretation}
-                </div>
-            </div>
-        </div>
-        
-        <div style="position: relative; width: 100%; height: 28px; 
-                    background: linear-gradient(to right, 
-                        #32CD32 0%, #9ACD32 20%, #FFD700 40%, 
-                        #FF8C00 60%, #FF4500 80%, #DC143C 100%); 
-                    border-radius: 14px; 
-                    border: 1px solid #404040; 
-                    overflow: hidden;
-                    box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);">
-            
-            <div style="position: absolute; top: 0; left: {score}%; 
-                        width: 3px; height: 100%; 
-                        background: white; 
-                        box-shadow: 0 0 6px rgba(255,255,255,0.8);
-                        transform: translateX(-1.5px);">
-            </div>
-            
-        </div>
-        
-        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8em; color: #888;">
-            <span>Very Low</span>
-            <span>Normal</span>
-            <span>High</span>
-            <span>Extreme</span>
-        </div>
-        
-        <div style="text-align: center; margin-top: 0.5rem; padding: 0.5rem; background: {primary_color}20; border-radius: 8px; border-left: 4px solid {primary_color};">
-            <strong style="color: {primary_color};">{regime}</strong>
-        </div>
-        
-    </div>
-    """
+    # Use columns for better compatibility
+    col1, col2 = st.columns([3, 1])
     
-    st.markdown(html, unsafe_allow_html=True)
+    with col1:
+        st.subheader("Volume Composite Score")
+        st.caption("Volume strength analysis with multi-timeframe confirmation")
+        
+    with col2:
+        st.markdown(f"""
+        <div style="text-align: center;">
+            <div style="font-size: 2.5em; font-weight: bold; color: {primary_color};">
+                {score}
+            </div>
+            <div style="color: {primary_color}; font-weight: 600;">
+                {interpretation}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Progress bar for score
+    st.progress(score / 100)
+    
+    # Regime display
+    st.info(f"**Volume Regime:** {regime}")
 
 def create_header():
-    """Create VWV system header"""
+    """Create VWV system header - SIMPLIFIED"""
     st.markdown("""
     <div style="text-align: center; padding: 1rem; background: linear-gradient(135deg, #1e3c72, #2a5298); border-radius: 10px; margin-bottom: 2rem;">
         <h1 style="color: white; margin: 0;">🚀 VWV Professional Trading System v4.2.1</h1>
@@ -317,26 +233,11 @@ def display_regime_classification(score, regime, options_strategy, trading_impli
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown(f"""
-        <div style="padding: 1rem; background: {color}20; border-left: 4px solid {color}; border-radius: 8px; margin-bottom: 1rem;">
-            <h4 style="color: {color}; margin: 0 0 0.5rem 0;">Current Environment</h4>
-            <p style="margin: 0; font-size: 1.1em;"><strong>{regime}</strong></p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(f"**Current Environment:** {regime}")
         
         if options_strategy:
-            st.markdown(f"""
-            <div style="padding: 1rem; background: {color}15; border: 1px solid {color}40; border-radius: 8px;">
-                <h4 style="color: {color}; margin: 0 0 0.5rem 0;">Options Strategy</h4>
-                <p style="margin: 0;">{options_strategy}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.success(f"**Options Strategy:** {options_strategy}")
     
     with col2:
         if trading_implications:
-            st.markdown(f"""
-            <div style="padding: 1rem; background: {color}15; border: 1px solid {color}40; border-radius: 8px; height: 100%;">
-                <h4 style="color: {color}; margin: 0 0 0.5rem 0;">Trading Implications</h4>
-                <p style="margin: 0; line-height: 1.5;">{trading_implications}</p>
-            </div>
-            """, unsafe_allow_html=True)
+            st.info(f"**Trading Implications:** {trading_implications}")

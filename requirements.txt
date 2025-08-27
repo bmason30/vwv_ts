@@ -1,6 +1,38 @@
+# File: requirements.txt
+# VWV Professional Trading System v4.2.1 - Volatility Integration Complete
+# Version: v4.2.1-VOLATILITY-COMPLETE-2025-08-27-17-45-00-EST
+# Dependencies for complete system deployment with advanced volatility analysis
+# Last Updated: August 27, 2025 - 5:45 PM EST
+
+# Core Streamlit Framework
 streamlit>=1.28.0
-pandas>=1.5.0
-numpy>=1.21.0
-yfinance>=0.2.20
+
+# Data Processing and Analysis
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Financial Data
+yfinance>=0.2.18
+
+# Visualization
 plotly>=5.15.0
-scipy>=1.9.0
+
+# Mathematical Calculations (for advanced volatility estimators)
+scipy>=1.10.0
+
+# Statistical Analysis
+statsmodels>=0.14.0
+
+# Warnings Management
+warnings-utils>=0.1.0
+
+# Additional utilities that might be needed
+requests>=2.31.0
+python-dateutil>=2.8.2
+
+# Optional: For enhanced performance with large datasets
+# numba>=0.57.0  # Uncomment if using JIT compilation for volatility calculations
+
+# Development/Testing (optional)
+# pytest>=7.4.0
+# black>=23.0.0

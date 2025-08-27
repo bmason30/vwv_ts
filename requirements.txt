@@ -23,9 +23,6 @@ scipy>=1.10.0
 # Statistical Analysis
 statsmodels>=0.14.0
 
-# Warnings Management
-warnings-utils>=0.1.0
-
 # Additional utilities that might be needed
 requests>=2.31.0
 python-dateutil>=2.8.2

@@ -1,9 +1,9 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-28 16:20:00 EST
-Version: 4.2.2 - Debug version with enhanced volume analysis troubleshooting
-Purpose: Main Streamlit application with comprehensive debug output for volume data processing issues
+Created/Updated: 2025-08-28 16:45:00 EST
+Version: 4.2.3 - Function signature fixes for confidence intervals and pandas compatibility
+Purpose: Main Streamlit application with corrected function calls and error handling
 """
 
 import html
@@ -283,7 +283,7 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
                 st.error("No data available for charting")
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
-    """Perform enhanced analysis using modular components"""
+    """Perform enhanced analysis using modular components - FUNCTION SIGNATURE FIXED"""
     try:
         # Step 1: Fetch data using modular data fetcher
         market_data = get_market_data_enhanced(symbol, period, show_debug)
@@ -383,8 +383,15 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Step 9: Calculate options analysis
         options_levels = calculate_options_levels_enhanced(analysis_input, symbol, show_debug)
         
-        # Step 10: Calculate confidence intervals
-        confidence_analysis = calculate_confidence_intervals(analysis_input, show_debug)
+        # Step 10: Calculate confidence intervals - FIXED FUNCTION SIGNATURE
+        try:
+            confidence_analysis = calculate_confidence_intervals(analysis_input)  # REMOVED show_debug parameter
+            if show_debug:
+                st.write("✅ Confidence intervals calculated successfully")
+        except Exception as e:
+            if show_debug:
+                st.error(f"❌ Confidence intervals failed: {e}")
+            confidence_analysis = None
         
         # DEBUG: Check final enhanced_indicators structure
         if show_debug:
@@ -576,6 +583,8 @@ def show_volume_analysis(analysis_results, show_debug=False):
                 
         else:
             st.warning("⚠️ Volume analysis not available - insufficient data")
+            if show_debug and 'error' in volume_analysis:
+                st.error(f"Volume error details: {volume_analysis['error']}")
 
 def show_volatility_analysis(analysis_results, show_debug=False):
     """Display volatility analysis section - NEW v4.2.1"""
@@ -619,6 +628,8 @@ def show_volatility_analysis(analysis_results, show_debug=False):
                 
         else:
             st.warning("⚠️ Volatility analysis not available - insufficient data")
+            if show_debug and 'error' in volatility_analysis:
+                st.error(f"Volatility error details: {volatility_analysis['error']}")
 
 def show_fundamental_analysis(analysis_results, show_debug=False):
     """Display fundamental analysis section - ENHANCED v4.2.1"""
@@ -703,7 +714,7 @@ def show_options_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Options analysis not available - insufficient data")
 
 def show_confidence_intervals(analysis_results, show_debug=False):
-    """Display confidence intervals analysis section"""
+    """Display confidence intervals analysis section - FIXED"""
     if not st.session_state.show_confidence_intervals:
         return
         
@@ -713,8 +724,29 @@ def show_confidence_intervals(analysis_results, show_debug=False):
     with st.expander(f"📊 {symbol} - Statistical Confidence Intervals", expanded=True):
         
         if confidence_analysis and 'error' not in confidence_analysis:
-            # Display confidence data
-            st.info("Confidence intervals analysis available")
+            # Display confidence metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Mean Weekly Return", f"{confidence_analysis.get('mean_weekly_return', 0):.3f}%")
+            with col2:
+                st.metric("Weekly Volatility", f"{confidence_analysis.get('weekly_volatility', 0):.2f}%")
+            with col3:
+                st.metric("Sample Size", f"{confidence_analysis.get('sample_size', 0)} weeks")
+            
+            # Confidence intervals table
+            intervals = confidence_analysis.get('confidence_intervals', {})
+            if intervals:
+                final_intervals_data = []
+                for level, level_data in intervals.items():
+                    final_intervals_data.append({
+                        'Confidence Level': level,
+                        'Upper Bound': f"${level_data.get('upper_bound', 0)}",
+                        'Lower Bound': f"${level_data.get('lower_bound', 0)}",
+                        'Expected Move': f"±{level_data.get('expected_move_pct', 0):.2f}%"
+                    })
+                
+                df_intervals = pd.DataFrame(final_intervals_data)
+                st.dataframe(df_intervals, use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ Confidence intervals not available - insufficient data")
 
@@ -838,17 +870,17 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information v4.2.2 DEBUG")
+    st.write("### 📊 System Information v4.2.3 FIXED")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v4.2.2 DEBUG")
-        st.write(f"**Status:** ✅ Enhanced Volume Debugging")
+        st.write(f"**Version:** VWV Professional v4.2.3 FIXED")
+        st.write(f"**Status:** ✅ Function Signature Fixes Applied")
     with col2:
         st.write(f"**Display Order:** Charts First + Technical Second ✅")
         st.write(f"**Default Period:** 1 month ('1mo') ✅")
     with col3:
-        st.write(f"**Debug Mode:** Volume Analysis Troubleshooting")
+        st.write(f"**Fixed Issues:** Confidence Intervals Function Signature")
         st.write(f"**Enhanced Features:** Volume & Volatility Available")
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-28 17:15:00 EST
+Created/Updated: 2025-08-28 17:33:16 EST
 Version: 1.0.1 - Import compatibility fixes for streamlit module loading
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
@@ -392,7 +392,7 @@ def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, 
         if show_debug:
             try:
                 import streamlit as st
-                st.write("📊 Calculating Baldwin Market Regime Indicator...")
+                st.write("Calculating Baldwin Market Regime Indicator...")
             except:
                 pass  # Streamlit not available, continue without debug output
         
@@ -421,17 +421,17 @@ def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, 
         # Determine market regime based on thresholds
         if final_score >= BALDWIN_CONFIG['thresholds']['green']:
             market_regime = "GREEN"
-            regime_color = "🟢"
+            regime_color = "#2E7D32" # Dark Green
             strategy = "Risk-on: Press longs, buy dips"
             regime_description = "Favorable conditions - positive momentum and sufficient liquidity"
         elif final_score >= BALDWIN_CONFIG['thresholds']['yellow']:
             market_regime = "YELLOW"
-            regime_color = "🟡"
+            regime_color = "#FFC107" # Amber
             strategy = "Caution: Exercise hedging, wait for clarity"
             regime_description = "Neutral/deteriorating conditions - potential transition period"
         else:
             market_regime = "RED"
-            regime_color = "🔴"
+            regime_color = "#C62828" # Dark Red
             strategy = "Risk-off: Hedge aggressively, raise cash"
             regime_description = "Unfavorable conditions - negative momentum dominates"
         
@@ -479,50 +479,44 @@ def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any
         for comp_name, comp_data in components.items():
             component_summary.append({
                 'Component': comp_name.title(),
-                'Score': f"{comp_data['component_score']:.1f}/100",
-                'Weight': f"{comp_data['weight']*100:.0f}%",
-                'Contribution': f"{comp_data['component_score'] * comp_data['weight']:.1f}"
+                'Score': f"{comp_data.get('component_score', 0):.1f}/100",
+                'Weight': f"{comp_data.get('weight', 0)*100:.0f}%",
+                'Contribution': f"{comp_data.get('component_score', 0) * comp_data.get('weight', 0):.1f}"
             })
         
         # Create detailed breakdown for each component
         detailed_breakdown = {}
         
         # Momentum breakdown
-        momentum = components.get('momentum', {})
-        momentum_subs = momentum.get('sub_components', {})
+        momentum_subs = components.get('momentum', {}).get('sub_components', {})
         detailed_breakdown['momentum'] = []
-        
         for sub_name, sub_data in momentum_subs.items():
             detailed_breakdown['momentum'].append({
                 'Sub-Component': sub_name.replace('_', ' ').title(),
-                'Score': f"{sub_data['score']:.1f}",
-                'Weight': f"{sub_data['weight']*100:.0f}%",
+                'Score': f"{sub_data.get('score', 0):.1f}",
+                'Weight': f"{sub_data.get('weight', 0)*100:.0f}%",
                 'Details': str(sub_data.get('details', {}))
             })
         
         # Liquidity breakdown
-        liquidity = components.get('liquidity', {})
-        liquidity_subs = liquidity.get('sub_components', {})
+        liquidity_subs = components.get('liquidity', {}).get('sub_components', {})
         detailed_breakdown['liquidity'] = []
-        
         for sub_name, sub_data in liquidity_subs.items():
             detailed_breakdown['liquidity'].append({
                 'Sub-Component': sub_name.replace('_', ' ').title(),
-                'Score': f"{sub_data['score']:.1f}",
-                'Weight': f"{sub_data['weight']*100:.0f}%",
+                'Score': f"{sub_data.get('score', 0):.1f}",
+                'Weight': f"{sub_data.get('weight', 0)*100:.0f}%",
                 'Details': str(sub_data.get('details', {}))
             })
         
         # Sentiment breakdown
-        sentiment = components.get('sentiment', {})
-        sentiment_subs = sentiment.get('sub_components', {})
+        sentiment_subs = components.get('sentiment', {}).get('sub_components', {})
         detailed_breakdown['sentiment'] = []
-        
         for sub_name, sub_data in sentiment_subs.items():
             detailed_breakdown['sentiment'].append({
                 'Sub-Component': sub_name.replace('_', ' ').title(),
-                'Score': f"{sub_data['score']:.1f}",
-                'Weight': f"{sub_data['weight']*100:.0f}%",
+                'Score': f"{sub_data.get('score', 0):.1f}",
+                'Weight': f"{sub_data.get('weight', 0)*100:.0f}%",
                 'Details': str(sub_data.get('details', {}))
             })
         
@@ -531,7 +525,7 @@ def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any
             'detailed_breakdown': detailed_breakdown,
             'overall_score': baldwin_results.get('baldwin_score', 0),
             'regime': baldwin_results.get('market_regime', 'UNKNOWN'),
-            'regime_color': baldwin_results.get('regime_color', '⚪'),
+            'regime_color': baldwin_results.get('regime_color', '#757575'), # Grey
             'strategy': baldwin_results.get('strategy', 'No strategy available'),
             'description': baldwin_results.get('regime_description', ''),
             'timestamp': baldwin_results.get('timestamp', ''),

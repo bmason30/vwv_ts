@@ -1,14 +1,14 @@
 """
-Baldwin Market Regime Indicator v1.0.0
-Multi-factor model distilling Momentum, Liquidity, and Sentiment into traffic-light system
-🟢 GREEN: Risk-on, press longs, buy dips
-🟡 YELLOW: Caution, hedge, wait for clarity  
-🔴 RED: Risk-off, hedge aggressively, raise cash
+Filename: analysis/baldwin_indicator.py
+VWV Trading System v4.2.1
+Created/Updated: 2025-08-28 17:15:00 EST
+Version: 1.0.1 - Import compatibility fixes for streamlit module loading
+Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
+
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import streamlit as st
 import logging
 from typing import Dict, Any, Optional, Tuple
 from utils.decorators import safe_calculation_wrapper
@@ -41,26 +41,50 @@ BALDWIN_CONFIG = {
     'cache_ttl': 300  # 5 minutes
 }
 
-@st.cache_data(ttl=BALDWIN_CONFIG['cache_ttl'])
+# Cache for Baldwin data - simple dictionary cache to avoid streamlit dependency issues
+_baldwin_cache = {}
+_cache_timestamps = {}
+
 def fetch_baldwin_data(symbols: list, period: str = '6mo'):
-    """Cached function to fetch all required data for Baldwin Indicator"""
-    data = {}
-    
-    for symbol in symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            hist = ticker.history(period=period)
-            
-            if len(hist) > 50:  # Ensure sufficient data
-                data[symbol] = hist
-            else:
-                logger.warning(f"Insufficient data for {symbol}")
+    """Fetch all required data for Baldwin Indicator with simple caching"""
+    try:
+        import time
+        
+        # Check cache validity (5 minutes)
+        cache_key = f"{'-'.join(symbols)}_{period}"
+        current_time = time.time()
+        
+        if (cache_key in _baldwin_cache and 
+            cache_key in _cache_timestamps and 
+            current_time - _cache_timestamps[cache_key] < BALDWIN_CONFIG['cache_ttl']):
+            return _baldwin_cache[cache_key]
+        
+        # Fetch fresh data
+        data = {}
+        
+        for symbol in symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period=period)
                 
-        except Exception as e:
-            logger.error(f"Error fetching {symbol}: {e}")
-            continue
-    
-    return data
+                if len(hist) > 50:  # Ensure sufficient data
+                    data[symbol] = hist
+                else:
+                    logger.warning(f"Insufficient data for {symbol}")
+                    
+            except Exception as e:
+                logger.error(f"Error fetching {symbol}: {e}")
+                continue
+        
+        # Update cache
+        _baldwin_cache[cache_key] = data
+        _cache_timestamps[cache_key] = current_time
+        
+        return data
+        
+    except Exception as e:
+        logger.error(f"Baldwin data fetch error: {e}")
+        return {}
 
 @safe_calculation_wrapper
 def calculate_ema_position_score(data: pd.DataFrame, current_price: float, ema_periods: list = [20, 50, 200]) -> Dict[str, Any]:
@@ -364,8 +388,13 @@ def calculate_sentiment_component() -> Dict[str, Any]:
 def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
     """Calculate complete Baldwin Market Regime Indicator"""
     try:
+        # Import streamlit only when needed to avoid import issues
         if show_debug:
-            st.write("📊 Calculating Baldwin Market Regime Indicator...")
+            try:
+                import streamlit as st
+                st.write("📊 Calculating Baldwin Market Regime Indicator...")
+            except:
+                pass  # Streamlit not available, continue without debug output
         
         # Fetch all required market data
         symbols = list(BALDWIN_CONFIG['symbols'].values())

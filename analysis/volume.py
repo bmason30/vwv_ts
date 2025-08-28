@@ -84,3 +84,73 @@ def calculate_simple_volatility_analysis(data: pd.DataFrame) -> Dict[str, Any]:
             'volatility_20d': 20.0,
             'volatility_percentile': 50.0
         }
+
+@safe_calculation_wrapper        
+def calculate_market_wide_volume_analysis(show_debug=False) -> Dict[str, Any]:
+    """Calculate market-wide volume environment across SPY, QQQ, IWM"""
+    try:
+        import yfinance as yf
+        
+        major_indices = ['SPY', 'QQQ', 'IWM']
+        volume_data = {}
+        
+        for symbol in major_indices:
+            try:
+                # Fetch 3 months of data for volume analysis
+                ticker_data = yf.download(symbol, period='3mo', progress=False)
+                
+                if not ticker_data.empty and len(ticker_data) > 30:
+                    # Calculate volume analysis for each index
+                    volume_analysis = calculate_complete_volume_analysis(ticker_data)
+                    if 'error' not in volume_analysis:
+                        volume_data[symbol] = {
+                            'volume_score': volume_analysis.get('volume_score', 50),
+                            'volume_regime': volume_analysis.get('volume_regime', 'Unknown'),
+                            'volume_ratio': volume_analysis.get('volume_ratio', 1.0),
+                            'current_volume': volume_analysis.get('current_volume', 0),
+                            'volume_30d_avg': volume_analysis.get('volume_30d_avg', 0)
+                        }
+                    else:
+                        volume_data[symbol] = {'error': volume_analysis['error']}
+                        
+            except Exception as e:
+                if show_debug:
+                    st.write(f"Error fetching {symbol} volume data: {e}")
+                volume_data[symbol] = {'error': f'Data fetch failed: {str(e)}'}
+        
+        # Calculate market-wide volume environment
+        valid_scores = [data['volume_score'] for data in volume_data.values() 
+                       if 'volume_score' in data and 'error' not in data]
+        
+        if valid_scores:
+            market_volume_score = sum(valid_scores) / len(valid_scores)
+            
+            # Determine market volume regime
+            if market_volume_score >= 75:
+                market_volume_regime = "High Volume Environment"
+            elif market_volume_score >= 60:
+                market_volume_regime = "Above Average Volume"
+            elif market_volume_score >= 40:
+                market_volume_regime = "Normal Volume"
+            elif market_volume_score >= 25:
+                market_volume_regime = "Below Average Volume"
+            else:
+                market_volume_regime = "Low Volume Environment"
+        else:
+            market_volume_score = 50
+            market_volume_regime = "Unknown Volume Environment"
+            
+        return {
+            'market_volume_score': round(market_volume_score, 1),
+            'market_volume_regime': market_volume_regime,
+            'individual_analysis': volume_data,
+            'analysis_timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+    except Exception as e:
+        logger.error(f"Market-wide volume analysis error: {e}")
+        return {
+            'error': f'Market-wide volume analysis failed: {str(e)}',
+            'market_volume_regime': 'Unknown',
+            'market_volume_score': 50
+        }

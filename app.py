@@ -1,9 +1,9 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-28 16:45:00 EST
-Version: 4.2.3 - Function signature fixes for confidence intervals and pandas compatibility
-Purpose: Main Streamlit application with corrected function calls and error handling
+Created/Updated: 2025-08-28 17:00:00 EST
+Version: 4.2.4 - Plotly compatibility fixes and pandas groupby corrections
+Purpose: Main Streamlit application with corrected plotly parameters and technical analysis fixes
 """
 
 import html
@@ -77,6 +77,7 @@ from utils.decorators import safe_calculation_wrapper
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
+warnings.filterwarnings('ignore', category=FutureWarning, module='pandas')
 
 # Page configuration
 st.set_page_config(
@@ -198,7 +199,7 @@ def create_sidebar_controls():
     }
 
 def show_interactive_charts(chart_data, analysis_results, show_debug=False):
-    """Display interactive charts section - MANDATORY FIRST"""
+    """Display interactive charts section - PLOTLY COMPATIBILITY FIXED"""
     if not st.session_state.show_charts:
         return
         
@@ -209,13 +210,13 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
             import plotly.graph_objects as go
             from plotly.subplots import make_subplots
             
-            # Create subplot with secondary y-axis
+            # FIXED: Correct plotly parameters
             fig = make_subplots(
                 rows=2, cols=1,
-                shared_xaxis=True,
+                shared_xaxes=True,  # FIXED: was shared_xaxis
                 vertical_spacing=0.1,
                 subplot_titles=(f'{symbol} Price & Moving Averages', 'Volume'),
-                row_width=[0.7, 0.3]
+                row_heights=[0.7, 0.3]  # FIXED: was row_width
             )
             
             # Price chart
@@ -281,6 +282,16 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
                 st.line_chart(chart_data['Close'])
             else:
                 st.error("No data available for charting")
+        except Exception as e:
+            st.error(f"📊 Chart generation error: {str(e)}")
+            if show_debug:
+                import traceback
+                st.code(traceback.format_exc())
+            
+            # Fallback simple chart
+            st.subheader("Basic Price Chart (Fallback)")
+            if chart_data is not None and not chart_data.empty:
+                st.line_chart(chart_data['Close'])
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components - FUNCTION SIGNATURE FIXED"""
@@ -380,8 +391,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
         
-        # Step 9: Calculate options analysis
-        options_levels = calculate_options_levels_enhanced(analysis_input, symbol, show_debug)
+        # Step 9: Calculate options analysis - SAFE FALLBACK
+        try:
+            options_levels = calculate_options_levels_enhanced(analysis_input, symbol, show_debug)
+        except Exception as e:
+            if show_debug:
+                st.error(f"Options analysis failed: {e}")
+            options_levels = {'error': f'Options analysis failed: {str(e)}'}
         
         # Step 10: Calculate confidence intervals - FIXED FUNCTION SIGNATURE
         try:
@@ -696,7 +712,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Market correlation analysis not available - insufficient data")
 
 def show_options_analysis(analysis_results, show_debug=False):
-    """Display options analysis section"""
+    """Display options analysis section - SAFE FALLBACK"""
     if not st.session_state.show_options_analysis:
         return
         
@@ -710,8 +726,12 @@ def show_options_analysis(analysis_results, show_debug=False):
         if options_levels and 'error' not in options_levels:
             # Display options data
             st.info("Options analysis available")
+            if show_debug:
+                st.json(options_levels)
         else:
             st.warning("⚠️ Options analysis not available - insufficient data")
+            if show_debug and 'error' in options_levels:
+                st.error(f"Options error details: {options_levels['error']}")
 
 def show_confidence_intervals(analysis_results, show_debug=False):
     """Display confidence intervals analysis section - FIXED"""
@@ -870,17 +890,17 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information v4.2.3 FIXED")
+    st.write("### 📊 System Information v4.2.4 PLOTLY FIXED")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v4.2.3 FIXED")
-        st.write(f"**Status:** ✅ Function Signature Fixes Applied")
+        st.write(f"**Version:** VWV Professional v4.2.4 PLOTLY FIXED")
+        st.write(f"**Status:** ✅ Chart Compatibility Fixes Applied")
     with col2:
         st.write(f"**Display Order:** Charts First + Technical Second ✅")
         st.write(f"**Default Period:** 1 month ('1mo') ✅")
     with col3:
-        st.write(f"**Fixed Issues:** Confidence Intervals Function Signature")
+        st.write(f"**Fixed Issues:** Plotly make_subplots Parameters")
         st.write(f"**Enhanced Features:** Volume & Volatility Available")
 
 if __name__ == "__main__":

@@ -72,7 +72,6 @@ def calculate_breakout_score(price_series: pd.Series, lookback: int = 50) -> Dic
     if current_price >= high_50d: return {'score': 100, 'status': f'Breakout of {lookback}D High'}
     if current_price <= low_50d: return {'score': 0, 'status': f'Breakdown of {lookback}D Low'}
     
-    # Interpolate score based on position within the 50-day range
     score = np.interp(current_price, [low_50d, high_50d], [0, 100])
     return {'score': score, 'status': 'In Range'}
 
@@ -80,7 +79,6 @@ def calculate_breakout_score(price_series: pd.Series, lookback: int = 50) -> Dic
 def calculate_roc_score(price_series: pd.Series, period: int = 20) -> Dict[str, Any]:
     """Calculates a normalized score from Rate of Change (ROC)."""
     roc = price_series.pct_change(period).iloc[-1] * 100
-    # Normalize ROC to a 0-100 scale, clipping at +/- 10%
     score = np.clip(np.interp(roc, [-10, 10], [0, 100]), 0, 100)
     return {'score': score, 'roc_pct': roc}
 
@@ -91,7 +89,6 @@ def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
     spy_breakout = calculate_breakout_score(market_data['Close']['SPY'])
     spy_roc = calculate_roc_score(market_data['Close']['SPY'])
     
-    # Synthesize SPY's momentum score from the three factors
     spy_composite_score = (spy_trend['score'] * BALDWIN_CONFIG['momentum_sub_weights']['trend'] +
                            spy_breakout['score'] * BALDWIN_CONFIG['momentum_sub_weights']['breakout'] +
                            spy_roc['score'] * BALDWIN_CONFIG['momentum_sub_weights']['roc'])
@@ -119,5 +116,77 @@ def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
         }
     }
 
-# Other components also updated to use normalized scores... the full, updated file is required for the app to function.
-# The functions calculate_liquidity_credit_component, calculate_sentiment_entry_component, calculate_baldwin_indicator_complete, and format_baldwin_for_display are also part of this file.
+@safe_calculation_wrapper
+def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str, Any]:
+    """Calculate Liquidity & Credit Component with detailed breakdown."""
+    uup_strength = calculate_normalized_strength_score(market_data['Close']['UUP'])
+    tlt_strength = calculate_normalized_strength_score(market_data['Close']['TLT'])
+    flight_to_safety_score = ((100 - uup_strength['score']) * 0.6) + ((100 - tlt_strength['score']) * 0.4)
+    
+    ratio = market_data['Close']['HYG'] / market_data['Close']['LQD']
+    ratio_ema20 = ratio.ewm(span=20, adjust=False).mean().iloc[-1]
+    credit_spread_score = 90 if ratio.iloc[-1] > ratio_ema20 else 10
+    
+    return {
+        'component_score': round((flight_to_safety_score * 0.5) + (credit_spread_score * 0.5), 1),
+        'details': {
+            'Flight-to-Safety': {'score': round(flight_to_safety_score, 1), 'uup_strength': uup_strength, 'tlt_strength': tlt_strength},
+            'Credit Spreads': {'score': credit_spread_score, 'ratio': round(ratio.iloc[-1], 2), 'ema': round(ratio_ema20, 2)}
+        }
+    }
+
+@safe_calculation_wrapper
+def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data: pd.DataFrame) -> Dict[str, Any]:
+    """Calculate Sentiment & Entry using ETF proxies with detailed breakdown."""
+    insider_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['SURE', 'COPY']}
+    political_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['NANC', 'GOP']}
+    
+    insider_score = np.mean([s['score'] for s in insider_etfs.values()])
+    political_score = np.mean([s['score'] for s in political_etfs.values()])
+    sentiment_base_score = (insider_score * 0.70) + (political_score * 0.30)
+    sentiment_signal_active = sentiment_base_score > 60
+    
+    confirmed, ticker_name = False, "None"
+    if sentiment_signal_active:
+        for ticker in BALDWIN_CONFIG['watchlist_symbols']:
+            if ticker in watchlist_data['Close'].columns and not watchlist_data['Close'][ticker].isnull().all() and (watchlist_data['Close'][ticker].iloc[-1] > watchlist_data['Close'][ticker].ewm(span=20, adjust=False).mean().iloc[-1]):
+                confirmed, ticker_name = True, ticker
+                break
+    
+    return {
+        'component_score': round(95 if confirmed else sentiment_base_score, 1),
+        'details': {
+            'Sentiment ETFs': {'score': round(sentiment_base_score, 1), 'insider_avg': insider_score, 'political_avg': political_score, 'details': {**insider_etfs, **political_etfs}},
+            'Entry Confirmation': {'active': sentiment_signal_active, 'confirmed': confirmed, 'ticker': ticker_name}
+        }
+    }
+
+@safe_calculation_wrapper
+def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
+    """Calculate complete Baldwin Market Regime Indicator V4.0.0"""
+    main_data, watchlist_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values())), fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
+    if main_data is None or watchlist_data is None: return {'error': 'Failed to fetch market data', 'status': 'DATA_ERROR'}
+
+    momentum, liquidity, sentiment = calculate_momentum_component(main_data), calculate_liquidity_credit_component(main_data), calculate_sentiment_entry_component(main_data, watchlist_data)
+    final_score = (momentum['component_score'] * 0.5) + (liquidity['component_score'] * 0.3) + (sentiment['component_score'] * 0.2)
+    
+    if final_score >= 70: regime, strat = "GREEN", "Risk-on: Favorable conditions."
+    elif final_score >= 40: regime, strat = "YELLOW", "Caution: Neutral or transitioning conditions."
+    else: regime, strat = "RED", "Risk-off: Unfavorable conditions."
+    
+    return {
+        'baldwin_score': round(final_score, 1), 'market_regime': regime, 'strategy': strat,
+        'components': {'Momentum': momentum, 'Liquidity_Credit': liquidity, 'Sentiment_Entry': sentiment},
+        'status': 'OPERATIONAL', 'timestamp': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any]:
+    """Format V4.0.0 Baldwin results for UI display"""
+    if 'error' in baldwin_results: return baldwin_results
+    components = baldwin_results.get('components', {})
+    summary = [{'Component': name.replace('_', ' & '), 'Score': f"{data.get('component_score', 0):.1f}/100", 'Weight': f"{BALDWIN_CONFIG['weights'][name.lower().split('_')[0]]*100:.0f}%"} for name, data in components.items()]
+    return {
+        'component_summary': summary, 'detailed_breakdown': components,
+        'overall_score': baldwin_results.get('baldwin_score', 0), 'regime': baldwin_results.get('market_regime', 'UNKNOWN'),
+        'strategy': baldwin_results.get('strategy', 'N/A'), 'timestamp': baldwin_results.get('timestamp', '')
+    }

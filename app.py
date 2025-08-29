@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-28 17:33:16 EST
-Version: 4.2.5 - Baldwin Indicator integration and display
+Created/Updated: 2025-08-29 08:06:54 EST
+Version: 4.2.6 - Fix Baldwin Indicator detail tab display
 Purpose: Main Streamlit application with corrected plotly parameters and technical analysis fixes
 """
 
@@ -704,7 +704,6 @@ def show_baldwin_indicator_analysis(show_debug=False):
                     regime = display_data.get('regime', 'UNKNOWN')
                     score = display_data.get('overall_score', 0)
                     strategy = display_data.get('strategy', 'N/A')
-                    description = display_data.get('description', 'N/A')
 
                     color = "green" if regime == "GREEN" else "orange" if regime == "YELLOW" else "red"
                     st.header(f"Market Regime: :{color}[{regime}]")
@@ -715,7 +714,6 @@ def show_baldwin_indicator_analysis(show_debug=False):
                     with col2:
                         st.info(f"**Recommended Strategy:**\n{strategy}")
                     
-                    st.caption(description)
                     st.markdown("---")
 
                     # 4. Display component breakdown
@@ -728,23 +726,40 @@ def show_baldwin_indicator_analysis(show_debug=False):
                     # 5. Display detailed tabs for each component
                     detailed_breakdown = display_data.get('detailed_breakdown', {})
                     
-                    mom_tab, liq_tab, sen_tab = st.tabs(["Momentum Details", "Liquidity Details", "Sentiment Details"])
+                    # FIX: Correct tab names and dictionary keys
+                    mom_tab, liq_tab, sen_tab = st.tabs(["Momentum Details", "Liquidity & Credit", "Sentiment & Entry"])
                     
                     with mom_tab:
-                        if 'momentum' in detailed_breakdown:
-                            df_mom = pd.DataFrame(detailed_breakdown['momentum'])
-                            st.dataframe(df_mom[['Sub-Component', 'Score', 'Weight']], use_container_width=True, hide_index=True)
+                        if 'Momentum' in detailed_breakdown:
+                            sub_components = detailed_breakdown['Momentum'].get('sub_components', {})
+                            st.metric("Overall Momentum Score", f"{detailed_breakdown['Momentum'].get('component_score', 0):.1f}")
+                            for key, value in sub_components.items():
+                                st.metric(key, f"{value:.1f}")
+                        else:
+                            st.write("No momentum details available.")
 
                     with liq_tab:
-                        if 'liquidity' in detailed_breakdown:
-                            df_liq = pd.DataFrame(detailed_breakdown['liquidity'])
-                            st.dataframe(df_liq[['Sub-Component', 'Score', 'Weight']], use_container_width=True, hide_index=True)
-
+                        if 'Liquidity_Credit' in detailed_breakdown:
+                            sub_components = detailed_breakdown['Liquidity_Credit'].get('sub_components', {})
+                            st.metric("Overall Liquidity & Credit Score", f"{detailed_breakdown['Liquidity_Credit'].get('component_score', 0):.1f}")
+                            for key, value in sub_components.items():
+                                st.metric(key, f"{value:.1f}")
+                        else:
+                            st.write("No liquidity & credit details available.")
+                            
                     with sen_tab:
-                        if 'sentiment' in detailed_breakdown:
-                           df_sen = pd.DataFrame(detailed_breakdown['sentiment'])
-                           st.dataframe(df_sen[['Sub-Component', 'Score', 'Details']], use_container_width=True, hide_index=True)
-                           st.caption("Note: Sentiment component uses a placeholder pending premium insider data.")
+                        if 'Sentiment_Entry' in detailed_breakdown:
+                            sub_components = detailed_breakdown['Sentiment_Entry'].get('sub_components', {})
+                            st.metric("Overall Sentiment & Entry Score", f"{detailed_breakdown['Sentiment_Entry'].get('component_score', 0):.1f}")
+                            for key, value in sub_components.items():
+                                if isinstance(value, bool):
+                                    st.metric(key, "✅ Active" if value else "❌ Inactive")
+                                elif isinstance(value, str):
+                                    st.metric(key, value)
+                                else:
+                                    st.metric(key, f"{value:.1f}")
+                        else:
+                            st.write("No sentiment & entry details available.")
                 
                 elif 'error' in baldwin_results:
                     st.error(f"Error calculating Baldwin Indicator: {baldwin_results['error']}")
@@ -951,12 +966,12 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information v4.2.4 PLOTLY FIXED")
+    st.write("### 📊 System Information v4.2.6")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v4.2.5 BALDWIN FIXED")
-        st.write(f"**Status:** ✅ Baldwin Indicator Integrated")
+        st.write(f"**Version:** VWV Professional v4.2.6")
+        st.write(f"**Status:** ✅ Baldwin Detail Tabs Fixed")
     with col2:
         st.write(f"**Display Order:** Charts First + Technical Second ✅")
         st.write(f"**Default Period:** 1 month ('1mo') ✅")

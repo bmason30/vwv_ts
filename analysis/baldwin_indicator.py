@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-28 18:03:52 EST
-Version: 2.0.1 - Replaced insider data placeholder with ETF-based sentiment calculation
+Created/Updated: 2025-08-29 07:50:46 EST
+Version: 2.0.2 - Added data backfilling to handle tickers with incomplete histories
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,7 +15,7 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V2.0.1
+# Baldwin Indicator Configuration V2.0.2
 BALDWIN_CONFIG = {
     'weights': {
         'momentum': 0.50,    # 50%
@@ -53,7 +53,7 @@ _baldwin_cache = {}
 _cache_timestamps = {}
 
 def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
-    """Fetch all required data for Baldwin Indicator with simple caching"""
+    """Fetch and clean data for Baldwin Indicator with simple caching and backfilling."""
     import time
     cache_key = f"{'-'.join(sorted(symbols))}_{period}"
     current_time = time.time()
@@ -68,6 +68,11 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
         if data.empty:
             logger.warning(f"No data fetched for symbols: {symbols}")
             return None
+        
+        # FIX: Fill NaN values for tickers with shorter histories
+        data.bfill(inplace=True) # Backfill first
+        data.ffill(inplace=True) # Then forward fill
+        
         _baldwin_cache[cache_key] = data
         _cache_timestamps[cache_key] = current_time
         return data
@@ -163,7 +168,6 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
 @safe_calculation_wrapper
 def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data: pd.DataFrame) -> Dict[str, Any]:
     """Calculate Sentiment & Entry using ETF proxies (SURE/COPY 70%, NANC/GOP 30%)"""
-    # Stage 1: Calculate sentiment score from ETFs
     insider_etfs = {'SURE': 0, 'COPY': 0}
     political_etfs = {'NANC': 0, 'GOP': 0}
     
@@ -183,7 +187,6 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
     sentiment_base_score = (insider_score * 0.70) + (political_score * 0.30)
     sentiment_signal_active = sentiment_base_score > 50
 
-    # Stage 2: Entry Confirmation on Watchlist
     confirmation_found = False
     confirmed_ticker = "None"
     if sentiment_signal_active:
@@ -201,21 +204,23 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
     return {
         'component_score': round(final_score, 1),
         'sub_components': {
-            'Sentiment Signal Active': sentiment_signal_active,
-            'Confirmation Found': confirmation_found,
-            'Confirmed Ticker': confirmed_ticker,
-            'ETF Score': sentiment_base_score
+            'Sentiment Signal Active': sentiment_signal_active, 'Confirmation Found': confirmation_found,
+            'Confirmed Ticker': confirmed_ticker, 'ETF Score': sentiment_base_score
         }
     }
 
 @safe_calculation_wrapper
 def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
-    """Calculate complete Baldwin Market Regime Indicator V2.0.1"""
+    """Calculate complete Baldwin Market Regime Indicator V2.0.2"""
     main_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values()))
     watchlist_data = fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
     
-    if main_data is None or watchlist_data is None or main_data.isnull().values.any():
-        return {'error': 'Insufficient market data for Baldwin Indicator calculation', 'status': 'DATA_ERROR'}
+    if main_data is None or watchlist_data is None:
+        return {'error': 'Failed to fetch market data for Baldwin Indicator', 'status': 'DATA_ERROR'}
+    
+    # Check if any critical columns have NaN after filling, which indicates a persistent data issue
+    if main_data['Close'][['SPY', 'QQQ', 'IWM']].isnull().values.any():
+        return {'error': 'Insufficient market data for core components (SPY, QQQ, IWM)', 'status': 'DATA_ERROR'}
 
     momentum_result = calculate_momentum_component(main_data)
     liquidity_result = calculate_liquidity_credit_component(main_data)
@@ -241,7 +246,7 @@ def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, 
     }
 
 def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any]:
-    """Format V2.0.1 Baldwin results for UI display"""
+    """Format V2.0.2 Baldwin results for UI display"""
     if 'error' in baldwin_results:
         return baldwin_results
     

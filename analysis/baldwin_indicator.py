@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-29 07:50:46 EST
-Version: 2.0.2 - Added data backfilling to handle tickers with incomplete histories
+Created/Updated: 2025-08-29 08:18:37 EST
+Version: 2.1.0 - Enhanced data structures to provide detailed component breakdown
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,7 +15,7 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V2.0.2
+# Baldwin Indicator Configuration V2.1.0
 BALDWIN_CONFIG = {
     'weights': {
         'momentum': 0.50,    # 50%
@@ -69,9 +69,8 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
             logger.warning(f"No data fetched for symbols: {symbols}")
             return None
         
-        # FIX: Fill NaN values for tickers with shorter histories
-        data.bfill(inplace=True) # Backfill first
-        data.ffill(inplace=True) # Then forward fill
+        data.bfill(inplace=True)
+        data.ffill(inplace=True)
         
         _baldwin_cache[cache_key] = data
         _cache_timestamps[cache_key] = current_time
@@ -87,10 +86,7 @@ def calculate_ema_position_score(data: pd.Series, current_price: float, ema_peri
     for period in ema_periods:
         if len(data) >= period:
             ema = data.ewm(span=period, adjust=False).mean().iloc[-1]
-            ema_scores[f'ema_{period}'] = {
-                'value': round(float(ema), 2),
-                'above': current_price > ema
-            }
+            ema_scores[f'ema_{period}'] = { 'value': round(float(ema), 2), 'above': current_price > ema }
     
     if current_price > ema_scores.get('ema_20', {}).get('value', float('inf')):
         return {'score': 100, 'description': "Above 20 EMA"}
@@ -103,14 +99,14 @@ def calculate_ema_position_score(data: pd.Series, current_price: float, ema_peri
 
 @safe_calculation_wrapper
 def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate Momentum Component (50% weight) with V2 Recovery Scan"""
-    spy_score = calculate_ema_position_score(market_data['Close']['SPY'], market_data['Close']['SPY'].iloc[-1])
-    qqq_score = calculate_ema_position_score(market_data['Close']['QQQ'], market_data['Close']['QQQ'].iloc[-1])
-    broad_market_score = (spy_score['score'] * 0.6) + (qqq_score['score'] * 0.4)
+    """Calculate Momentum Component with detailed breakdown."""
+    spy_details = calculate_ema_position_score(market_data['Close']['SPY'], market_data['Close']['SPY'].iloc[-1])
+    qqq_details = calculate_ema_position_score(market_data['Close']['QQQ'], market_data['Close']['QQQ'].iloc[-1])
+    broad_market_score = (spy_details['score'] * 0.6) + (qqq_details['score'] * 0.4)
     
-    iwm_score = calculate_ema_position_score(market_data['Close']['IWM'], market_data['Close']['IWM'].iloc[-1])
-    underperformance_penalty = 20 if iwm_score['score'] < spy_score['score'] else 0
-    market_internals_score = max(0, iwm_score['score'] - underperformance_penalty)
+    iwm_details = calculate_ema_position_score(market_data['Close']['IWM'], market_data['Close']['IWM'].iloc[-1])
+    underperformance_penalty = 20 if iwm_details['score'] < spy_details['score'] else 0
+    market_internals_score = max(0, iwm_details['score'] - underperformance_penalty)
     
     fngd_price = market_data['Close']['FNGD'].iloc[-1]
     fngd_ema20 = market_data['Close']['FNGD'].ewm(span=20, adjust=False).mean().iloc[-1]
@@ -123,27 +119,25 @@ def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
     recovery_bonus = 0
     spy_ema50 = market_data['Close']['SPY'].ewm(span=50, adjust=False).mean().iloc[-1]
     is_downturn = market_data['Close']['SPY'].iloc[-1] < spy_ema50
-    
-    if is_downturn:
-        iwm_stronger = market_data['Close']['IWM'].pct_change(5).iloc[-1] > market_data['Close']['SPY'].pct_change(5).iloc[-1]
-        fngd_recovering = fngd_price < fngd_ema20
-        if iwm_stronger or fngd_recovering:
-            recovery_bonus = 15
+    if is_downturn and (market_data['Close']['IWM'].pct_change(5).iloc[-1] > market_data['Close']['SPY'].pct_change(5).iloc[-1] or fngd_price < fngd_ema20):
+        recovery_bonus = 15
 
     momentum_total = (broad_market_score * 0.4) + (market_internals_score * 0.3) + (leverage_fear_score * 0.3)
     final_score = min(100, momentum_total + recovery_bonus)
 
     return {
         'component_score': round(final_score, 1),
-        'sub_components': {
-            'Broad Market': broad_market_score, 'Market Internals': market_internals_score,
-            'Leverage & Fear': leverage_fear_score, 'Recovery Bonus': recovery_bonus
+        'details': {
+            'Broad Market': {'score': round(broad_market_score, 1), 'spy': spy_details, 'qqq': qqq_details},
+            'Market Internals': {'score': round(market_internals_score, 1), 'iwm': iwm_details, 'penalty': underperformance_penalty},
+            'Leverage & Fear': {'score': round(leverage_fear_score, 1), 'vix': vix_level, 'fngd_above_ema': fngd_price > fngd_ema20},
+            'Recovery Bonus': {'score': recovery_bonus, 'active': is_downturn and recovery_bonus > 0}
         }
     }
 
 @safe_calculation_wrapper
 def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate Liquidity & Credit Component (30% weight) with V2 Credit Spreads"""
+    """Calculate Liquidity & Credit Component with detailed breakdown."""
     uup_price = market_data['Close']['UUP'].iloc[-1]
     uup_ema20 = market_data['Close']['UUP'].ewm(span=20, adjust=False).mean().iloc[-1]
     dollar_score = 20 if uup_price > uup_ema20 else 80
@@ -151,7 +145,6 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
     tlt_price = market_data['Close']['TLT'].iloc[-1]
     tlt_ema20 = market_data['Close']['TLT'].ewm(span=20, adjust=False).mean().iloc[-1]
     bond_score = 20 if tlt_price > tlt_ema20 else 80
-    
     flight_to_safety_score = (dollar_score * 0.6) + (bond_score * 0.4)
 
     hyg_lqd_ratio = market_data['Close']['HYG'] / market_data['Close']['LQD']
@@ -162,12 +155,15 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
     
     return {
         'component_score': round(final_score, 1),
-        'sub_components': { 'Flight-to-Safety': flight_to_safety_score, 'Credit Spreads': credit_spread_score }
+        'details': {
+            'Flight-to-Safety': {'score': round(flight_to_safety_score, 1), 'uup_above_ema': uup_price > uup_ema20, 'tlt_above_ema': tlt_price > tlt_ema20},
+            'Credit Spreads': {'score': credit_spread_score, 'ratio': round(hyg_lqd_ratio.iloc[-1], 2), 'ema': round(ratio_ema20, 2)}
+        }
     }
 
 @safe_calculation_wrapper
 def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate Sentiment & Entry using ETF proxies (SURE/COPY 70%, NANC/GOP 30%)"""
+    """Calculate Sentiment & Entry using ETF proxies with detailed breakdown."""
     insider_etfs = {'SURE': 0, 'COPY': 0}
     political_etfs = {'NANC': 0, 'GOP': 0}
     
@@ -175,7 +171,6 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
         price = main_data['Close'][etf].iloc[-1]
         ema20 = main_data['Close'][etf].ewm(span=20, adjust=False).mean().iloc[-1]
         insider_etfs[etf] = 100 if price > ema20 else 0
-
     for etf in political_etfs:
         price = main_data['Close'][etf].iloc[-1]
         ema20 = main_data['Close'][etf].ewm(span=20, adjust=False).mean().iloc[-1]
@@ -183,7 +178,6 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
         
     insider_score = np.mean(list(insider_etfs.values()))
     political_score = np.mean(list(political_etfs.values()))
-    
     sentiment_base_score = (insider_score * 0.70) + (political_score * 0.30)
     sentiment_signal_active = sentiment_base_score > 50
 
@@ -195,32 +189,27 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
                 price = watchlist_data['Close'][ticker].iloc[-1]
                 ema20 = watchlist_data['Close'][ticker].ewm(span=20, adjust=False).mean().iloc[-1]
                 if price > ema20:
-                    confirmation_found = True
-                    confirmed_ticker = ticker
+                    confirmation_found, confirmed_ticker = True, ticker
                     break
     
     final_score = 95 if confirmation_found else sentiment_base_score
     
     return {
         'component_score': round(final_score, 1),
-        'sub_components': {
-            'Sentiment Signal Active': sentiment_signal_active, 'Confirmation Found': confirmation_found,
-            'Confirmed Ticker': confirmed_ticker, 'ETF Score': sentiment_base_score
+        'details': {
+            'Sentiment ETFs': {'score': round(sentiment_base_score, 1), 'insider_avg': insider_score, 'political_avg': political_score},
+            'Entry Confirmation': {'active': sentiment_signal_active, 'confirmed': confirmation_found, 'ticker': confirmed_ticker}
         }
     }
 
 @safe_calculation_wrapper
 def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
-    """Calculate complete Baldwin Market Regime Indicator V2.0.2"""
+    """Calculate complete Baldwin Market Regime Indicator V2.1.0"""
     main_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values()))
     watchlist_data = fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
     
-    if main_data is None or watchlist_data is None:
-        return {'error': 'Failed to fetch market data for Baldwin Indicator', 'status': 'DATA_ERROR'}
-    
-    # Check if any critical columns have NaN after filling, which indicates a persistent data issue
-    if main_data['Close'][['SPY', 'QQQ', 'IWM']].isnull().values.any():
-        return {'error': 'Insufficient market data for core components (SPY, QQQ, IWM)', 'status': 'DATA_ERROR'}
+    if main_data is None or watchlist_data is None or main_data.isnull().values.any():
+        return {'error': 'Insufficient market data for Baldwin Indicator calculation', 'status': 'DATA_ERROR'}
 
     momentum_result = calculate_momentum_component(main_data)
     liquidity_result = calculate_liquidity_credit_component(main_data)
@@ -246,7 +235,7 @@ def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, 
     }
 
 def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any]:
-    """Format V2.0.2 Baldwin results for UI display"""
+    """Format V2.1.0 Baldwin results for UI display"""
     if 'error' in baldwin_results:
         return baldwin_results
     

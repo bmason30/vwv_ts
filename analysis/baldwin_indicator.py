@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-29 09:19:30 EDT
-Version: 4.0.0 - Complete refactor to multi-factor composite scoring for all pillars
+Created/Updated: 2025-09-03 17:13:40 EDT
+Version: 4.0.1 - Replaced invalid ticker in watchlist and improved error logging
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,14 +15,14 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V4.0.0
+# Baldwin Indicator Configuration V4.0.1
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
         'spy': 'SPY', 'qqq': 'QQQ', 'iwm': 'IWM', 'fngd': 'FNGD', 'vix': '^VIX', 'uup': 'UUP', 'tlt': 'TLT',
         'hyg': 'HYG', 'lqd': 'LQD', 'sure': 'SURE', 'copy': 'COPY', 'nanc': 'NANC', 'gop': 'GOP'
     },
-    'watchlist_symbols': ["EPD", "DPZ", "STEW", "TFSL"],
+    'watchlist_symbols': ["EPD", "DPZ", "COST", "TFSL"], # Replaced STEW with COST
     'thresholds': { 'green': 70, 'yellow': 40, 'red': 40 },
     'vix_warning_level': 21, 'cache_ttl': 300,
     'momentum_sub_weights': {'trend': 0.5, 'breakout': 0.3, 'roc': 0.2}
@@ -39,11 +39,15 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
         return _baldwin_cache[cache_key]
     try:
         data = yf.download(symbols, period=period, interval="1d", progress=False)
-        if data.empty: return None
+        if data.empty: 
+            logger.warning(f"yfinance returned empty dataframe for symbols: {symbols}")
+            return None
         data.bfill(inplace=True).ffill(inplace=True)
         _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
         return data
-    except Exception: return None
+    except Exception as e:
+        logger.error(f"yfinance download failed for symbols {symbols}: {e}")
+        return None
 
 @safe_calculation_wrapper
 def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, Any]:
@@ -58,7 +62,6 @@ def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, An
     price_points = sorted([ema_200, ema_50, ema_20])
     score_points = sorted([15, 50, 85])
     score = np.clip(np.interp(current_price, price_points, score_points), 0, 100)
-
     return {'score': score, 'price': current_price, 'ema_20': ema_20, 'ema_50': ema_50, 'ema_200': ema_200}
 
 @safe_calculation_wrapper
@@ -118,7 +121,6 @@ def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
 
 @safe_calculation_wrapper
 def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate Liquidity & Credit Component with detailed breakdown."""
     uup_strength = calculate_normalized_strength_score(market_data['Close']['UUP'])
     tlt_strength = calculate_normalized_strength_score(market_data['Close']['TLT'])
     flight_to_safety_score = ((100 - uup_strength['score']) * 0.6) + ((100 - tlt_strength['score']) * 0.4)
@@ -137,7 +139,6 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
 
 @safe_calculation_wrapper
 def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data: pd.DataFrame) -> Dict[str, Any]:
-    """Calculate Sentiment & Entry using ETF proxies with detailed breakdown."""
     insider_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['SURE', 'COPY']}
     political_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['NANC', 'GOP']}
     
@@ -164,7 +165,8 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
 @safe_calculation_wrapper
 def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
     """Calculate complete Baldwin Market Regime Indicator V4.0.0"""
-    main_data, watchlist_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values())), fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
+    main_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values()))
+    watchlist_data = fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
     if main_data is None or watchlist_data is None: return {'error': 'Failed to fetch market data', 'status': 'DATA_ERROR'}
 
     momentum, liquidity, sentiment = calculate_momentum_component(main_data), calculate_liquidity_credit_component(main_data), calculate_sentiment_entry_component(main_data, watchlist_data)
@@ -181,7 +183,6 @@ def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, 
     }
 
 def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any]:
-    """Format V4.0.0 Baldwin results for UI display"""
     if 'error' in baldwin_results: return baldwin_results
     components = baldwin_results.get('components', {})
     summary = [{'Component': name.replace('_', ' & '), 'Score': f"{data.get('component_score', 0):.1f}/100", 'Weight': f"{BALDWIN_CONFIG['weights'][name.lower().split('_')[0]]*100:.0f}%"} for name, data in components.items()]

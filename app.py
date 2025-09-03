@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-08-29 09:19:30 EDT
-Version: 4.4.0 - Display multi-factor composite scores for Baldwin Indicator
+Created/Updated: 2025-09-03 16:40:28 EDT
+Version: 4.4.1 - Complete and unabridged application file with V4 Baldwin display.
 Purpose: Main Streamlit application with a detailed, multi-factor Baldwin display
 """
 
@@ -45,24 +45,20 @@ try:
     VOLUME_ANALYSIS_AVAILABLE = True
 except ImportError:
     VOLUME_ANALYSIS_AVAILABLE = False
-
 try:
     from analysis.volatility import calculate_complete_volatility_analysis
     VOLATILITY_ANALYSIS_AVAILABLE = True
 except ImportError:
     VOLATILITY_ANALYSIS_AVAILABLE = False
-
 try:
     from analysis.baldwin_indicator import calculate_baldwin_indicator_complete, format_baldwin_for_display
     BALDWIN_INDICATOR_AVAILABLE = True
 except ImportError:
     BALDWIN_INDICATOR_AVAILABLE = False
-
 from ui.components import create_technical_score_bar, create_header
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
-# Page configuration
 st.set_page_config(page_title="VWV Professional Trading System v4.2.1", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
 warnings.filterwarnings('ignore', category=FutureWarning)
 
@@ -70,24 +66,24 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 def create_sidebar_controls():
     st.sidebar.title("📊 Trading Analysis v4.2.1")
     
-    # Initialize session state for all components
-    for key, default_value in [
-        ('recently_viewed', []), ('show_technical_analysis', True), ('show_volume_analysis', True),
-        ('show_volatility_analysis', True), ('show_fundamental_analysis', True),
-        ('show_baldwin_indicator', True), ('show_market_correlation', True),
-        ('show_options_analysis', True), ('show_confidence_intervals', True),
-        ('show_charts', True), ('auto_analyze', False)
-    ]:
+    # Initialize session state
+    for key, default in [('recently_viewed', []), ('show_charts', True), ('show_technical_analysis', True), 
+                         ('show_volume_analysis', True), ('show_volatility_analysis', True), 
+                         ('show_fundamental_analysis', True), ('show_baldwin_indicator', True), 
+                         ('show_market_correlation', True), ('show_options_analysis', True), 
+                         ('show_confidence_intervals', True), ('auto_analyze', False)]:
         if key not in st.session_state:
-            st.session_state[key] = default_value
-    
-    current_symbol = st.session_state.get('selected_symbol', UI_SETTINGS['default_symbol'])
+            st.session_state[key] = default
+
     if 'selected_symbol' in st.session_state:
+        current_symbol = st.session_state.selected_symbol
         st.session_state.auto_analyze = True
         del st.session_state.selected_symbol
+    else:
+        current_symbol = UI_SETTINGS['default_symbol']
         
     symbol = st.sidebar.text_input("Symbol", value=current_symbol, help="Enter stock symbol").upper()
-    period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3) # Default to 1y for Baldwin
+    period = st.sidebar.selectbox("Data Period", ['1mo', '3mo', '6mo', '1y', '2y'], index=3)
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
     
     if st.session_state.auto_analyze:
@@ -121,10 +117,34 @@ def create_sidebar_controls():
     with st.sidebar.expander("🎛️ Analysis Sections", expanded=True):
         st.session_state.show_charts = st.checkbox("Charts", st.session_state.show_charts)
         st.session_state.show_technical_analysis = st.checkbox("Technical", st.session_state.show_technical_analysis)
-        # Add other checkboxes here...
     
     show_debug = st.sidebar.checkbox("Show debug info", False)
     return {'symbol': symbol, 'period': period, 'analyze_button': analyze_button, 'show_debug': show_debug, 'add_to_recently_viewed': add_to_recently_viewed}
+
+def perform_enhanced_analysis(symbol, period, show_debug=False):
+    # This function contains the full analysis pipeline logic
+    try:
+        market_data = get_market_data_enhanced(symbol, period, show_debug)
+        if market_data is None: return None, None
+        data_manager = get_data_manager()
+        data_manager.store_market_data(symbol, market_data, show_debug)
+        analysis_input = data_manager.get_market_data_for_analysis(symbol)
+        if analysis_input is None: return None, None
+        
+        analysis_results = {
+            'symbol': symbol.upper(), 'current_price': float(analysis_input['Close'].iloc[-1]), 'period': period,
+            'enhanced_indicators': {
+                'daily_vwap': calculate_daily_vwap(analysis_input),
+                'fibonacci_emas': calculate_fibonacci_emas(analysis_input),
+                'point_of_control': calculate_point_of_control_enhanced(analysis_input),
+                'comprehensive_technicals': calculate_comprehensive_technicals(analysis_input)
+            }
+        }
+        chart_data = data_manager.get_market_data_for_chart(symbol)
+        return analysis_results, chart_data
+    except Exception as e:
+        st.error(f"Analysis failed: {e}")
+        return None, None
 
 def show_baldwin_indicator_analysis(show_debug=False):
     if not st.session_state.get('show_baldwin_indicator', True) or not BALDWIN_INDICATOR_AVAILABLE: return
@@ -178,8 +198,8 @@ def show_baldwin_indicator_analysis(show_debug=False):
                             with c1:
                                 fs_details = details['Flight-to-Safety']
                                 st.metric("Flight-to-Safety Score", f"{fs_details['score']:.1f}")
-                                st.progress((fs_details['uup_strength']['score']) / 100, text=f"Dollar Strength: {fs_details['uup_strength']['score']:.1f}")
-                                st.progress((fs_details['tlt_strength']['score']) / 100, text=f"Bond Strength: {fs_details['tlt_strength']['score']:.1f}")
+                                st.progress(fs_details['uup_strength']['score'] / 100, text=f"Dollar Strength: {fs_details['uup_strength']['score']:.1f}")
+                                st.progress(fs_details['tlt_strength']['score'] / 100, text=f"Bond Strength (Risk-Off): {fs_details['tlt_strength']['score']:.1f}")
                             with c2:
                                 cs_details = details['Credit Spreads']
                                 st.metric("Credit Spreads Score", f"{cs_details['score']:.1f}")
@@ -212,15 +232,19 @@ def main():
     controls = create_sidebar_controls()
     
     if controls['analyze_button'] and controls['symbol']:
-        # This section would contain the calls to all other analysis modules
-        st.write(f"Beginning full analysis for {controls['symbol']}...")
+        st.write(f"### 📊 Full Analysis for {controls['symbol']}")
+        with st.spinner(f"Running VWV analysis for {controls['symbol']}..."):
+            analysis_results, chart_data = perform_enhanced_analysis(controls['symbol'], controls['period'], controls['show_debug'])
+            if analysis_results:
+                show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
+                # Future calls to other show_... functions would go here
     else:
         st.write("## 🚀 VWV Professional Trading System")
         st.info("Enter a symbol in the sidebar to begin analysis or view the live market regime below.")
         show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v4.4.0")
+    st.write("VWV Professional v4.4.1")
 
 if __name__ == "__main__":
     try:

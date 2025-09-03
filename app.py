@@ -1,9 +1,9 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-03 17:07:20 EDT
-Version: 4.4.2 - Diagnostic build to isolate startup error
-Purpose: Main Streamlit application with Baldwin preview disabled for debugging.
+Created/Updated: 2025-09-03 17:13:40 EDT
+Version: 4.4.3 - Re-enabled Baldwin preview after fixing data fetch error.
+Purpose: Main Streamlit application with a detailed, multi-factor Baldwin display
 """
 
 import html
@@ -234,22 +234,15 @@ def main():
         with st.spinner(f"Running VWV analysis for {controls['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(controls['symbol'], controls['period'], controls['show_debug'])
             if analysis_results:
-                # Call all the other show_... functions first
-                # show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
-                # show_individual_technical_analysis(analysis_results, controls['show_debug'])
-                # ... etc ...
-                
-                # Then show the Baldwin Indicator
                 show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
     else:
         st.write("## 🚀 VWV Professional Trading System")
-        st.info("Enter a symbol in the sidebar to begin analysis.")
-        # DIAGNOSTIC STEP: The call to show_baldwin_indicator_analysis on the home page is temporarily disabled.
-        # with st.expander("🚦 Live Baldwin Market Regime Preview", expanded=True):
-        #     show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
+        st.info("Enter a symbol in the sidebar to begin analysis or view the live market regime below.")
+        with st.expander("🚦 Live Baldwin Market Regime Preview", expanded=True):
+            show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v4.4.2 (Diagnostic Build)")
+    st.write("VWV Professional v4.4.3")
 
 if __name__ == "__main__":
     try:

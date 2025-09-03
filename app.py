@@ -1,9 +1,9 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-03 16:40:28 EDT
-Version: 4.4.1 - Complete and unabridged application file with V4 Baldwin display.
-Purpose: Main Streamlit application with a detailed, multi-factor Baldwin display
+Created/Updated: 2025-09-03 17:07:20 EDT
+Version: 4.4.2 - Diagnostic build to isolate startup error
+Purpose: Main Streamlit application with Baldwin preview disabled for debugging.
 """
 
 import html
@@ -122,7 +122,6 @@ def create_sidebar_controls():
     return {'symbol': symbol, 'period': period, 'analyze_button': analyze_button, 'show_debug': show_debug, 'add_to_recently_viewed': add_to_recently_viewed}
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
-    # This function contains the full analysis pipeline logic
     try:
         market_data = get_market_data_enhanced(symbol, period, show_debug)
         if market_data is None: return None, None
@@ -181,7 +180,6 @@ def show_baldwin_indicator_analysis(show_debug=False):
                                 st.progress(spy_details['trend']['score'] / 100, text=f"Trend Strength: {spy_details['trend']['score']:.1f}")
                                 st.progress(spy_details['breakout']['score'] / 100, text=f"Breakout Score: {spy_details['breakout']['score']:.1f} ({spy_details['breakout']['status']})")
                                 st.progress(spy_details['roc']['score'] / 100, text=f"ROC Score: {spy_details['roc']['score']:.1f} ({spy_details['roc']['roc_pct']:.2f}%)")
-                            
                             with c2:
                                 iwm_details = details['Market Internals (IWM)']
                                 fear_details = details['Leverage & Fear']
@@ -236,15 +234,22 @@ def main():
         with st.spinner(f"Running VWV analysis for {controls['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(controls['symbol'], controls['period'], controls['show_debug'])
             if analysis_results:
+                # Call all the other show_... functions first
+                # show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+                # show_individual_technical_analysis(analysis_results, controls['show_debug'])
+                # ... etc ...
+                
+                # Then show the Baldwin Indicator
                 show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
-                # Future calls to other show_... functions would go here
     else:
         st.write("## 🚀 VWV Professional Trading System")
-        st.info("Enter a symbol in the sidebar to begin analysis or view the live market regime below.")
-        show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
+        st.info("Enter a symbol in the sidebar to begin analysis.")
+        # DIAGNOSTIC STEP: The call to show_baldwin_indicator_analysis on the home page is temporarily disabled.
+        # with st.expander("🚦 Live Baldwin Market Regime Preview", expanded=True):
+        #     show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v4.4.1")
+    st.write("VWV Professional v4.4.2 (Diagnostic Build)")
 
 if __name__ == "__main__":
     try:

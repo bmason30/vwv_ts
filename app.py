@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-03 17:13:40 EDT
-Version: 4.4.3 - Re-enabled Baldwin preview after fixing data fetch error.
+Created/Updated: 2025-09-04 09:51:38 EDT
+Version: 4.4.4 - Resolved deprecation warning for st.dataframe
 Purpose: Main Streamlit application with a detailed, multi-factor Baldwin display
 """
 
@@ -164,7 +164,7 @@ def show_baldwin_indicator_analysis(show_debug=False):
                     st.markdown("---")
 
                     st.subheader("Component Breakdown")
-                    st.dataframe(pd.DataFrame(display_data['component_summary']), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(display_data['component_summary']), hide_index=True, width=None)
 
                     detailed_breakdown = display_data.get('detailed_breakdown', {})
                     mom_tab, liq_tab, sen_tab = st.tabs(["Momentum Details", "Liquidity & Credit", "Sentiment & Entry"])

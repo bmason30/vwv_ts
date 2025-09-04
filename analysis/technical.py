@@ -1,8 +1,8 @@
 """
 Filename: analysis/technical.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 12:11:17 EDT
-Version: 7.0.0 - Integrated Momentum Divergence into composite score
+Created/Updated: 2025-09-04 13:50:18 EDT
+Version: 7.0.1 - Restored correct composite score calculation logic
 Purpose: Provides comprehensive technical analysis and a weighted composite score.
 """
 import pandas as pd
@@ -18,7 +18,7 @@ def safe_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     delta = close.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss.replace(0, 1e-10) # Avoid division by zero
+    rs = gain / loss.replace(0, 1e-10)
     rsi = 100 - (100 / (1 + rs))
     return rsi.fillna(50)
 
@@ -34,7 +34,7 @@ def calculate_daily_vwap(data: pd.DataFrame) -> Optional[float]:
 @safe_calculation_wrapper
 def calculate_fibonacci_emas(data: pd.DataFrame) -> Dict[str, float]:
     """Calculate Fibonacci sequence EMAs."""
-    if len(data) < 233: return {} # Ensure enough data for the largest EMA
+    if len(data) < 233: return {}
     close = data['Close']
     fib_periods = [21, 55, 89, 144, 233]
     emas = {f'ema_{p}': round(float(close.ewm(span=p, adjust=False).mean().iloc[-1]), 2) for p in fib_periods}
@@ -97,20 +97,23 @@ def calculate_williams_r(data: pd.DataFrame, period: int = 14) -> float:
 
 @safe_calculation_wrapper
 def calculate_momentum_divergence(data: pd.DataFrame, period: int = 14) -> Dict[str, Any]:
-    if len(data) < period * 2: return {'divergence_score': 50, 'signals': []}
+    if len(data) < period * 2: return {'divergence_score': 50, 'signals': [], 'strength': 'Neutral'}
     close = data['Close']
     rsi = safe_rsi(close, period)
     macd_hist = calculate_macd(close)['histogram']
     lookback = 20
     recent_close, recent_rsi = close.tail(lookback), rsi.tail(lookback)
-    divergence_score, signals = 50, []
+    divergence_score, signals, strength = 50, [], 'Neutral'
     price_trend = np.polyfit(range(lookback), recent_close, 1)[0]
     rsi_trend = np.polyfit(range(lookback), recent_rsi, 1)[0]
-    if price_trend < 0 and rsi_trend > 0:
-        signals.append('Bullish RSI Divergence'); divergence_score += 25
-    if price_trend > 0 and rsi_trend < 0:
-        signals.append('Bearish RSI Divergence'); divergence_score -= 25
-    return {'divergence_score': np.clip(divergence_score, 0, 100), 'signals': signals, 'strength': 'Neutral'}
+    if price_trend < 0 and rsi_trend > 0.1: signals.append('Bullish RSI Divergence'); divergence_score += 20
+    if price_trend > 0 and rsi_trend < -0.1: signals.append('Bearish RSI Divergence'); divergence_score -= 20
+    divergence_score = np.clip(divergence_score, 0, 100)
+    if divergence_score >= 70: strength = 'Strong Bullish'
+    elif divergence_score >= 60: strength = 'Bullish'
+    elif divergence_score <= 30: strength = 'Strong Bearish'
+    elif divergence_score <= 40: strength = 'Bearish'
+    return {'divergence_score': round(divergence_score, 1), 'signals': signals, 'strength': strength}
 
 @safe_calculation_wrapper
 def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
@@ -132,25 +135,62 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
     }
 
 def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> Tuple[float, Dict[str, Any]]:
+    """ CORRECTED: Calculate comprehensive technical composite score with momentum divergence """
     try:
         technicals = analysis_results.get('enhanced_indicators', {}).get('comprehensive_technicals', {})
-        if not technicals or 'error' in technicals: return 50.0, {}
-        rsi_score = 100 - technicals.get('rsi_14', 50) if technicals.get('rsi_14', 50) > 70 else technicals.get('rsi_14', 50)
-        mfi_score = 100 - technicals.get('mfi_14', 50) if technicals.get('mfi_14', 50) > 80 else technicals.get('mfi_14', 50)
-        stoch_score = technicals.get('stochastic', {}).get('k', 50)
-        williams_score = 100 + technicals.get('williams_r', -50)
-        macd_score = 50 + (technicals.get('macd', {}).get('histogram', 0) * 100)
-        bb_score = technicals.get('bollinger_bands', {}).get('position', 50)
+        if not technicals or 'error' in technicals: return 50.0, {'error': 'Comprehensive technicals not available'}
+
+        component_scores, weighted_sum, total_weight = {}, 0, 0
+        
+        # RSI
+        rsi_14 = technicals.get('rsi_14', 50)
+        if rsi_14 < 30: rsi_score = (rsi_14 / 30) * 50
+        elif rsi_14 > 70: rsi_score = 100 - ((rsi_14 - 70) / 30) * 50
+        else: rsi_score = 50 + ((rsi_14 - 50) / 20) * 20
+        weighted_sum += rsi_score * 10; total_weight += 10
+        
+        # MFI
+        mfi_14 = technicals.get('mfi_14', 50)
+        if mfi_14 < 20: mfi_score = (mfi_14 / 20) * 50
+        elif mfi_14 > 80: mfi_score = 100 - ((mfi_14 - 80) / 20) * 50
+        else: mfi_score = 50 + ((mfi_14 - 50) / 30) * 20
+        weighted_sum += mfi_score * 9; total_weight += 9
+        
+        # Stochastic
+        stoch_k = technicals.get('stochastic', {}).get('k', 50)
+        weighted_sum += stoch_k * 8; total_weight += 8
+        
+        # Williams %R
+        williams_r = technicals.get('williams_r', -50)
+        williams_score = 100 + williams_r
+        weighted_sum += williams_score * 8; total_weight += 8
+        
+        # MACD
+        macd_hist = technicals.get('macd', {}).get('histogram', 0)
+        macd_score = np.clip(50 + (macd_hist * 100), 0, 100)
+        weighted_sum += macd_score * 15; total_weight += 15
+        
+        # Bollinger Bands
+        bb_position = technicals.get('bollinger_bands', {}).get('position', 50)
+        weighted_sum += bb_position * 10; total_weight += 10
+        
+        # Volume
+        volume_ratio = technicals.get('volume_ratio', 1.0)
+        vol_score = np.clip(volume_ratio * 50, 0, 100)
+        weighted_sum += vol_score * 20; total_weight += 20
+        
+        # Volatility
+        volatility_20d = technicals.get('volatility_20d', 20)
+        volatility_score = np.clip(100 - (volatility_20d * 1.5), 0, 100)
+        weighted_sum += volatility_score * 5; total_weight += 5
+        
+        # Divergence
         divergence_score = technicals.get('momentum_divergence', {}).get('divergence_score', 50)
-        weighted_score = (
-            (rsi_score * 0.10) + (mfi_score * 0.09) + (stoch_score * 0.08) + (williams_score * 0.08) +
-            (macd_score * 0.15) + (bb_score * 0.10) +
-            (min(technicals.get('volume_ratio', 1.0), 2.5) * 40 * 0.20) +
-            ((100 - min(technicals.get('volatility_20d', 20), 100)) * 0.05) +
-            (divergence_score * 0.10)
-        )
-        return np.clip(weighted_score, 0, 100), technicals
+        weighted_sum += divergence_score * 10; total_weight += 10
+        
+        composite_score = weighted_sum / total_weight if total_weight > 0 else 50.0
+        return round(composite_score, 1), technicals
     except Exception as e:
-        return 50.0, {'error': f'Score calculation failed: {e}'}
+        return 50.0, {'error': f'Score calculation failed: {str(e)}'}
 
 def calculate_weekly_deviations(data: pd.DataFrame) -> Dict[str, Any]: return {}

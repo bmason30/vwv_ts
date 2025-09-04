@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 09:09:43 EDT
-Version: 4.0.3 - Corrected chained inplace pandas operation causing crash
+Created/Updated: 2025-09-04 09:28:15 EDT
+Version: 4.1.0 - Definitive fix for data combination logic in fetch_baldwin_data
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,7 +15,7 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V4.0.3
+# Baldwin Indicator Configuration V4.1.0
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
@@ -31,7 +31,7 @@ BALDWIN_CONFIG = {
 _baldwin_cache, _cache_timestamps = {}, {}
 
 def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
-    """Robustly fetches and cleans data, one ticker at a time, and combines correctly."""
+    """Robustly fetches data for a list of symbols one by one and combines them into a single, correctly formatted DataFrame."""
     import time
     cache_key = f"{'-'.join(sorted(symbols))}_{period}"
     current_time = time.time()
@@ -44,17 +44,20 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
             data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
             if not data.empty:
                 all_data[symbol] = data
+            else:
+                logger.warning(f"No data for symbol {symbol}, skipping.")
         except Exception as e:
             logger.error(f"Could not fetch data for symbol {symbol}: {e}")
     
     if not all_data:
-        logger.error("Failed to fetch any valid ticker data for list.")
+        logger.error(f"Failed to fetch any valid ticker data for list: {symbols}")
         return None
 
+    # Use concat with keys to create a multi-index, then swap levels. This is the correct method.
     combined_df = pd.concat(all_data, axis=1)
-    combined_df = combined_df.swaplevel(0, 1, axis=1).sort_index(axis=1, level=0)
+    combined_df.columns = combined_df.columns.swaplevel(0, 1)
+    combined_df.sort_index(axis=1, level=0, inplace=True)
     
-    # CORRECTED LOGIC: Separate inplace operations
     combined_df.bfill(inplace=True)
     combined_df.ffill(inplace=True)
     
@@ -135,4 +138,4 @@ def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any
     if 'error' in baldwin_results: return baldwin_results
     components = baldwin_results.get('components', {})
     summary = [{'Component': name.replace('_', ' & '), 'Score': f"{data.get('component_score', 0):.1f}/100", 'Weight': f"{BALDWIN_CONFIG['weights'][name.lower().split('_')[0]]*100:.0f}%"} for name, data in components.items()]
-    return {'component_summary': summary, 'detailed_breakdown': components, 'overall_score': baldwin_results.get('baldwin_score', 0), 'regime': baldwin_results.get('market_regime', 'UNKNOWN'), 'strategy': baldwin_results.get('strategy', 'N/A'), 'timestamp': baldwin_results.get('timestamp', '')}
+    return {'component_summary': summary, 'detailed_breakdown': components, 'overall_score': baldwin_results.get('overall_score', 0), 'regime': baldwin_results.get('market_regime', 'UNKNOWN'), 'strategy': baldwin_results.get('strategy', 'N/A'), 'timestamp': baldwin_results.get('timestamp', '')}

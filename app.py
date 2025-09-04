@@ -2,7 +2,7 @@
 Filename: app.py
 VWV Trading System v4.2.1
 Created/Updated: 2025-09-04 16:45:00 EDT
-Version: 8.0.0 - Definitive Gold Master Restoration of all UI and analysis calls
+Version: 7.0.2 - Definitive restoration of all UI components and debug flag logic
 Purpose: Main Streamlit application with all modules integrated.
 """
 
@@ -190,26 +190,40 @@ def show_baldwin_indicator_analysis(show_debug=False):
             st.markdown("---")
             st.subheader("Component Breakdown")
             st.dataframe(pd.DataFrame(display_data.get('component_summary', [])), hide_index=True)
+            
             detailed_breakdown = display_data.get('detailed_breakdown', {})
             mom_tab, liq_tab, sen_tab = st.tabs(["Momentum", "Liquidity & Credit", "Sentiment & Entry"])
             with mom_tab:
                 if 'Momentum' in detailed_breakdown:
                     details = detailed_breakdown['Momentum']['details']
                     c1, c2 = st.columns(2)
-                    with c1: st.metric("Synthesized SPY Score", f"{details['Broad Market (SPY)']['score']:.1f}")
-                    with c2: st.metric("Market Internals (IWM) Score", f"{details['Market Internals (IWM)']['score']:.1f}")
+                    with c1:
+                        spy_details = details['Broad Market (SPY)']
+                        st.metric("Synthesized SPY Score", f"{spy_details['score']:.1f}")
+                        st.progress(spy_details['trend']['score'] / 100, text=f"Trend Strength: {spy_details['trend']['score']:.1f}")
+                    with c2:
+                        iwm_details = details['Market Internals (IWM)']
+                        st.metric("Market Internals (IWM) Score", f"{iwm_details['score']:.1f}")
             with liq_tab:
                 if 'Liquidity_Credit' in detailed_breakdown:
                     details = detailed_breakdown['Liquidity_Credit']['details']
                     c1, c2 = st.columns(2)
-                    with c1: st.metric("Flight-to-Safety Score", f"{details['Flight-to-Safety']['score']:.1f}")
-                    with c2: st.metric("Credit Spreads Score", f"{details['Credit Spreads']['score']:.1f}")
+                    with c1:
+                        fs_details = details['Flight-to-Safety']
+                        st.metric("Flight-to-Safety Score", f"{fs_details['score']:.1f}")
+                    with c2:
+                        cs_details = details['Credit Spreads']
+                        st.metric("Credit Spreads Score", f"{cs_details['score']:.1f}")
             with sen_tab:
                 if 'Sentiment_Entry' in detailed_breakdown:
                     details = detailed_breakdown['Sentiment_Entry']['details']
                     c1, c2 = st.columns(2)
-                    with c1: st.metric("Sentiment ETF Score", f"{details['Sentiment ETFs']['score']:.1f}")
-                    with c2: st.metric("Entry Confirmation", "✅ Confirmed" if details['Entry Confirmation']['confirmed'] else "⏳ Awaiting")
+                    with c1:
+                        se_details = details['Sentiment ETFs']
+                        st.metric("Sentiment ETF Score", f"{se_details['score']:.1f}")
+                    with c2:
+                        ec_details = details['Entry Confirmation']
+                        st.metric("Entry Confirmation", "✅ Confirmed" if ec_details['confirmed'] else "⏳ Awaiting")
         else: st.error("Baldwin Indicator calculation failed.")
 
 def main():

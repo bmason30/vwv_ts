@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 12:30:15 EDT
-Version: 5.0.1 - Restored missing module calls in main analysis function
+Created/Updated: 2025-09-04 13:28:11 EDT
+Version: 5.0.2 - Definitive complete version with all restored modules.
 Purpose: Main Streamlit application with all modules integrated
 """
 
@@ -109,7 +109,6 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         analysis_input = data_manager.get_market_data_for_analysis(symbol)
         if analysis_input is None: return None, None
         
-        # CORRECTED: Ensure all modules are calculated
         analysis_results = {
             'symbol': symbol.upper(),
             'current_price': float(analysis_input['Close'].iloc[-1]),
@@ -157,7 +156,9 @@ def show_volume_analysis(analysis_results, show_debug=False):
     symbol = analysis_results['symbol']
     with st.expander(f"📊 {symbol} - Volume Analysis", expanded=True):
         volume_data = analysis_results.get('enhanced_indicators', {}).get('volume_analysis', {})
-        if not volume_data or 'error' in volume_data: return
+        if not volume_data or 'error' in volume_data: 
+            st.warning("Volume data not available.")
+            return
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Current Volume", format_large_number(volume_data.get('current_volume', 0)))
@@ -171,7 +172,9 @@ def show_volatility_analysis(analysis_results, show_debug=False):
     symbol = analysis_results['symbol']
     with st.expander(f"📊 {symbol} - Volatility Analysis", expanded=True):
         volatility_data = analysis_results.get('enhanced_indicators', {}).get('volatility_analysis', {})
-        if not volatility_data or 'error' in volatility_data: return
+        if not volatility_data or 'error' in volatility_data: 
+            st.warning("Volatility data not available.")
+            return
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("20D Volatility", f"{volatility_data.get('volatility_20d', 0):.2f}%")
@@ -183,8 +186,80 @@ def show_volatility_analysis(analysis_results, show_debug=False):
 def show_baldwin_indicator_analysis(show_debug=False):
     if not st.session_state.get('show_baldwin_indicator', True) or not BALDWIN_INDICATOR_AVAILABLE: return
     with st.expander("🚦 Baldwin Market Regime Indicator", expanded=True):
-        # Full, correct display logic is here
-        pass
+        with st.spinner("Synthesizing multi-factor market regime..."):
+            try:
+                baldwin_results = calculate_baldwin_indicator_complete(show_debug)
+                if baldwin_results.get('status') == 'OPERATIONAL':
+                    display_data = format_baldwin_for_display(baldwin_results)
+                    regime, score, strategy = display_data.get('regime', 'UNKNOWN'), display_data.get('overall_score', 0), display_data.get('strategy', 'N/A')
+                    color = "green" if regime == "GREEN" else "orange" if regime == "YELLOW" else "red"
+                    
+                    st.header(f"Market Regime: :{color}[{regime}]")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Baldwin Composite Score", f"{score:.1f} / 100")
+                    c2.info(f"**Strategy:** {strategy}")
+                    st.markdown("---")
+                    st.subheader("Component Breakdown")
+                    st.dataframe(pd.DataFrame(display_data['component_summary']), use_container_width=True, hide_index=True)
+
+                    detailed_breakdown = display_data.get('detailed_breakdown', {})
+                    mom_tab, liq_tab, sen_tab = st.tabs(["Momentum Details", "Liquidity & Credit", "Sentiment & Entry"])
+                    
+                    with mom_tab:
+                        if 'Momentum' in detailed_breakdown:
+                            details = detailed_breakdown['Momentum']['details']
+                            st.subheader("Momentum Synthesis")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                spy_details = details['Broad Market (SPY)']
+                                st.metric("Synthesized SPY Score", f"{spy_details['score']:.1f}")
+                                st.progress(spy_details['trend']['score'] / 100, text=f"Trend Strength: {spy_details['trend']['score']:.1f}")
+                                st.progress(spy_details['breakout']['score'] / 100, text=f"Breakout Score: {spy_details['breakout']['score']:.1f} ({spy_details['breakout']['status']})")
+                                st.progress(spy_details['roc']['score'] / 100, text=f"ROC Score: {spy_details['roc']['score']:.1f} ({spy_details['roc']['roc_pct']:.2f}%)")
+                            with c2:
+                                iwm_details = details['Market Internals (IWM)']
+                                fear_details = details['Leverage & Fear']
+                                st.metric("Market Internals (IWM) Score", f"{iwm_details['score']:.1f}")
+                                st.caption(f"IWM Trend Strength: {iwm_details['trend']['score']:.1f}")
+                                st.metric("Leverage & Fear Score", f"{fear_details['score']:.1f}")
+                                st.caption(f"VIX: {fear_details['vix']:.2f}")
+                                
+                    with liq_tab:
+                        if 'Liquidity_Credit' in detailed_breakdown:
+                            details = detailed_breakdown['Liquidity_Credit']['details']
+                            st.subheader("Liquidity & Credit Synthesis")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                fs_details = details['Flight-to-Safety']
+                                st.metric("Flight-to-Safety Score", f"{fs_details['score']:.1f}")
+                                st.progress(fs_details['uup_strength']['score'] / 100, text=f"Dollar Strength: {fs_details['uup_strength']['score']:.1f}")
+                                st.progress(fs_details['tlt_strength']['score'] / 100, text=f"Bond Strength (Risk-Off): {fs_details['tlt_strength']['score']:.1f}")
+                            with c2:
+                                cs_details = details['Credit Spreads']
+                                st.metric("Credit Spreads Score", f"{cs_details['score']:.1f}")
+                                status = "Improving" if cs_details['ratio'] > cs_details['ema'] else "Worsening"
+                                st.caption(f"HYG/LQD Ratio: {cs_details['ratio']} ({status})")
+                    
+                    with sen_tab:
+                        if 'Sentiment_Entry' in detailed_breakdown:
+                            details = detailed_breakdown['Sentiment_Entry']['details']
+                            st.subheader("Sentiment & Entry Synthesis")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                se_details = details['Sentiment ETFs']
+                                st.metric("Sentiment ETF Score", f"{se_details['score']:.1f}")
+                                st.progress(se_details['insider_avg'] / 100, f"Insider ETF Avg: {se_details['insider_avg']:.1f}")
+                                st.progress(se_details['political_avg'] / 100, f"Political ETF Avg: {se_details['political_avg']:.1f}")
+                            with c2:
+                                ec_details = details['Entry Confirmation']
+                                st.metric("Entry Confirmation", "✅ Confirmed" if ec_details['confirmed'] else "⏳ Awaiting")
+                                st.caption(f"Sentiment Signal: {'Active' if ec_details['active'] else 'Inactive'}")
+                                st.caption(f"Trigger Ticker: {ec_details['ticker']}")
+                
+                elif 'error' in baldwin_results:
+                    st.error(f"Error calculating Baldwin Indicator: {baldwin_results['error']}")
+            except Exception as e:
+                st.error(f"A critical error occurred while displaying the Baldwin Indicator: {e}")
 
 def main():
     create_header()
@@ -206,7 +281,7 @@ def main():
             show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v5.0.1")
+    st.write("VWV Professional v5.0.2")
 
 if __name__ == "__main__":
     try:

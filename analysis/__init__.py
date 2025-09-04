@@ -1,6 +1,9 @@
 """
-Analysis package initialization file.
-This file makes the core analysis functions available for easy import.
+Filename: analysis/__init__.py
+VWV Trading System v4.2.1
+Created/Updated: 2025-09-04 12:22:09 EDT
+Version: 1.1.0 - Corrected imports to match v7.0.0 of technical module
+Purpose: Makes analysis functions available for easy import.
 """
 
 # Import from technical.py
@@ -10,9 +13,7 @@ from .technical import (
     calculate_point_of_control_enhanced,
     calculate_comprehensive_technicals,
     calculate_weekly_deviations,
-    calculate_composite_technical_score,
-    generate_technical_signals,
-    calculate_enhanced_technical_analysis
+    calculate_composite_technical_score
 )
 
 # Import from fundamental.py

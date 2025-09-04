@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 08:34:33 EDT
-Version: 4.0.3 - Definitive fix for robust multi-ticker data fetching
+Created/Updated: 2025-09-04 09:09:43 EDT
+Version: 4.0.3 - Corrected chained inplace pandas operation causing crash
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -42,10 +42,8 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
     for symbol in symbols:
         try:
             data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
-            if data.empty:
-                logger.warning(f"No data for symbol {symbol}, skipping.")
-                continue
-            all_data[symbol] = data
+            if not data.empty:
+                all_data[symbol] = data
         except Exception as e:
             logger.error(f"Could not fetch data for symbol {symbol}: {e}")
     
@@ -53,25 +51,20 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
         logger.error("Failed to fetch any valid ticker data for list.")
         return None
 
-    # Combine all successful downloads using concat with keys
     combined_df = pd.concat(all_data, axis=1)
-    # Swap column levels to get the correct ('Close', 'SPY') format
-    combined_df = combined_df.swaplevel(0, 1, axis=1)
-    combined_df.sort_index(axis=1, level=0, inplace=True)
+    combined_df = combined_df.swaplevel(0, 1, axis=1).sort_index(axis=1, level=0)
     
-    combined_df.bfill(inplace=True).ffill(inplace=True)
+    # CORRECTED LOGIC: Separate inplace operations
+    combined_df.bfill(inplace=True)
+    combined_df.ffill(inplace=True)
     
     _baldwin_cache[cache_key], _cache_timestamps[cache_key] = combined_df, current_time
     return combined_df
 
-# ... The rest of the calculation functions are unchanged ...
-
 @safe_calculation_wrapper
 def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, Any]:
     if price_series.isnull().all() or len(price_series) < 200: return {'score': 50}
-    ema_20 = price_series.ewm(span=20, adjust=False).mean().iloc[-1]
-    ema_50 = price_series.ewm(span=50, adjust=False).mean().iloc[-1]
-    ema_200 = price_series.ewm(span=200, adjust=False).mean().iloc[-1]
+    ema_20, ema_50, ema_200 = price_series.ewm(span=20, adjust=False).mean().iloc[-1], price_series.ewm(span=50, adjust=False).mean().iloc[-1], price_series.ewm(span=200, adjust=False).mean().iloc[-1]
     current_price = price_series.iloc[-1]
     price_points, score_points = sorted([ema_200, ema_50, ema_20]), sorted([15, 50, 85])
     score = np.clip(np.interp(current_price, price_points, score_points), 0, 100)

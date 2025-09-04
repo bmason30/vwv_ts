@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 09:51:38 EDT
-Version: 4.2.1 - Corrected final score variable and set yfinance cache location
+Created/Updated: 2025-09-04 10:06:51 EDT
+Version: 4.2.2 - Removed erroneous call to non-existent yfinance function
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -16,15 +16,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Configure yfinance cache to a writable directory for deployment environments
-# Create the directory if it doesn't exist to avoid errors on first run
-temp_cache_dir = os.path.join(os.getcwd(), 'temp_yfinance_cache')
-if not os.path.exists(temp_cache_dir):
-    os.makedirs(temp_cache_dir)
-yf.set_tz_cache(temp_cache_dir)
-
-
-# Baldwin Indicator Configuration V4.2.1
+# Baldwin Indicator Configuration V4.2.2
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
@@ -51,7 +43,6 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
     try: # Pass 1: Group download
         data = yf.download(symbols, period=period, interval="1d", progress=False, auto_adjust=True)
         if not data.empty and isinstance(data.columns, pd.MultiIndex):
-            # Ensure all requested symbols are present before returning
             if all(s in data.columns.get_level_values(1) for s in symbols):
                 data.bfill(inplace=True); data.ffill(inplace=True)
                 _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
@@ -150,11 +141,4 @@ def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any
     if 'error' in baldwin_results: return baldwin_results
     components = baldwin_results.get('components', {})
     summary = [{'Component': name.replace('_', ' & '), 'Score': f"{data.get('component_score', 0):.1f}/100", 'Weight': f"{BALDWIN_CONFIG['weights'][name.lower().split('_')[0]]*100:.0f}%"} for name, data in components.items()]
-    return {
-        'component_summary': summary, 
-        'detailed_breakdown': components,
-        'overall_score': baldwin_results.get('baldwin_score', 0),
-        'regime': baldwin_results.get('market_regime', 'UNKNOWN'),
-        'strategy': baldwin_results.get('strategy', 'N/A'),
-        'timestamp': baldwin_results.get('timestamp', '')
-    }
+    return {'component_summary': summary, 'detailed_breakdown': components, 'overall_score': baldwin_results.get('baldwin_score', 0), 'regime': baldwin_results.get('market_regime', 'UNKNOWN'), 'strategy': baldwin_results.get('strategy', 'N/A'), 'timestamp': baldwin_results.get('timestamp', '')}

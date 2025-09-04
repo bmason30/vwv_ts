@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-03 17:13:40 EDT
-Version: 4.0.1 - Replaced invalid ticker in watchlist and improved error logging
+Created/Updated: 2025-09-04 08:19:21 EDT
+Version: 4.0.2 - Implemented robust, individual ticker fetching to handle failures
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,7 +15,7 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V4.0.1
+# Baldwin Indicator Configuration V4.0.2
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
@@ -31,23 +31,39 @@ BALDWIN_CONFIG = {
 _baldwin_cache, _cache_timestamps = {}, {}
 
 def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
-    """Fetch and clean data with caching and backfilling."""
+    """Fetch and clean data robustly, fetching one ticker at a time."""
     import time
     cache_key = f"{'-'.join(sorted(symbols))}_{period}"
     current_time = time.time()
     if (cache_key in _baldwin_cache and current_time - _cache_timestamps.get(cache_key, 0) < BALDWIN_CONFIG['cache_ttl']):
         return _baldwin_cache[cache_key]
-    try:
-        data = yf.download(symbols, period=period, interval="1d", progress=False)
-        if data.empty: 
-            logger.warning(f"yfinance returned empty dataframe for symbols: {symbols}")
-            return None
-        data.bfill(inplace=True).ffill(inplace=True)
-        _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
-        return data
-    except Exception as e:
-        logger.error(f"yfinance download failed for symbols {symbols}: {e}")
+
+    all_data = []
+    for symbol in symbols:
+        try:
+            data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+            if data.empty:
+                logger.warning(f"No data for symbol {symbol}, skipping.")
+                continue
+            # Rename columns to make concatenation easier
+            data.columns = pd.MultiIndex.from_product([[symbol], data.columns])
+            all_data.append(data)
+        except Exception as e:
+            logger.error(f"Could not fetch data for symbol {symbol}: {e}")
+    
+    if not all_data:
+        logger.error("Failed to fetch any valid ticker data.")
         return None
+
+    # Combine all successful downloads
+    combined_data = pd.concat(all_data, axis=1)
+    # Reorganize columns to match yfinance's multi-ticker format: (Value, Ticker)
+    combined_data = combined_data.stack(level=0).unstack(level=1)
+
+    combined_data.bfill(inplace=True).ffill(inplace=True)
+    
+    _baldwin_cache[cache_key], _cache_timestamps[cache_key] = combined_data, current_time
+    return combined_data
 
 @safe_calculation_wrapper
 def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, Any]:
@@ -66,21 +82,16 @@ def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, An
 
 @safe_calculation_wrapper
 def calculate_breakout_score(price_series: pd.Series, lookback: int = 50) -> Dict[str, Any]:
-    """Calculates a score based on proximity to recent highs/lows."""
     if len(price_series) < lookback: return {'score': 50, 'status': 'Insufficient Data'}
-    
     high_50d, low_50d = price_series.tail(lookback).max(), price_series.tail(lookback).min()
     current_price = price_series.iloc[-1]
-    
-    if current_price >= high_50d: return {'score': 100, 'status': f'Breakout of {lookback}D High'}
-    if current_price <= low_50d: return {'score': 0, 'status': f'Breakdown of {lookback}D Low'}
-    
+    if current_price >= high_50d: return {'score': 100, 'status': f'Breakout'}
+    if current_price <= low_50d: return {'score': 0, 'status': f'Breakdown'}
     score = np.interp(current_price, [low_50d, high_50d], [0, 100])
     return {'score': score, 'status': 'In Range'}
 
 @safe_calculation_wrapper
 def calculate_roc_score(price_series: pd.Series, period: int = 20) -> Dict[str, Any]:
-    """Calculates a normalized score from Rate of Change (ROC)."""
     roc = price_series.pct_change(period).iloc[-1] * 100
     score = np.clip(np.interp(roc, [-10, 10], [0, 100]), 0, 100)
     return {'score': score, 'roc_pct': roc}
@@ -106,7 +117,6 @@ def calculate_momentum_component(market_data: pd.DataFrame) -> Dict[str, Any]:
     
     is_downturn = spy_trend['price'] < spy_trend['ema_50']
     recovery_bonus = 15 if is_downturn and (market_data['Close']['IWM'].pct_change(5).iloc[-1] > market_data['Close']['SPY'].pct_change(5).iloc[-1] or fngd_price < fngd_ema20) else 0
-    
     final_score = min(100, ((spy_composite_score * 0.5) + (market_internals_score * 0.3) + (leverage_fear_score * 0.2)) + recovery_bonus)
 
     return {
@@ -124,11 +134,9 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
     uup_strength = calculate_normalized_strength_score(market_data['Close']['UUP'])
     tlt_strength = calculate_normalized_strength_score(market_data['Close']['TLT'])
     flight_to_safety_score = ((100 - uup_strength['score']) * 0.6) + ((100 - tlt_strength['score']) * 0.4)
-    
     ratio = market_data['Close']['HYG'] / market_data['Close']['LQD']
     ratio_ema20 = ratio.ewm(span=20, adjust=False).mean().iloc[-1]
     credit_spread_score = 90 if ratio.iloc[-1] > ratio_ema20 else 10
-    
     return {
         'component_score': round((flight_to_safety_score * 0.5) + (credit_spread_score * 0.5), 1),
         'details': {
@@ -141,19 +149,15 @@ def calculate_liquidity_credit_component(market_data: pd.DataFrame) -> Dict[str,
 def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data: pd.DataFrame) -> Dict[str, Any]:
     insider_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['SURE', 'COPY']}
     political_etfs = {etf: calculate_normalized_strength_score(main_data['Close'][etf]) for etf in ['NANC', 'GOP']}
-    
-    insider_score = np.mean([s['score'] for s in insider_etfs.values()])
-    political_score = np.mean([s['score'] for s in political_etfs.values()])
+    insider_score, political_score = np.mean([s['score'] for s in insider_etfs.values()]), np.mean([s['score'] for s in political_etfs.values()])
     sentiment_base_score = (insider_score * 0.70) + (political_score * 0.30)
     sentiment_signal_active = sentiment_base_score > 60
-    
     confirmed, ticker_name = False, "None"
     if sentiment_signal_active:
         for ticker in BALDWIN_CONFIG['watchlist_symbols']:
             if ticker in watchlist_data['Close'].columns and not watchlist_data['Close'][ticker].isnull().all() and (watchlist_data['Close'][ticker].iloc[-1] > watchlist_data['Close'][ticker].ewm(span=20, adjust=False).mean().iloc[-1]):
                 confirmed, ticker_name = True, ticker
                 break
-    
     return {
         'component_score': round(95 if confirmed else sentiment_base_score, 1),
         'details': {
@@ -164,9 +168,7 @@ def calculate_sentiment_entry_component(main_data: pd.DataFrame, watchlist_data:
 
 @safe_calculation_wrapper
 def calculate_baldwin_indicator_complete(show_debug: bool = False) -> Dict[str, Any]:
-    """Calculate complete Baldwin Market Regime Indicator V4.0.0"""
-    main_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values()))
-    watchlist_data = fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
+    main_data, watchlist_data = fetch_baldwin_data(list(BALDWIN_CONFIG['symbols'].values())), fetch_baldwin_data(BALDWIN_CONFIG['watchlist_symbols'])
     if main_data is None or watchlist_data is None: return {'error': 'Failed to fetch market data', 'status': 'DATA_ERROR'}
 
     momentum, liquidity, sentiment = calculate_momentum_component(main_data), calculate_liquidity_credit_component(main_data), calculate_sentiment_entry_component(main_data, watchlist_data)

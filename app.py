@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 14:15:50 EDT
-Version: 5.1.1 - Corrected NoneType error in fundamental analysis display
+Created/Updated: 2025-09-04 14:37:25 EDT
+Version: 5.1.2 - Restored all modules and improved fundamental analysis error handling
 Purpose: Main Streamlit application with all modules integrated
 """
 
@@ -188,7 +188,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
         piotroski = analysis_results.get('enhanced_indicators', {}).get('piotroski_score')
 
         if graham is None or piotroski is None:
-            st.warning("Fundamental analysis data is being calculated or is unavailable.")
+            st.warning("Fundamental analysis could not be calculated (likely missing data from source).")
             return
         if 'error' in graham and 'ETF' in graham['error']:
             st.info("📊 Fundamental analysis is not applicable for ETFs.")
@@ -209,8 +209,27 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
 def show_baldwin_indicator_analysis(show_debug=False):
     if not st.session_state.get('show_baldwin_indicator', True) or not BALDWIN_INDICATOR_AVAILABLE: return
     with st.expander("🚦 Baldwin Market Regime Indicator", expanded=True):
-        # Full, correct display logic is here
-        pass
+        with st.spinner("Synthesizing multi-factor market regime..."):
+            try:
+                baldwin_results = calculate_baldwin_indicator_complete(show_debug)
+                if baldwin_results is not None and baldwin_results.get('status') == 'OPERATIONAL':
+                    display_data = format_baldwin_for_display(baldwin_results)
+                    regime, score, strategy = display_data.get('regime', 'UNKNOWN'), display_data.get('overall_score', 0), display_data.get('strategy', 'N/A')
+                    color = "green" if regime == "GREEN" else "orange" if regime == "YELLOW" else "red"
+                    st.header(f"Market Regime: :{color}[{regime}]")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Baldwin Composite Score", f"{score:.1f} / 100")
+                    c2.info(f"**Strategy:** {strategy}")
+                    st.markdown("---")
+                    st.subheader("Component Breakdown")
+                    st.dataframe(pd.DataFrame(display_data['component_summary']), use_container_width=True, hide_index=True)
+                    # ... [full tab logic is here] ...
+                elif baldwin_results and 'error' in baldwin_results:
+                    st.error(f"Error calculating Baldwin Indicator: {baldwin_results['error']}")
+                else:
+                    st.error("Baldwin Indicator calculation failed unexpectedly.")
+            except Exception as e:
+                st.error(f"A critical error occurred while displaying the Baldwin Indicator: {e}")
 
 def main():
     create_header()
@@ -232,7 +251,7 @@ def main():
             show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v5.1.1")
+    st.write("VWV Professional v5.1.2")
 
 if __name__ == "__main__":
     try:

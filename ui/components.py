@@ -1,12 +1,12 @@
 """
 Filename: ui/components.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 10:19:16 EDT
-Version: 1.1.1 - Added missing create_volatility_score_bar function
+Created/Updated: 2025-09-04 11:15:18 EDT
+Version: 1.1.2 - Added missing create_volume_score_bar function
 Purpose: UI components for the Streamlit application.
 """
 
-def create_score_bar(score, name, color_map):
+def create_score_bar(score, name, color):
     """Generic function to create a styled score bar."""
     import streamlit as st
     
@@ -14,8 +14,6 @@ def create_score_bar(score, name, color_map):
         st.warning(f"Score for {name} not available.")
         return
 
-    color = color_map.get(score, "grey")
-    
     st.markdown(f"**{name}:**")
     st.markdown(f"""
     <div style="background-color: #262730; border-radius: 5px; padding: 5px; border: 1px solid #333;">
@@ -24,18 +22,22 @@ def create_score_bar(score, name, color_map):
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.write("") # Add some space
+    st.write("")
 
 def create_technical_score_bar(score, name):
     """Creates a progress bar for a technical score (higher is better)."""
     color = "green" if score >= 70 else "orange" if score >= 40 else "red"
-    color_map = {score: color} # Simplified for the generic function
-    create_score_bar(score, name, {score: color})
+    create_score_bar(score, name, color)
 
 def create_volatility_score_bar(score, name):
     """Creates a progress bar for a volatility score (lower is better)."""
     color = "red" if score >= 70 else "orange" if score >= 40 else "green"
-    create_score_bar(score, name, {score: color})
+    create_score_bar(score, name, color)
+
+def create_volume_score_bar(score, name):
+    """Creates a progress bar for a volume score (higher indicates more conviction)."""
+    color = "green" if score >= 70 else "orange" if score >= 40 else "red"
+    create_score_bar(score, name, color)
 
 def create_header():
     """Creates the main header for the application."""

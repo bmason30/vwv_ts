@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 15:51:10 EDT
-Version: 7.0.0 - Definitive restoration of all modules and UI components
+Created/Updated: 2025-09-04 16:10:25 EDT
+Version: 7.0.1 - Definitive restoration of all modules and UI components
 Purpose: Main Streamlit application with all modules integrated
 """
 
@@ -219,16 +219,49 @@ def show_baldwin_indicator_analysis(show_debug=False):
                 mom_tab, liq_tab, sen_tab = st.tabs(["Momentum Details", "Liquidity & Credit", "Sentiment & Entry"])
                 with mom_tab:
                     if 'Momentum' in detailed_breakdown:
-                        # Full, detailed Momentum display logic here...
-                        pass
+                        details = detailed_breakdown['Momentum']['details']
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            spy_details = details['Broad Market (SPY)']
+                            st.metric("Synthesized SPY Score", f"{spy_details['score']:.1f}")
+                            st.progress(spy_details['trend']['score'] / 100, text=f"Trend Strength: {spy_details['trend']['score']:.1f}")
+                            st.progress(spy_details['breakout']['score'] / 100, text=f"Breakout Score: {spy_details['breakout']['score']:.1f} ({spy_details['breakout']['status']})")
+                            st.progress(spy_details['roc']['score'] / 100, text=f"ROC Score: {spy_details['roc']['score']:.1f} ({spy_details['roc']['roc_pct']:.2f}%)")
+                        with c2:
+                            iwm_details = details['Market Internals (IWM)']
+                            fear_details = details['Leverage & Fear']
+                            st.metric("Market Internals (IWM) Score", f"{iwm_details['score']:.1f}")
+                            st.caption(f"IWM Trend Strength: {iwm_details['trend']['score']:.1f}")
+                            st.metric("Leverage & Fear Score", f"{fear_details['score']:.1f}")
+                            st.caption(f"VIX: {fear_details['vix']:.2f}")
                 with liq_tab:
                     if 'Liquidity_Credit' in detailed_breakdown:
-                        # Full, detailed Liquidity display logic here...
-                        pass
+                        details = detailed_breakdown['Liquidity_Credit']['details']
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            fs_details = details['Flight-to-Safety']
+                            st.metric("Flight-to-Safety Score", f"{fs_details['score']:.1f}")
+                            st.progress(fs_details['uup_strength']['score'] / 100, text=f"Dollar Strength: {fs_details['uup_strength']['score']:.1f}")
+                            st.progress(fs_details['tlt_strength']['score'] / 100, text=f"Bond Strength (Risk-Off): {fs_details['tlt_strength']['score']:.1f}")
+                        with c2:
+                            cs_details = details['Credit Spreads']
+                            st.metric("Credit Spreads Score", f"{cs_details['score']:.1f}")
+                            status = "Improving" if cs_details['ratio'] > cs_details['ema'] else "Worsening"
+                            st.caption(f"HYG/LQD Ratio: {cs_details['ratio']} ({status})")
                 with sen_tab:
                     if 'Sentiment_Entry' in detailed_breakdown:
-                        # Full, detailed Sentiment display logic here...
-                        pass
+                        details = detailed_breakdown['Sentiment_Entry']['details']
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            se_details = details['Sentiment ETFs']
+                            st.metric("Sentiment ETF Score", f"{se_details['score']:.1f}")
+                            st.progress(se_details['insider_avg'] / 100, f"Insider ETF Avg: {se_details['insider_avg']:.1f}")
+                            st.progress(se_details['political_avg'] / 100, f"Political ETF Avg: {se_details['political_avg']:.1f}")
+                        with c2:
+                            ec_details = details['Entry Confirmation']
+                            st.metric("Entry Confirmation", "✅ Confirmed" if ec_details['confirmed'] else "⏳ Awaiting")
+                            st.caption(f"Sentiment Signal: {'Active' if ec_details['active'] else 'Inactive'}")
+                            st.caption(f"Trigger Ticker: {ec_details['ticker']}")
             elif baldwin_results and 'error' in baldwin_results:
                 st.error(f"Error calculating Baldwin Indicator: {baldwin_results['error']}")
             else:

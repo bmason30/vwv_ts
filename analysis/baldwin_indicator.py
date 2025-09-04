@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 09:40:11 EDT
-Version: 4.2.0 - Definitive fix for data combination logic using standard methods
+Created/Updated: 2025-09-04 09:51:38 EDT
+Version: 4.2.1 - Corrected final score variable and set yfinance cache location
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -12,10 +12,19 @@ import yfinance as yf
 import logging
 from typing import Dict, Any, List
 from utils.decorators import safe_calculation_wrapper
+import os
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V4.2.0
+# Configure yfinance cache to a writable directory for deployment environments
+# Create the directory if it doesn't exist to avoid errors on first run
+temp_cache_dir = os.path.join(os.getcwd(), 'temp_yfinance_cache')
+if not os.path.exists(temp_cache_dir):
+    os.makedirs(temp_cache_dir)
+yf.set_tz_cache(temp_cache_dir)
+
+
+# Baldwin Indicator Configuration V4.2.1
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
@@ -38,18 +47,19 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
     if (cache_key in _baldwin_cache and current_time - _cache_timestamps.get(cache_key, 0) < BALDWIN_CONFIG['cache_ttl']):
         return _baldwin_cache[cache_key]
 
-    # Pass 1: Try to fetch all symbols at once for speed.
-    try:
+    all_data = {}
+    try: # Pass 1: Group download
         data = yf.download(symbols, period=period, interval="1d", progress=False, auto_adjust=True)
         if not data.empty and isinstance(data.columns, pd.MultiIndex):
-            data.bfill(inplace=True); data.ffill(inplace=True)
-            _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
-            return data
+            # Ensure all requested symbols are present before returning
+            if all(s in data.columns.get_level_values(1) for s in symbols):
+                data.bfill(inplace=True); data.ffill(inplace=True)
+                _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
+                return data
     except Exception as e:
         logger.warning(f"Group yfinance download failed: {e}. Falling back to individual fetching.")
 
-    # Pass 2: If group fetch fails, fetch one by one (more robust).
-    all_data = {}
+    # Pass 2: Fallback to individual fetching.
     for symbol in symbols:
         try:
             ticker_data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
@@ -57,19 +67,15 @@ def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
         except Exception as e:
             logger.error(f"Could not fetch data for single symbol {symbol}: {e}")
     
-    if not all_data:
-        logger.error(f"Failed to fetch any valid ticker data for list: {symbols}")
-        return None
-
+    if not all_data: return None
     combined_df = pd.concat(all_data, axis=1)
-    combined_df.columns = combined_df.columns.swaplevel(0, 1)
+    if isinstance(combined_df.columns, pd.MultiIndex):
+         combined_df.columns = combined_df.columns.swaplevel(0, 1)
     combined_df.sort_index(axis=1, level=0, inplace=True)
     combined_df.bfill(inplace=True); combined_df.ffill(inplace=True)
-    
     _baldwin_cache[cache_key], _cache_timestamps[cache_key] = combined_df, current_time
     return combined_df
 
-# ... The rest of the calculation functions are unchanged ...
 @safe_calculation_wrapper
 def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, Any]:
     if price_series.isnull().all() or len(price_series) < 200: return {'score': 50}
@@ -144,4 +150,11 @@ def format_baldwin_for_display(baldwin_results: Dict[str, Any]) -> Dict[str, Any
     if 'error' in baldwin_results: return baldwin_results
     components = baldwin_results.get('components', {})
     summary = [{'Component': name.replace('_', ' & '), 'Score': f"{data.get('component_score', 0):.1f}/100", 'Weight': f"{BALDWIN_CONFIG['weights'][name.lower().split('_')[0]]*100:.0f}%"} for name, data in components.items()]
-    return {'component_summary': summary, 'detailed_breakdown': components, 'overall_score': baldwin_results.get('overall_score', 0), 'regime': baldwin_results.get('market_regime', 'UNKNOWN'), 'strategy': baldwin_results.get('strategy', 'N/A'), 'timestamp': baldwin_results.get('timestamp', '')}
+    return {
+        'component_summary': summary, 
+        'detailed_breakdown': components,
+        'overall_score': baldwin_results.get('baldwin_score', 0),
+        'regime': baldwin_results.get('market_regime', 'UNKNOWN'),
+        'strategy': baldwin_results.get('strategy', 'N/A'),
+        'timestamp': baldwin_results.get('timestamp', '')
+    }

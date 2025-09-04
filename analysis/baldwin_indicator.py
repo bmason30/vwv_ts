@@ -1,8 +1,8 @@
 """
 Filename: analysis/baldwin_indicator.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 09:28:15 EDT
-Version: 4.1.0 - Definitive fix for data combination logic in fetch_baldwin_data
+Created/Updated: 2025-09-04 09:40:11 EDT
+Version: 4.2.0 - Definitive fix for data combination logic using standard methods
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)
 """
 
@@ -15,7 +15,7 @@ from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
-# Baldwin Indicator Configuration V4.1.0
+# Baldwin Indicator Configuration V4.2.0
 BALDWIN_CONFIG = {
     'weights': { 'momentum': 0.50, 'liquidity': 0.30, 'sentiment': 0.20 },
     'symbols': {
@@ -31,39 +31,45 @@ BALDWIN_CONFIG = {
 _baldwin_cache, _cache_timestamps = {}, {}
 
 def fetch_baldwin_data(symbols: List[str], period: str = '1y'):
-    """Robustly fetches data for a list of symbols one by one and combines them into a single, correctly formatted DataFrame."""
+    """Robustly fetches data using a two-pass approach for maximum reliability."""
     import time
     cache_key = f"{'-'.join(sorted(symbols))}_{period}"
     current_time = time.time()
     if (cache_key in _baldwin_cache and current_time - _cache_timestamps.get(cache_key, 0) < BALDWIN_CONFIG['cache_ttl']):
         return _baldwin_cache[cache_key]
 
+    # Pass 1: Try to fetch all symbols at once for speed.
+    try:
+        data = yf.download(symbols, period=period, interval="1d", progress=False, auto_adjust=True)
+        if not data.empty and isinstance(data.columns, pd.MultiIndex):
+            data.bfill(inplace=True); data.ffill(inplace=True)
+            _baldwin_cache[cache_key], _cache_timestamps[cache_key] = data, current_time
+            return data
+    except Exception as e:
+        logger.warning(f"Group yfinance download failed: {e}. Falling back to individual fetching.")
+
+    # Pass 2: If group fetch fails, fetch one by one (more robust).
     all_data = {}
     for symbol in symbols:
         try:
-            data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
-            if not data.empty:
-                all_data[symbol] = data
-            else:
-                logger.warning(f"No data for symbol {symbol}, skipping.")
+            ticker_data = yf.download(symbol, period=period, interval="1d", progress=False, auto_adjust=True)
+            if not ticker_data.empty: all_data[symbol] = ticker_data
         except Exception as e:
-            logger.error(f"Could not fetch data for symbol {symbol}: {e}")
+            logger.error(f"Could not fetch data for single symbol {symbol}: {e}")
     
     if not all_data:
         logger.error(f"Failed to fetch any valid ticker data for list: {symbols}")
         return None
 
-    # Use concat with keys to create a multi-index, then swap levels. This is the correct method.
     combined_df = pd.concat(all_data, axis=1)
     combined_df.columns = combined_df.columns.swaplevel(0, 1)
     combined_df.sort_index(axis=1, level=0, inplace=True)
-    
-    combined_df.bfill(inplace=True)
-    combined_df.ffill(inplace=True)
+    combined_df.bfill(inplace=True); combined_df.ffill(inplace=True)
     
     _baldwin_cache[cache_key], _cache_timestamps[cache_key] = combined_df, current_time
     return combined_df
 
+# ... The rest of the calculation functions are unchanged ...
 @safe_calculation_wrapper
 def calculate_normalized_strength_score(price_series: pd.Series) -> Dict[str, Any]:
     if price_series.isnull().all() or len(price_series) < 200: return {'score': 50}

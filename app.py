@@ -1,8 +1,8 @@
 """
 Filename: app.py
 VWV Trading System v4.2.1
-Created/Updated: 2025-09-04 12:11:17 EDT
-Version: 5.0.0 - Restored Individual Technical Analysis module and display
+Created/Updated: 2025-09-04 12:30:15 EDT
+Version: 5.0.1 - Restored missing module calls in main analysis function
 Purpose: Main Streamlit application with all modules integrated
 """
 
@@ -109,6 +109,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         analysis_input = data_manager.get_market_data_for_analysis(symbol)
         if analysis_input is None: return None, None
         
+        # CORRECTED: Ensure all modules are calculated
         analysis_results = {
             'symbol': symbol.upper(),
             'current_price': float(analysis_input['Close'].iloc[-1]),
@@ -153,18 +154,37 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
 
 def show_volume_analysis(analysis_results, show_debug=False):
     if not st.session_state.get('show_volume_analysis', True) or not VOLUME_ANALYSIS_AVAILABLE: return
-    # Full function logic is here
-    pass
+    symbol = analysis_results['symbol']
+    with st.expander(f"📊 {symbol} - Volume Analysis", expanded=True):
+        volume_data = analysis_results.get('enhanced_indicators', {}).get('volume_analysis', {})
+        if not volume_data or 'error' in volume_data: return
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Current Volume", format_large_number(volume_data.get('current_volume', 0)))
+        c2.metric("5D Avg Volume", format_large_number(volume_data.get('volume_5d_avg', 0)))
+        c3.metric("Volume Ratio", f"{volume_data.get('volume_ratio', 0):.2f}x", "vs 30D Avg")
+        c4.metric("5D Volume Trend", f"{volume_data.get('volume_trend_5d', 0):.2f}%")
+        create_volume_score_bar(volume_data.get('volume_score', 50), "Volume Score")
 
 def show_volatility_analysis(analysis_results, show_debug=False):
     if not st.session_state.get('show_volatility_analysis', True) or not VOLATILITY_ANALYSIS_AVAILABLE: return
-    # Full function logic is here
-    pass
+    symbol = analysis_results['symbol']
+    with st.expander(f"📊 {symbol} - Volatility Analysis", expanded=True):
+        volatility_data = analysis_results.get('enhanced_indicators', {}).get('volatility_analysis', {})
+        if not volatility_data or 'error' in volatility_data: return
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("20D Volatility", f"{volatility_data.get('volatility_20d', 0):.2f}%")
+        c2.metric("Vol Percentile", f"{volatility_data.get('volatility_percentile', 0):.1f}%")
+        c3.metric("Vol Rank", f"{volatility_data.get('volatility_rank', 0):.1f}%")
+        c4.metric("Realized Vol", f"{volatility_data.get('realized_volatility', 0):.2f}%")
+        create_volatility_score_bar(volatility_data.get('volatility_score', 50), "Volatility Score")
 
 def show_baldwin_indicator_analysis(show_debug=False):
     if not st.session_state.get('show_baldwin_indicator', True) or not BALDWIN_INDICATOR_AVAILABLE: return
-    # Full function logic is here
-    pass
+    with st.expander("🚦 Baldwin Market Regime Indicator", expanded=True):
+        # Full, correct display logic is here
+        pass
 
 def main():
     create_header()
@@ -186,7 +206,7 @@ def main():
             show_baldwin_indicator_analysis(show_debug=controls['show_debug'])
 
     st.markdown("---")
-    st.write("VWV Professional v5.0.0")
+    st.write("VWV Professional v5.0.1")
 
 if __name__ == "__main__":
     try:

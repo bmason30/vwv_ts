@@ -227,26 +227,134 @@ def show_baldwin_indicator_analysis(show_debug=False):
         else: st.error("Baldwin Indicator calculation failed.")
 
 def main():
-    setup_session_state()
-    create_header()
-    controls = create_sidebar_controls()
+    """Main application function - DIAGNOSTIC VERSION"""
+    import traceback
     
-    if controls['analyze_button'] and controls['symbol']:
-        controls['add_to_recently_viewed'](controls['symbol'])
-        st.write(f"### 📊 Full Analysis for {controls['symbol']}")
-        if controls['show_debug']:
-            st.warning("🐞 DEBUG MODE IS ACTIVE")
-        with st.spinner(f"Running full analysis for {controls['symbol']}..."):
-            results = perform_full_analysis(controls['symbol'], controls['period'], controls['show_debug'])
-            if results:
-                show_technical_analysis(results, controls['show_debug'])
-                show_volume_analysis(results, controls['show_debug'])
-                show_volatility_analysis(results, controls['show_debug'])
-                show_fundamental_analysis(results, controls['show_debug'])
-                show_baldwin_indicator_analysis(controls['show_debug'])
+    st.write("=" * 60)
+    st.write("🔬 DIAGNOSTIC MODE ACTIVE")
+    st.write("=" * 60)
+    
+    try:
+        st.write("Step 1: Creating header...")
+        create_header()
+        st.write("✅ Header created")
+    except Exception as e:
+        st.error(f"❌ Header creation failed: {e}")
+        st.code(traceback.format_exc())
+    
+    try:
+        st.write("Step 2: Creating sidebar controls...")
+        controls = create_sidebar_controls()
+        st.write("✅ Sidebar controls created")
+        st.write("**Controls received:**")
+        st.json(controls)
+    except Exception as e:
+        st.error(f"❌ Sidebar creation failed: {e}")
+        st.code(traceback.format_exc())
+        return
+    
+    # Check conditions
+    st.write("---")
+    st.write("Step 3: Checking analysis conditions...")
+    st.write(f"  • analyze_button: `{controls.get('analyze_button', 'NOT FOUND')}`")
+    st.write(f"  • symbol: `{controls.get('symbol', 'NOT FOUND')}`")
+    st.write(f"  • period: `{controls.get('period', 'NOT FOUND')}`")
+    st.write(f"  • show_debug: `{controls.get('show_debug', 'NOT FOUND')}`")
+    
+    condition_check = controls['analyze_button'] and controls['symbol']
+    st.write(f"  • **Condition check result: `{condition_check}`**")
+    
+    if condition_check:
+        st.write("---")
+        st.success("✅ Conditions met! Entering analysis block...")
+        
+        try:
+            st.write("Step 4: Adding to recently viewed...")
+            add_to_recently_viewed(controls['symbol'])
+            st.write("✅ Added to recently viewed")
+        except Exception as e:
+            st.warning(f"⚠️ Recently viewed failed (non-critical): {e}")
+        
+        st.write("## 📊 VWV Trading Analysis v4.2.1 Enhanced")
+        
+        st.write("---")
+        st.write("Step 5: Calling perform_enhanced_analysis...")
+        st.write(f"  Parameters: symbol='{controls['symbol']}', period='{controls['period']}', show_debug={controls['show_debug']}")
+        
+        try:
+            with st.spinner(f"Analyzing {controls['symbol']}..."):
+                st.write("⏳ Starting analysis...")
+                
+                analysis_results, chart_data = perform_enhanced_analysis(
+                    controls['symbol'], 
+                    controls['period'], 
+                    controls['show_debug']
+                )
+                
+                st.write("✅ perform_enhanced_analysis completed")
+                st.write(f"  • analysis_results is None: {analysis_results is None}")
+                st.write(f"  • chart_data is None: {chart_data is None}")
+                
+                if analysis_results is not None:
+                    st.write(f"  • analysis_results keys: {list(analysis_results.keys())}")
+                if chart_data is not None:
+                    st.write(f"  • chart_data shape: {chart_data.shape}")
+        
+        except Exception as e:
+            st.error(f"❌ EXCEPTION in perform_enhanced_analysis: {e}")
+            st.code(traceback.format_exc())
+            return
+        
+        st.write("---")
+        st.write("Step 6: Checking if we have results to display...")
+        
+        if analysis_results and chart_data is not None:
+            st.success("✅ We have results! Displaying analysis...")
+            
+            # Try to display at least something
+            try:
+                st.write("**Analysis Results Preview:**")
+                st.write(f"Symbol: {analysis_results.get('symbol', 'N/A')}")
+                st.write(f"Current Price: ${analysis_results.get('current_price', 'N/A')}")
+                st.write(f"Timestamp: {analysis_results.get('timestamp', 'N/A')}")
+            except Exception as e:
+                st.error(f"Error displaying preview: {e}")
+            
+            # Try the full display
+            try:
+                st.write("Attempting to show full analysis sections...")
+                
+                # Try just the first display function
+                try:
+                    st.write("Trying show_interactive_charts...")
+                    show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+                    st.success("✅ Charts displayed")
+                except Exception as e:
+                    st.error(f"❌ Charts failed: {e}")
+                    st.code(traceback.format_exc())
+                
+                # Add more sections here if charts work...
+                
+            except Exception as e:
+                st.error(f"❌ Display error: {e}")
+                st.code(traceback.format_exc())
+        else:
+            st.error("❌ No results to display")
+            st.write("**Why?**")
+            if analysis_results is None:
+                st.write("• analysis_results is None")
+            if chart_data is None:
+                st.write("• chart_data is None")
     else:
-        st.info("Enter a symbol in the sidebar to begin analysis.")
-        show_baldwin_indicator_analysis(controls['show_debug'])
+        st.warning("⚠️ Analysis block NOT entered")
+        st.write("**Reason:** Conditions not met")
+        st.write(f"  • Button clicked: {controls.get('analyze_button', False)}")
+        st.write(f"  • Symbol provided: '{controls.get('symbol', '')}'")
+        
+        if not controls.get('analyze_button', False):
+            st.info("💡 Click the 'Analyze Symbol' button to start")
+        if not controls.get('symbol', ''):
+            st.info("💡 Enter a symbol in the sidebar")
 
 if __name__ == "__main__":
     main()

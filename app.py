@@ -852,7 +852,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         piotroski_score = calculate_piotroski_score(symbol)
         
         # Step 10: Calculate confidence intervals
-        confidence_analysis = calculate_confidence_intervals(analysis_input, analysis_input['Close'].iloc[-1])
+        confidence_analysis = calculate_confidence_intervals(analysis_input)
         
         # Compile results
         analysis_results = {

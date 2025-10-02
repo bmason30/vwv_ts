@@ -321,7 +321,7 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
         if chart_data is not None and not chart_data.empty:
             st.line_chart(chart_data['Close'])
 
-def show_individual_technical_analysis(analysis_results, show_debug=False):
+def show_enhanced_technical_analysis(analysis_results, controls['show_debug']):
     """Display technical analysis - PRIORITY 2: MUST BE SECOND"""
     if not st.session_state.show_technical_analysis:
         return

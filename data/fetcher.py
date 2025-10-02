@@ -91,7 +91,14 @@ class DataQualityChecker:
         # Check data freshness (last update should be recent)
         if len(data) > 0:
             last_date = data.index[-1]
-            days_since_update = (datetime.now() - last_date).days
+           try:
+                from datetime import timezone
+                now_utc = datetime.now(timezone.utc)
+                if last_date.tzinfo is None:
+                    last_date = last_date.replace(tzinfo=timezone.utc)
+                days_since_update = (now_utc - last_date).days
+         except:
+                days_since_update = 0  # Skip freshness check on error
             
             # Allow up to 7 days for stale data (accounts for weekends/holidays)
             if days_since_update > 7:

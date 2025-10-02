@@ -14,6 +14,7 @@ from config.settings import DEFAULT_VWV_CONFIG, UI_SETTINGS, PARAMETER_RANGES
 from config.constants import SYMBOL_DESCRIPTIONS, QUICK_LINK_CATEGORIES, MAJOR_INDICES
 from data.manager import get_data_manager
 from data.fetcher import get_market_data_enhanced, is_etf
+from ui.technical_display import show_enhanced_technical_analysis
 from analysis.technical import (
     calculate_daily_vwap, 
     calculate_fibonacci_emas,

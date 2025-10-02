@@ -1,6 +1,6 @@
 """
-VWV Professional Trading System v4.2.1 - COMPLETE & CORRECTED
-All functions included and properly structured
+VWV Professional Trading System v4.2.1 - PATCHED
+Fixed chart function signature and volume/volatility display logic
 """
 import streamlit as st
 import pandas as pd
@@ -104,7 +104,7 @@ def create_sidebar_controls():
     
     # Period selection - DEFAULT TO 1 MONTH
     period_options = ['1mo', '3mo', '6mo', '1y', '2y']
-    period = st.sidebar.selectbox("Data Period", period_options, index=0)  # Index 0 = '1mo'
+    period = st.sidebar.selectbox("Data Period", period_options, index=0)
     
     # Analyze button
     analyze_button = st.sidebar.button("📊 Analyze Symbol", type="primary", use_container_width=True)
@@ -159,7 +159,7 @@ def add_to_recently_viewed(symbol):
         st.session_state.recently_viewed = st.session_state.recently_viewed[:9]
 
 # =============================================================================
-# ANALYSIS FUNCTION - THIS WAS MISSING!
+# ANALYSIS FUNCTION
 # =============================================================================
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """Perform enhanced analysis using modular components"""
@@ -309,7 +309,8 @@ def show_interactive_charts(chart_data, analysis_results, show_debug=False):
     
     try:
         from charts.plotting import display_trading_charts
-        display_trading_charts(chart_data, analysis_results, show_debug)
+        # FIXED: Only pass 2 arguments (removed show_debug)
+        display_trading_charts(chart_data, analysis_results)
     except Exception as e:
         st.error(f"❌ Charts failed: {e}")
         if show_debug:
@@ -366,7 +367,8 @@ def show_volume_analysis(analysis_results, show_debug=False):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volume_analysis = enhanced_indicators.get('volume_analysis', {})
         
-        if 'error' not in volume_analysis and volume_analysis:
+        # FIXED: Check for empty dict first, then check for error key
+        if volume_analysis and 'error' not in volume_analysis:
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Current Volume", format_large_number(volume_analysis.get('current_volume', 0)))
@@ -375,6 +377,10 @@ def show_volume_analysis(analysis_results, show_debug=False):
             with col3:
                 ratio = volume_analysis.get('volume_ratio', 1.0)
                 st.metric("Ratio", f"{ratio:.2f}x")
+            
+            # Volume regime info
+            regime = volume_analysis.get('volume_regime', 'Unknown')
+            st.info(f"**Volume Regime:** {regime}")
         else:
             st.warning("⚠️ Volume analysis not available")
 
@@ -387,7 +393,8 @@ def show_volatility_analysis(analysis_results, show_debug=False):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
         
-        if 'error' not in volatility_analysis and volatility_analysis:
+        # FIXED: Check for empty dict first, then check for error key
+        if volatility_analysis and 'error' not in volatility_analysis:
             col1, col2, col3 = st.columns(3)
             with col1:
                 vol_5d = volatility_analysis.get('volatility_5d', 0)
@@ -398,6 +405,10 @@ def show_volatility_analysis(analysis_results, show_debug=False):
             with col3:
                 regime = volatility_analysis.get('volatility_regime', 'Unknown')
                 st.metric("Regime", regime)
+            
+            # Volatility score
+            vol_score = volatility_analysis.get('volatility_score', 50)
+            st.info(f"**Volatility Score:** {vol_score}/100")
         else:
             st.warning("⚠️ Volatility analysis not available")
 
@@ -475,7 +486,6 @@ def show_options_analysis(analysis_results, show_debug=False):
         
         if options_levels:
             st.subheader("Key Options Levels")
-            # Display options levels here
             st.json(options_levels)
         else:
             st.warning("⚠️ Options analysis not available")

@@ -403,23 +403,47 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
 
         indicators_data = []
         
-        indicators_data.append(("Current Price", f"${current_price:.2f}", "📍 Reference", "0.0%", "Current"))
+        indicators_data.append({
+            'Indicator': 'Current Price',
+            'Value': f"${current_price:.2f}",
+            'Type': '📍 Reference',
+            'Distance': '0.0%',
+            'Status': 'Current'
+        })
         
         vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%" if daily_vwap > 0 else "N/A"
         vwap_status = "Above" if current_price > daily_vwap else "Below"
-        indicators_data.append(("Daily VWAP", f"${daily_vwap:.2f}", "📊 Volume Weighted", vwap_distance, vwap_status))
+        indicators_data.append({
+            'Indicator': 'Daily VWAP',
+            'Value': f"${daily_vwap:.2f}",
+            'Type': '📊 Volume Weighted',
+            'Distance': vwap_distance,
+            'Status': vwap_status
+        })
         
         poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%" if point_of_control > 0 else "N/A"
         poc_status = "Above" if current_price > point_of_control else "Below"
-        indicators_data.append(("Point of Control", f"${point_of_control:.2f}", "📊 Volume Profile", poc_distance, poc_status))
+        indicators_data.append({
+            'Indicator': 'Point of Control',
+            'Value': f"${point_of_control:.2f}",
+            'Type': '📊 Volume Profile',
+            'Distance': poc_distance,
+            'Status': poc_status
+        })
         
         for ema_name, ema_value in fibonacci_emas.items():
             period = ema_name.split('_')[1]
             distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%" if ema_value > 0 else "N/A"
             status = "Above" if current_price > ema_value else "Below"
-            indicators_data.append((f"EMA {period}", f"${ema_value:.2f}", "📈 Trend", distance_pct, status))
+            indicators_data.append({
+                'Indicator': f"EMA {period}",
+                'Value': f"${ema_value:.2f}",
+                'Type': '📈 Trend',
+                'Distance': distance_pct,
+                'Status': status
+            })
         
-        df_technical = pd.DataFrame(indicators_data, columns=['Indicator', 'Value', 'Type', 'Distance %', 'Status'])
+        df_technical = pd.DataFrame(indicators_data)
         st.dataframe(df_technical, use_container_width=True, hide_index=True)
 
 def show_volume_analysis(analysis_results, show_debug=False):
@@ -670,40 +694,40 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             
             if correlations:
                 corr_data = []
-                for index, corr_value in correlations.items():
-                    corr_data.append({
-                        'Index': index,
-                        'Correlation': f"{corr_value:.3f}",
-                        'Strength': 'Strong' if abs(corr_value) > 0.7 else 'Moderate' if abs(corr_value) > 0.4 else 'Weak',
-                        'Direction': 'Positive' if corr_value > 0 else 'Negative'
-                    })
+                for index, corr_info in correlations.items():
+                    if isinstance(corr_info, dict):
+                        corr_value = corr_info.get('correlation', 0)
+                        corr_data.append({
+                            'Index': index,
+                            'Name': corr_info.get('name', index),
+                            'Correlation': f"{corr_value:.3f}",
+                            'Strength': 'Strong' if abs(corr_value) > 0.7 else 'Moderate' if abs(corr_value) > 0.4 else 'Weak',
+                            'Direction': 'Positive' if corr_value > 0 else 'Negative'
+                        })
                 
-                df_corr = pd.DataFrame(corr_data)
-                st.dataframe(df_corr, use_container_width=True, hide_index=True)
+                if corr_data:
+                    df_corr = pd.DataFrame(corr_data)
+                    st.dataframe(df_corr, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No correlation data available")
+            else:
+                st.info("Correlation data not available")
             
             # Breakout/Breakdown analysis
             breakout_data = market_correlations.get('breakout_breakdown', {})
-            if breakout_data:
+            if breakout_data and 'status' in breakout_data:
                 st.subheader("📈 Breakout/Breakdown Analysis")
                 
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.write("**Breakout Candidates:**")
-                    breakouts = breakout_data.get('breakouts', [])
-                    if breakouts:
-                        for symbol in breakouts[:5]:
-                            st.write(f"• {symbol}")
-                    else:
-                        st.write("None identified")
+                    st.metric("Status", breakout_data.get('status', 'Unknown'))
+                    st.metric("20D High", f"${breakout_data.get('high_20d', 0):.2f}")
+                    st.metric("50D High", f"${breakout_data.get('high_50d', 0):.2f}")
                 
                 with col2:
-                    st.write("**Breakdown Candidates:**")
-                    breakdowns = breakout_data.get('breakdowns', [])
-                    if breakdowns:
-                        for symbol in breakdowns[:5]:
-                            st.write(f"• {symbol}")
-                    else:
-                        st.write("None identified")
+                    st.metric("Current Price", f"${breakout_data.get('current_price', 0):.2f}")
+                    st.metric("20D Low", f"${breakout_data.get('low_20d', 0):.2f}")
+                    st.metric("50D Low", f"${breakout_data.get('low_50d', 0):.2f}")
         else:
             st.warning("⚠️ Market correlation analysis not available")
 
@@ -714,48 +738,43 @@ def show_options_analysis(analysis_results, show_debug=False):
         
     with st.expander(f"🎯 {analysis_results['symbol']} - Options Analysis", expanded=True):
         
-        options_data = analysis_results.get('options_analysis', {})
+        options_data = analysis_results.get('options_analysis', [])
         
-        if 'error' not in options_data and options_data:
+        if options_data and len(options_data) > 0:
             current_price = analysis_results['current_price']
             
             # Options levels summary
             st.subheader("Options Strike Levels")
             
-            levels = options_data.get('levels', {})
-            
-            if levels:
-                options_table_data = []
-                
-                for level_name, level_data in levels.items():
-                    put_strike = level_data.get('put_strike', 0)
-                    call_strike = level_data.get('call_strike', 0)
-                    
-                    options_table_data.append({
-                        'Level': level_name,
-                        'Put Strike': f"${put_strike:.2f}",
-                        'Put Distance': f"{((current_price - put_strike) / current_price * 100):.2f}%",
-                        'Call Strike': f"${call_strike:.2f}",
-                        'Call Distance': f"{((call_strike - current_price) / current_price * 100):.2f}%"
-                    })
-                
-                df_options = pd.DataFrame(options_table_data)
+            # Convert to DataFrame
+            try:
+                df_options = pd.DataFrame(options_data)
                 st.dataframe(df_options, use_container_width=True, hide_index=True)
-            
-            # Greeks summary
-            greeks = options_data.get('greeks', {})
-            if greeks:
-                st.subheader("Options Greeks")
-                col1, col2, col3, col4 = st.columns(4)
+                
+                # Trading strategies
+                st.subheader("💡 Options Trading Strategies")
+                col1, col2 = st.columns(2)
                 
                 with col1:
-                    st.metric("Delta", f"{greeks.get('delta', 0):.3f}")
+                    st.info("**Put Selling Strategy:**\n"
+                            "• Sell puts below current price\n"
+                            "• Collect premium if stock stays above strike\n"
+                            "• Delta: Price sensitivity\n"
+                            "• Theta: Daily time decay\n"
+                            "• Lower PoT = Higher probability of profit")
+                
                 with col2:
-                    st.metric("Gamma", f"{greeks.get('gamma', 0):.4f}")
-                with col3:
-                    st.metric("Theta", f"{greeks.get('theta', 0):.4f}")
-                with col4:
-                    st.metric("Vega", f"{greeks.get('vega', 0):.4f}")
+                    st.info("**Call Selling Strategy:**\n"
+                            "• Sell calls above current price\n"
+                            "• Collect premium if stock stays below strike\n"
+                            "• Delta: Price sensitivity\n"
+                            "• Theta: Daily time decay\n"
+                            "• Lower PoT = Higher probability of profit")
+                
+            except Exception as e:
+                if show_debug:
+                    st.error(f"Options display error: {str(e)}")
+                st.warning("Options data available but display error occurred")
         else:
             st.warning("⚠️ Options analysis not available")
 

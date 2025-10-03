@@ -1,9 +1,10 @@
 """
-VWV Professional Trading System v4.2.2
+File: app.py
+VWV Professional Trading System v4.2.3
 Complete Trading Analysis Platform with Modular Architecture
 Created: 2025-10-02
-Updated: 2025-10-02
-Version: v4.2.2
+Updated: 2025-10-03
+Version: v4.2.3 - Bug fixes for DataFrame type handling and display formatting
 """
 
 import streamlit as st
@@ -80,7 +81,7 @@ warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 
 # Page configuration
 st.set_page_config(
-    page_title="VWV Professional Trading System v4.2.2",
+    page_title="VWV Professional Trading System v4.2.3",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -88,7 +89,7 @@ st.set_page_config(
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters"""
-    st.sidebar.title("📊 Trading Analysis v4.2.2")
+    st.sidebar.title("📊 Trading Analysis v4.2.3")
     
     # Initialize session state
     if 'recently_viewed' not in st.session_state:
@@ -863,12 +864,51 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Step 7: Calculate market correlations
         market_correlations = calculate_market_correlations_enhanced(analysis_input, symbol, show_debug)
         
-        # Step 8: Calculate options levels
-        options_levels = calculate_options_levels_enhanced(analysis_input, symbol)
-        
-        # Step 9: Calculate fundamental scores
+        # Step 8: Calculate fundamental scores
         graham_score = calculate_graham_score(symbol)
         piotroski_score = calculate_piotroski_score(symbol)
+        
+        # Step 9: Calculate options levels with robust type handling
+        volatility_raw = comprehensive_technicals.get('volatility_20d', 20)
+        
+        # Robust extraction of scalar volatility value
+        try:
+            if isinstance(volatility_raw, (pd.Series, pd.DataFrame)):
+                if len(volatility_raw) > 0:
+                    if isinstance(volatility_raw, pd.DataFrame):
+                        # If it's a DataFrame, get the first column's last value
+                        volatility = float(volatility_raw.iloc[-1, 0])
+                    else:
+                        # If it's a Series, get the last value
+                        volatility = float(volatility_raw.iloc[-1])
+                else:
+                    volatility = 20.0
+            elif isinstance(volatility_raw, (int, float, np.number)):
+                volatility = float(volatility_raw)
+            else:
+                # Fallback for any other type
+                volatility = 20.0
+        except Exception as e:
+            if show_debug:
+                st.warning(f"Volatility extraction error: {e}, using default 20.0")
+            volatility = 20.0
+        
+        underlying_beta = 1.0  # Default market beta
+        
+        if market_correlations:
+            correlations_dict = market_correlations.get('correlations', {})
+            for etf in ['SPY', 'QQQ', 'DIA']:
+                if etf in correlations_dict:
+                    etf_data = correlations_dict[etf]
+                    if isinstance(etf_data, dict) and 'beta' in etf_data:
+                        try:
+                            underlying_beta = abs(float(etf_data['beta']))
+                            break
+                        except:
+                            continue
+        
+        current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
+        options_levels = calculate_options_levels_enhanced(current_price, volatility, underlying_beta=underlying_beta)
         
         # Step 10: Calculate confidence intervals
         confidence_analysis = calculate_confidence_intervals(analysis_input)
@@ -876,7 +916,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Compile results
         analysis_results = {
             'symbol': symbol,
-            'current_price': float(analysis_input['Close'].iloc[-1]),
+            'current_price': current_price,
             'enhanced_indicators': {
                 'daily_vwap': daily_vwap,
                 'fibonacci_emas': fibonacci_emas,
@@ -895,7 +935,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'piotroski_score': piotroski_score
             },
             'confidence_analysis': confidence_analysis,
-            'system_status': 'OPERATIONAL v4.2.2'
+            'system_status': 'OPERATIONAL v4.2.3'
         }
         
         # Store results
@@ -920,7 +960,7 @@ def main():
     if controls['analyze_button'] and controls['symbol']:
         add_to_recently_viewed(controls['symbol'])
         
-        st.write("## 📊 VWV Trading Analysis v4.2.2")
+        st.write("## 📊 VWV Trading Analysis v4.2.3")
         
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(
@@ -979,7 +1019,7 @@ def main():
             else:
                 st.error("❌ No results to display")
     else:
-        st.write("## 🚀 VWV Professional Trading System v4.2.2")
+        st.write("## 🚀 VWV Professional Trading System v4.2.3")
         st.write("Enter a symbol in the sidebar and click 'Analyze Symbol' to begin.")
         
         # Market status
@@ -1010,11 +1050,11 @@ def main():
 
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information v4.2.2")
+    st.write("### 📊 System Information v4.2.3")
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.write(f"**Version:** VWV Professional v4.2.2")
+        st.write(f"**Version:** VWV Professional v4.2.3")
         st.write(f"**Status:** ✅ All Systems Operational")
     with col2:
         st.write(f"**Modules:** Technical, Fundamental, Market, Options")

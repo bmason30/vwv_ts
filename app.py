@@ -1,10 +1,10 @@
 """
-File: app.py v1.0.6
+File: app.py v1.0.7
 VWV Professional Trading System v4.2.2
 Complete Trading Analysis Platform with Modular Architecture
 Created: 2025-10-02
 Updated: 2025-10-03
-File Version: v1.0.6 - Improved technical analysis component display formatting
+File Version: v1.0.7 - Complete fix for DataFrame formatting errors
 System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 
@@ -416,84 +416,116 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
 
         # Price-Based Indicators & Key Levels
         st.subheader("Price-Based Indicators & Key Levels")
-        current_price = analysis_results['current_price']
+        current_price = float(analysis_results.get('current_price', 0))
         daily_vwap = enhanced_indicators.get('daily_vwap', 0)
         point_of_control = enhanced_indicators.get('point_of_control', 0)
+        
+        # Convert to safe float values
+        try:
+            daily_vwap = float(daily_vwap) if daily_vwap else 0.0
+        except:
+            daily_vwap = 0.0
+            
+        try:
+            point_of_control = float(point_of_control) if point_of_control else 0.0
+        except:
+            point_of_control = 0.0
 
         indicators_data = []
         
-        # Current Price
+        # Current Price - use simple string concatenation
         indicators_data.append({
             'Indicator': 'Current Price',
-            'Value': f"${float(current_price):.2f}",
+            'Value': '${:.2f}'.format(current_price),
             'Type': 'Reference',
             'Distance': '0.0%',
             'Status': 'Current'
         })
         
         # Daily VWAP
-        if daily_vwap and daily_vwap > 0:
-            vwap_distance = f"{((current_price - daily_vwap) / daily_vwap * 100):+.2f}%"
-            vwap_status = "Above" if current_price > daily_vwap else "Below"
+        if daily_vwap > 0:
+            vwap_dist = ((current_price - daily_vwap) / daily_vwap * 100)
+            vwap_distance_str = '{:+.2f}%'.format(vwap_dist)
+            vwap_status_str = 'Above' if current_price > daily_vwap else 'Below'
+            vwap_value_str = '${:.2f}'.format(daily_vwap)
         else:
-            vwap_distance = "N/A"
-            vwap_status = "Unknown"
+            vwap_distance_str = 'N/A'
+            vwap_status_str = 'Unknown'
+            vwap_value_str = 'N/A'
         
         indicators_data.append({
             'Indicator': 'Daily VWAP',
-            'Value': f"${float(daily_vwap):.2f}" if daily_vwap else "N/A",
+            'Value': vwap_value_str,
             'Type': 'Volume Weighted',
-            'Distance': str(vwap_distance),
-            'Status': str(vwap_status)
+            'Distance': vwap_distance_str,
+            'Status': vwap_status_str
         })
         
         # Point of Control
-        if point_of_control and point_of_control > 0:
-            poc_distance = f"{((current_price - point_of_control) / point_of_control * 100):+.2f}%"
-            poc_status = "Above" if current_price > point_of_control else "Below"
+        if point_of_control > 0:
+            poc_dist = ((current_price - point_of_control) / point_of_control * 100)
+            poc_distance_str = '{:+.2f}%'.format(poc_dist)
+            poc_status_str = 'Above' if current_price > point_of_control else 'Below'
+            poc_value_str = '${:.2f}'.format(point_of_control)
         else:
-            poc_distance = "N/A"
-            poc_status = "Unknown"
+            poc_distance_str = 'N/A'
+            poc_status_str = 'Unknown'
+            poc_value_str = 'N/A'
         
         indicators_data.append({
             'Indicator': 'Point of Control',
-            'Value': f"${float(point_of_control):.2f}" if point_of_control else "N/A",
+            'Value': poc_value_str,
             'Type': 'Volume Profile',
-            'Distance': str(poc_distance),
-            'Status': str(poc_status)
+            'Distance': poc_distance_str,
+            'Status': poc_status_str
         })
         
         # Fibonacci EMAs
-        for ema_name, ema_value in fibonacci_emas.items():
-            try:
-                period = ema_name.split('_')[1]
-                if ema_value and ema_value > 0:
-                    distance_pct = f"{((current_price - ema_value) / ema_value * 100):+.2f}%"
-                    status = "Above" if current_price > ema_value else "Below"
-                else:
-                    distance_pct = "N/A"
-                    status = "Unknown"
-                
-                indicators_data.append({
-                    'Indicator': f"EMA {period}",
-                    'Value': f"${float(ema_value):.2f}" if ema_value else "N/A",
-                    'Type': 'Trend',
-                    'Distance': str(distance_pct),
-                    'Status': str(status)
-                })
-            except Exception as e:
-                if show_debug:
-                    st.warning(f"Error processing EMA {ema_name}: {e}")
-                continue
+        if fibonacci_emas:
+            for ema_name, ema_value in fibonacci_emas.items():
+                try:
+                    period_str = str(ema_name).split('_')[1]
+                    ema_val = float(ema_value) if ema_value else 0.0
+                    
+                    if ema_val > 0:
+                        ema_dist = ((current_price - ema_val) / ema_val * 100)
+                        distance_str = '{:+.2f}%'.format(ema_dist)
+                        status_str = 'Above' if current_price > ema_val else 'Below'
+                        value_str = '${:.2f}'.format(ema_val)
+                    else:
+                        distance_str = 'N/A'
+                        status_str = 'Unknown'
+                        value_str = 'N/A'
+                    
+                    indicators_data.append({
+                        'Indicator': 'EMA {}'.format(period_str),
+                        'Value': value_str,
+                        'Type': 'Trend',
+                        'Distance': distance_str,
+                        'Status': status_str
+                    })
+                except Exception as e:
+                    if show_debug:
+                        st.warning('Error processing EMA {}: {}'.format(ema_name, str(e)))
+                    continue
         
-        # Create DataFrame and display
+        # Create DataFrame and display with error handling
         try:
             df_technical = pd.DataFrame(indicators_data)
             st.dataframe(df_technical, use_container_width=True, hide_index=True)
         except Exception as e:
             if show_debug:
-                st.error(f"DataFrame display error: {str(e)}")
-            st.warning("Unable to display technical indicators table")
+                st.error('DataFrame display error: {}'.format(str(e)))
+            # Fallback: display as simple table
+            st.write("**Price-Based Indicators:**")
+            for item in indicators_data:
+                st.write('• **{}**: {} ({}) - Distance: {}, Status: {}'.format(
+                    item['Indicator'],
+                    item['Value'],
+                    item['Type'],
+                    item['Distance'],
+                    item['Status']
+                ))
 
 def show_volume_analysis(analysis_results, show_debug=False):
     """Display volume analysis section"""

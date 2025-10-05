@@ -1,10 +1,11 @@
 """
-File: app.py v1.0.5
+File: app.py v1.0.6
 VWV Professional Trading System v4.2.2
 Complete Trading Analysis Platform with Modular Architecture
 Created: 2025-10-02
 Updated: 2025-10-03
-Version: v1.0.5 - Bug fixes for DataFrame type handling and display formatting
+File Version: v1.0.6 - Improved technical analysis component display formatting
+System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 
 import streamlit as st
@@ -357,15 +358,32 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
     with st.expander(f"📊 {analysis_results['symbol']} - Technical Analysis", expanded=True):
         
+        # Prepare data references
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        
         # Composite Technical Score Bar
         composite_score, score_details = calculate_composite_technical_score(analysis_results)
         score_bar_html = create_technical_score_bar(composite_score, score_details)
         st.components.v1.html(score_bar_html, height=160)
         
-        # Prepare data references
-        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-        comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
-        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        # Component Breakdown (clean display)
+        if show_debug and score_details:
+            with st.expander("🔍 Score Components Breakdown", expanded=False):
+                components_data = []
+                for component_name, component_info in score_details.items():
+                    if isinstance(component_info, dict):
+                        components_data.append({
+                            'Component': component_name.replace('_', ' ').title(),
+                            'Value': f"{component_info.get('value', 0):.2f}",
+                            'Score': f"{component_info.get('score', 0):.1f}/100",
+                            'Weight': f"{component_info.get('weight', 0):.1f}%"
+                        })
+                
+                if components_data:
+                    df_components = pd.DataFrame(components_data)
+                    st.dataframe(df_components, use_container_width=True, hide_index=True)
         
         # Key Momentum Oscillators
         st.subheader("Key Momentum Oscillators")

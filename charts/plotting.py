@@ -1,5 +1,11 @@
 """
-Advanced charting functionality for VWV Trading System
+File: plotting.py v1.0.3
+VWV Professional Trading System v4.2.2
+Advanced charting functionality with type-safe data handling
+Created: 2025-08-15
+Updated: 2025-10-07
+File Version: v1.0.3 - Added type-safe number extraction for options charts
+System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 import plotly.graph_objects as go
 import plotly.express as px
@@ -9,14 +15,53 @@ import numpy as np
 import streamlit as st
 from typing import Dict, Any, Optional
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
-def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dict[str, Any], height: int = 800) -> go.Figure:
-    """Create comprehensive trading chart with multiple indicators"""
+def safe_extract_number(value, default=0):
+    """
+    Safely extract a numeric value from various formats
+    Handles: numbers, strings with $ or %, formatted strings, etc.
+    
+    Args:
+        value: Input value (int, float, str, or None)
+        default: Default value to return if extraction fails
+        
+    Returns:
+        float: Extracted numeric value or default
+    """
+    if value is None:
+        return default
+    
+    if isinstance(value, (int, float)):
+        return float(value)
+    
+    if isinstance(value, str):
+        # Remove $ and % symbols and convert to float
+        cleaned = re.sub(r'[^\d.-]', '', value)
+        try:
+            return float(cleaned) if cleaned else default
+        except ValueError:
+            return default
+    
+    return default
+
+def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dict[str, Any], height: int = 800) -> Optional[go.Figure]:
+    """
+    Create comprehensive trading chart with multiple indicators
+    
+    Args:
+        data: OHLC price data with DatetimeIndex
+        analysis_results: Dictionary containing all analysis results
+        height: Chart height in pixels
+        
+    Returns:
+        Plotly Figure object or None if creation fails
+    """
     try:
         if data is None or len(data) == 0:
-            st.error("No data available for charting")
+            logger.error("No data available for charting")
             return None
             
         # Create subplot with secondary y-axis for volume
@@ -51,7 +96,7 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
         
         # Daily VWAP
         daily_vwap = enhanced_indicators.get('daily_vwap')
-        if daily_vwap:
+        if daily_vwap and daily_vwap > 0:
             vwap_line = [daily_vwap] * len(data)
             fig.add_trace(
                 go.Scatter(
@@ -66,51 +111,51 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
         
         # Point of Control
         poc = enhanced_indicators.get('point_of_control')
-        if poc:
+        if poc and poc > 0:
             poc_line = [poc] * len(data)
             fig.add_trace(
                 go.Scatter(
                     x=data.index,
                     y=poc_line,
                     mode='lines',
-                    name='Point of Control',
-                    line=dict(color='orange', width=2, dash='dot')
+                    name='POC',
+                    line=dict(color='orange', width=2, dash='dash')
                 ),
                 row=1, col=1
             )
         
         # Fibonacci EMAs
         fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
-        ema_colors = ['blue', 'green', 'red', 'purple', 'brown']
+        ema_colors = {'EMA_21': 'red', 'EMA_34': 'blue', 'EMA_55': 'green', 'EMA_89': 'purple'}
         
-        for i, (ema_name, ema_value) in enumerate(fibonacci_emas.items()):
-            if ema_value and i < len(ema_colors):
-                period = ema_name.split('_')[1]
-                ema_series = data['Close'].ewm(span=int(period)).mean()
-                
+        for ema_name, ema_value in fibonacci_emas.items():
+            if ema_value and ema_value > 0 and len(data) >= 21:
+                ema_line = [ema_value] * len(data)
+                color = ema_colors.get(ema_name, 'gray')
                 fig.add_trace(
                     go.Scatter(
                         x=data.index,
-                        y=ema_series,
+                        y=ema_line,
                         mode='lines',
-                        name=f'EMA {period}',
-                        line=dict(color=ema_colors[i], width=1)
+                        name=ema_name,
+                        line=dict(color=color, width=1, dash='dot')
                     ),
                     row=1, col=1
                 )
         
         # Bollinger Bands
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
-        bb_data = comprehensive_technicals.get('bollinger_bands', {})
+        bb = comprehensive_technicals.get('bollinger_bands', {})
         
-        if bb_data and 'upper' in bb_data:
-            # Calculate BB series (simplified for display)
-            bb_period = 20
-            if len(data) >= bb_period:
-                bb_sma = data['Close'].rolling(bb_period).mean()
-                bb_std = data['Close'].rolling(bb_period).std()
-                bb_upper = bb_sma + (bb_std * 2)
-                bb_lower = bb_sma - (bb_std * 2)
+        if bb:
+            upper = bb.get('upper')
+            lower = bb.get('lower')
+            middle = bb.get('middle')
+            
+            if upper and lower and middle:
+                bb_upper = [upper] * len(data)
+                bb_lower = [lower] * len(data)
+                bb_middle = [middle] * len(data)
                 
                 fig.add_trace(
                     go.Scatter(
@@ -118,7 +163,7 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
                         y=bb_upper,
                         mode='lines',
                         name='BB Upper',
-                        line=dict(color='gray', width=1, dash='dash'),
+                        line=dict(color='gray', width=1, dash='dot'),
                         showlegend=False
                     ),
                     row=1, col=1
@@ -130,7 +175,7 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
                         y=bb_lower,
                         mode='lines',
                         name='BB Lower',
-                        line=dict(color='gray', width=1, dash='dash'),
+                        line=dict(color='gray', width=1, dash='dot'),
                         fill='tonexty',
                         fillcolor='rgba(128,128,128,0.1)',
                         showlegend=False
@@ -154,8 +199,7 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
         )
         
         # Volume SMA
-        volume_sma = comprehensive_technicals.get('volume_sma_20')
-        if volume_sma:
+        if len(data) >= 20:
             volume_sma_series = data['Volume'].rolling(20).mean()
             fig.add_trace(
                 go.Scatter(
@@ -169,7 +213,6 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
             )
         
         # RSI
-        rsi_14 = comprehensive_technicals.get('rsi_14', 50)
         if len(data) >= 14:
             # Calculate RSI series for display
             delta = data['Close'].diff()
@@ -194,8 +237,7 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
             fig.add_hline(y=30, line_dash="dash", line_color="green", opacity=0.5, row=3, col=1)
         
         # MACD on secondary y-axis
-        macd_data = comprehensive_technicals.get('macd', {})
-        if macd_data and len(data) >= 26:
+        if len(data) >= 26:
             # Calculate MACD series
             ema12 = data['Close'].ewm(span=12).mean()
             ema26 = data['Close'].ewm(span=26).mean()
@@ -245,13 +287,13 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
             hovermode='x unified'
         )
         
-        # Update y-axes (fixed method names)
+        # Update y-axes
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
         fig.update_yaxes(title_text="Volume", row=2, col=1)
         fig.update_yaxes(title_text="RSI", row=3, col=1, secondary_y=False, range=[0, 100])
         fig.update_yaxes(title_text="MACD", row=3, col=1, secondary_y=True)
         
-        # Update x-axes (fixed method names)
+        # Update x-axes
         fig.update_xaxes(title_text="Date", row=3, col=1)
         
         return fig
@@ -262,12 +304,25 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
         return None
 
 def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, Any]) -> Optional[go.Figure]:
-    """Create options levels overlay chart"""
+    """
+    Create options levels overlay chart with TYPE-SAFE number extraction
+    
+    CRITICAL FIX: Handles both numeric and formatted string values to prevent
+    "unsupported operand type(s) for +: 'int' and 'str'" errors
+    
+    Args:
+        data: OHLC price data with DatetimeIndex
+        analysis_results: Dictionary containing analysis results
+        
+    Returns:
+        Plotly Figure object or None if creation fails
+    """
     try:
-        current_price = analysis_results.get('current_price', 0)
+        current_price = safe_extract_number(analysis_results.get('current_price', 0))
         options_levels = analysis_results.get('enhanced_indicators', {}).get('options_levels', [])
         
-        if not options_levels:
+        if not options_levels or current_price == 0:
+            logger.warning("No options levels data available")
             return None
             
         fig = go.Figure()
@@ -283,13 +338,18 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
             )
         )
         
-        # Add option strike levels
+        # Add option strike levels with type-safe extraction
         colors = ['red', 'orange', 'yellow', 'lightblue']
         
         for i, level in enumerate(options_levels[:4]):  # Show first 4 DTEs
-            dte = level.get('DTE', 0)
-            put_strike = level.get('Put Strike', 0)
-            call_strike = level.get('Call Strike', 0)
+            # CRITICAL: Use safe_extract_number for all numeric values
+            dte = int(safe_extract_number(level.get('DTE', 0), 0))
+            put_strike = safe_extract_number(level.get('Put Strike', 0), 0)
+            call_strike = safe_extract_number(level.get('Call Strike', 0), 0)
+            
+            if dte == 0 or put_strike == 0 or call_strike == 0:
+                logger.warning(f"Skipping invalid options level {i}: DTE={dte}, Put={put_strike}, Call={call_strike}")
+                continue
             
             color = colors[i % len(colors)]
             
@@ -299,7 +359,7 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
                 line_dash="dash",
                 line_color=color,
                 opacity=0.7,
-                annotation_text=f"{dte}D Put: ${put_strike}",
+                annotation_text=f"{dte}D Put: ${put_strike:.2f}",
                 annotation_position="left"
             )
             
@@ -309,7 +369,7 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
                 line_dash="dash", 
                 line_color=color,
                 opacity=0.7,
-                annotation_text=f"{dte}D Call: ${call_strike}",
+                annotation_text=f"{dte}D Call: ${call_strike:.2f}",
                 annotation_position="right"
             )
         
@@ -318,7 +378,7 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
             y=current_price,
             line_color="blue",
             line_width=3,
-            annotation_text=f"Current: ${current_price}",
+            annotation_text=f"Current: ${current_price:.2f}",
             annotation_position="top left"
         )
         
@@ -334,10 +394,19 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
         
     except Exception as e:
         logger.error(f"Options chart creation error: {e}")
+        st.error(f"Failed to create options chart: {str(e)}")
         return None
 
 def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[go.Figure]:
-    """Create technical score breakdown chart"""
+    """
+    Create technical score breakdown chart
+    
+    Args:
+        analysis_results: Dictionary containing analysis results
+        
+    Returns:
+        Plotly Figure object or None if creation fails
+    """
     try:
         from analysis.technical import calculate_composite_technical_score
         
@@ -345,6 +414,7 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         component_scores = details.get('component_scores', {})
         
         if not component_scores:
+            logger.warning("No component scores available")
             return None
             
         # Create bar chart of component scores
@@ -364,7 +434,7 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         fig.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.5)
         
         fig.update_layout(
-            title=f"Technical Score Breakdown - Composite: {score}",
+            title=f"Technical Score Breakdown - Composite: {score:.1f}",
             yaxis_title="Score",
             yaxis_range=[0, 100],
             height=300,
@@ -378,7 +448,13 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         return None
 
 def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any]):
-    """Display all trading charts in organized tabs"""
+    """
+    Display all trading charts in organized tabs
+    
+    Args:
+        data: OHLC price data with DatetimeIndex
+        analysis_results: Dictionary containing all analysis results
+    """
     try:
         # Validate inputs first
         if data is None or data.empty:

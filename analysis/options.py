@@ -1,10 +1,10 @@
 """
-File: options.py v1.0.2
+File: options.py v1.0.3
 VWV Professional Trading System v4.2.2
 Options analysis module with Greeks and confidence intervals
 Created: 2025-08-15
 Updated: 2025-10-07
-File Version: v1.0.2 - Fixed calculate_confidence_intervals() signature error
+File Version: v1.0.3 - Added import guard to prevent decorator re-application
 System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 import pandas as pd
@@ -12,9 +12,17 @@ import numpy as np
 import logging
 from typing import Dict, Any, List, Optional
 from scipy import stats
-from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
+
+# CRITICAL: Import decorator but DON'T use it on calculate_confidence_intervals
+# This prevents any automatic decorator application during import
+try:
+    from utils.decorators import safe_calculation_wrapper
+except ImportError:
+    # Fallback if decorators module not available
+    def safe_calculation_wrapper(func):
+        return func
 
 @safe_calculation_wrapper
 def calculate_options_levels_enhanced(current_price: float, volatility: float, underlying_beta: float = 1.0) -> List[Dict[str, Any]]:
@@ -93,13 +101,16 @@ def calculate_options_levels_enhanced(current_price: float, volatility: float, u
         logger.error(f"Options levels calculation error: {e}")
         return []
 
+
+# CRITICAL FIX: This function MUST NOT have @safe_calculation_wrapper decorator
+# The decorator causes signature mismatch in Streamlit's execution environment
 def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any]]:
     """
     Calculate statistical confidence intervals based on weekly returns
     
-    NOTE: This function does NOT use @safe_calculation_wrapper decorator
-    to avoid the "takes 1 positional argument but 2 were given" error
-    that occurs when decorators are improperly chained or cached.
+    IMPORTANT: This function deliberately does NOT use the @safe_calculation_wrapper
+    decorator because it causes a signature mismatch error in Streamlit where
+    the wrapper receives an extra argument. Error handling is done manually instead.
     
     Args:
         data: DataFrame with OHLC price data and DatetimeIndex
@@ -109,8 +120,16 @@ def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any
     """
     try:
         # Validate input data
-        if data is None or not hasattr(data, 'resample') or len(data) < 100:
-            logger.warning("Insufficient data for confidence intervals calculation")
+        if data is None:
+            logger.warning("calculate_confidence_intervals: data is None")
+            return None
+            
+        if not hasattr(data, 'resample'):
+            logger.warning("calculate_confidence_intervals: data does not have resample method")
+            return None
+            
+        if len(data) < 100:
+            logger.warning(f"calculate_confidence_intervals: insufficient data length ({len(data)} < 100)")
             return None
 
         # Resample to weekly data
@@ -118,7 +137,7 @@ def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any
         weekly_returns = weekly_data.pct_change().dropna()
 
         if len(weekly_returns) < 20:
-            logger.warning("Insufficient weekly returns for confidence intervals")
+            logger.warning(f"calculate_confidence_intervals: insufficient weekly returns ({len(weekly_returns)} < 20)")
             return None
 
         # Calculate statistics
@@ -146,13 +165,29 @@ def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any
                 'expected_move_pct': round(expected_move_pct, 2)
             }
 
-        return {
+        result = {
             'mean_weekly_return': round(mean_return * 100, 3),
             'weekly_volatility': round(std_return * 100, 2),
             'confidence_intervals': confidence_intervals,
             'sample_size': len(weekly_returns)
         }
         
+        logger.info(f"calculate_confidence_intervals: Successfully calculated intervals with {len(weekly_returns)} weeks of data")
+        return result
+        
     except Exception as e:
-        logger.error(f"Confidence intervals calculation error: {e}")
+        logger.error(f"calculate_confidence_intervals error: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
+
+
+# Ensure the function signature is correct by explicitly checking
+if __name__ == "__main__":
+    import inspect
+    sig = inspect.signature(calculate_confidence_intervals)
+    print(f"Function signature: {sig}")
+    print(f"Parameters: {list(sig.parameters.keys())}")
+    assert len(sig.parameters) == 1, "Function should have exactly 1 parameter"
+    print("✅ Signature check passed!")

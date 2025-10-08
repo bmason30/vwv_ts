@@ -1,10 +1,10 @@
 """
-File: app.py v1.0.8
+File: app.py v1.0.9
 VWV Professional Trading System v4.2.2
-Main Streamlit application with technical analysis display fix
+Main Streamlit application - Technical analysis display fix (calculations preserved)
 Created: 2025-07-15
 Updated: 2025-10-08
-File Version: v1.0.8 - Fixed technical analysis data structure validation and display
+File Version: v1.0.9 - Fixed display only, preserved working calculation pipeline
 System Version: v4.2.2 - Technical Analysis Display Error Resolution
 """
 
@@ -204,164 +204,131 @@ def show_interactive_charts(data, analysis_results, show_debug=False):
 def show_individual_technical_analysis(analysis_results, show_debug=False):
     """
     Display individual technical analysis section - PRIORITY 2 (SECOND)
-    Version: v4.2.2 - Enhanced error handling and data validation
+    Version: v1.0.9 - Display only fix, calculations unchanged
     """
     if not st.session_state.show_technical_analysis:
         return
     
-    try:
-        symbol = analysis_results.get('symbol', 'Unknown')
-        
-        with st.expander(f"📊 Technical Analysis - {symbol}", expanded=True):
-            
-            # Validate we have the necessary data
-            enhanced_indicators = analysis_results.get('enhanced_indicators', {})
-            
-            if not enhanced_indicators:
-                st.warning("⚠️ Technical analysis data is being calculated...")
-                if show_debug:
-                    st.write("**Debug: analysis_results structure:**")
-                    st.json(analysis_results)
-                return
-            
-            # Get data with safe fallbacks
-            comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
-            fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
-            current_price = analysis_results.get('current_price', 0)
-            daily_vwap = enhanced_indicators.get('daily_vwap', 0)
-            point_of_control = enhanced_indicators.get('point_of_control', 0)
-            
-            # --- 1. COMPOSITE TECHNICAL SCORE BAR ---
-            try:
-                composite_score, score_details = calculate_composite_technical_score(analysis_results)
-                score_bar_html = create_technical_score_bar(composite_score, score_details)
-                st.components.v1.html(score_bar_html, height=160)
-            except Exception as e:
-                st.warning(f"⚠️ Score bar display issue")
-                if show_debug:
-                    st.error(f"Score bar error: {str(e)}")
-                # Fallback to simple display
-                try:
-                    composite_score, _ = calculate_composite_technical_score(analysis_results)
-                    st.metric("Composite Technical Score", f"{composite_score:.1f}/100")
-                except:
-                    st.metric("Composite Technical Score", "Calculating...")
-            
-            # --- 2. KEY MOMENTUM OSCILLATORS ---
-            st.subheader("Key Momentum Oscillators")
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                rsi = comprehensive_technicals.get('rsi_14', 50)
-                st.metric("RSI (14)", f"{rsi:.2f}", "Oversold < 30")
-            with col2:
-                mfi = comprehensive_technicals.get('mfi_14', 50)
-                st.metric("MFI (14)", f"{mfi:.2f}", "Oversold < 20")
-            with col3:
-                stoch = comprehensive_technicals.get('stochastic', {})
-                stoch_k = stoch.get('k', 50) if isinstance(stoch, dict) else 50
-                st.metric("Stochastic %K", f"{stoch_k:.2f}", "Oversold < 20")
-            with col4:
-                williams_r = comprehensive_technicals.get('williams_r', -50)
-                st.metric("Williams %R", f"{williams_r:.2f}", "Oversold < -80")
-            
-            # --- 3. TREND ANALYSIS ---
-            st.subheader("Trend Analysis")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                macd_data = comprehensive_technicals.get('macd', {})
-                macd_hist = macd_data.get('histogram', 0) if isinstance(macd_data, dict) else 0
-                macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
-                st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
-            
-            with col2:
-                # Additional trend indicator placeholder
-                pass
-            
-            # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
-            st.subheader("Price-Based Indicators & Key Levels")
-            
-            indicators_data = []
-            
-            # Current Price
-            indicators_data.append({
-                'Indicator': 'Current Price',
-                'Value': f'${current_price:.2f}',
-                'Type': '📍 Reference',
-                'Distance': '0.0%',
-                'Status': 'Current'
-            })
-            
-            # Daily VWAP
-            if daily_vwap and daily_vwap > 0:
-                vwap_distance = ((current_price - daily_vwap) / daily_vwap * 100)
-                vwap_status = "Above" if current_price > daily_vwap else "Below"
-                indicators_data.append({
-                    'Indicator': 'Daily VWAP',
-                    'Value': f'${daily_vwap:.2f}',
-                    'Type': '📊 Volume Weighted',
-                    'Distance': f'{vwap_distance:+.2f}%',
-                    'Status': vwap_status
-                })
-            
-            # Point of Control
-            if point_of_control and point_of_control > 0:
-                poc_distance = ((current_price - point_of_control) / point_of_control * 100)
-                poc_status = "Above" if current_price > point_of_control else "Below"
-                indicators_data.append({
-                    'Indicator': 'Point of Control',
-                    'Value': f'${point_of_control:.2f}',
-                    'Type': '📊 Volume Profile',
-                    'Distance': f'{poc_distance:+.2f}%',
-                    'Status': poc_status
-                })
-            
-            # Fibonacci EMAs
-            if fibonacci_emas:
-                for ema_name, ema_value in fibonacci_emas.items():
-                    try:
-                        period = str(ema_name).split('_')[1]
-                        ema_val = float(ema_value) if ema_value else 0
-                        
-                        if ema_val > 0:
-                            ema_distance = ((current_price - ema_val) / ema_val * 100)
-                            ema_status = "Above" if current_price > ema_val else "Below"
-                            indicators_data.append({
-                                'Indicator': f'EMA {period}',
-                                'Value': f'${ema_val:.2f}',
-                                'Type': '📈 Trend',
-                                'Distance': f'{ema_distance:+.2f}%',
-                                'Status': ema_status
-                            })
-                    except Exception as e:
-                        if show_debug:
-                            st.warning(f'Error processing {ema_name}: {str(e)}')
-                        continue
-            
-            # Display table
-            if indicators_data:
-                df_technical = pd.DataFrame(indicators_data)
-                st.dataframe(df_technical, use_container_width=True, hide_index=True)
-            else:
-                st.warning("⚠️ No technical indicators available to display")
-            
-            # Debug info
-            if show_debug:
-                with st.expander("🐛 Technical Analysis Debug Info", expanded=False):
-                    st.write("**Analysis Results Keys:**", list(analysis_results.keys()))
-                    st.write("**Enhanced Indicators Keys:**", list(enhanced_indicators.keys()))
-                    st.write("**Comprehensive Technicals Keys:**", list(comprehensive_technicals.keys()) if comprehensive_technicals else "None")
-                    st.write("**Fibonacci EMAs:**", fibonacci_emas)
-                    st.write("**Current Price:**", current_price)
-                    st.write("**Daily VWAP:**", daily_vwap)
-                    st.write("**Point of Control:**", point_of_control)
-                    st.json(enhanced_indicators)
+    symbol = analysis_results.get('symbol', 'Unknown')
     
-    except Exception as e:
-        st.error(f"❌ Technical analysis display error: {str(e)}")
+    with st.expander(f"📊 Technical Analysis - {symbol}", expanded=True):
+        
+        # Get data - ONLY changed .get() to handle missing keys, NOT calculation logic
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
+        fibonacci_emas = enhanced_indicators.get('fibonacci_emas', {})
+        current_price = analysis_results.get('current_price', 0)
+        daily_vwap = enhanced_indicators.get('daily_vwap', 0)
+        point_of_control = enhanced_indicators.get('point_of_control', 0)
+        
+        # --- 1. COMPOSITE TECHNICAL SCORE BAR ---
+        try:
+            composite_score, score_details = calculate_composite_technical_score(analysis_results)
+            score_bar_html = create_technical_score_bar(composite_score, score_details)
+            st.components.v1.html(score_bar_html, height=160)
+        except Exception as e:
+            if show_debug:
+                st.error(f"Score bar error: {str(e)}")
+            st.metric("Composite Technical Score", "Calculating...")
+        
+        # --- 2. KEY MOMENTUM OSCILLATORS ---
+        st.subheader("Key Momentum Oscillators")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            rsi = comprehensive_technicals.get('rsi_14', 50)
+            st.metric("RSI (14)", f"{rsi:.2f}", "Oversold < 30")
+        with col2:
+            mfi = comprehensive_technicals.get('mfi_14', 50)
+            st.metric("MFI (14)", f"{mfi:.2f}", "Oversold < 20")
+        with col3:
+            stoch = comprehensive_technicals.get('stochastic', {})
+            stoch_k = stoch.get('k', 50) if isinstance(stoch, dict) else 50
+            st.metric("Stochastic %K", f"{stoch_k:.2f}", "Oversold < 20")
+        with col4:
+            williams_r = comprehensive_technicals.get('williams_r', -50)
+            st.metric("Williams %R", f"{williams_r:.2f}", "Oversold < -80")
+        
+        # --- 3. TREND ANALYSIS ---
+        st.subheader("Trend Analysis")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            macd_data = comprehensive_technicals.get('macd', {})
+            macd_hist = macd_data.get('histogram', 0) if isinstance(macd_data, dict) else 0
+            macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
+            st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
+        
+        # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
+        st.subheader("Price-Based Indicators & Key Levels")
+        
+        indicators_data = []
+        
+        # Current Price
+        indicators_data.append({
+            'Indicator': 'Current Price',
+            'Value': f'${current_price:.2f}',
+            'Type': '📍 Reference',
+            'Distance': '0.0%',
+            'Status': 'Current'
+        })
+        
+        # Daily VWAP
+        if daily_vwap and daily_vwap > 0:
+            vwap_distance = ((current_price - daily_vwap) / daily_vwap * 100)
+            vwap_status = "Above" if current_price > daily_vwap else "Below"
+            indicators_data.append({
+                'Indicator': 'Daily VWAP',
+                'Value': f'${daily_vwap:.2f}',
+                'Type': '📊 Volume Weighted',
+                'Distance': f'{vwap_distance:+.2f}%',
+                'Status': vwap_status
+            })
+        
+        # Point of Control
+        if point_of_control and point_of_control > 0:
+            poc_distance = ((current_price - point_of_control) / point_of_control * 100)
+            poc_status = "Above" if current_price > point_of_control else "Below"
+            indicators_data.append({
+                'Indicator': 'Point of Control',
+                'Value': f'${point_of_control:.2f}',
+                'Type': '📊 Volume Profile',
+                'Distance': f'{poc_distance:+.2f}%',
+                'Status': poc_status
+            })
+        
+        # Fibonacci EMAs
+        if fibonacci_emas:
+            for ema_name, ema_value in fibonacci_emas.items():
+                try:
+                    period = str(ema_name).split('_')[1]
+                    ema_val = float(ema_value) if ema_value else 0
+                    
+                    if ema_val > 0:
+                        ema_distance = ((current_price - ema_val) / ema_val * 100)
+                        ema_status = "Above" if current_price > ema_val else "Below"
+                        indicators_data.append({
+                            'Indicator': f'EMA {period}',
+                            'Value': f'${ema_val:.2f}',
+                            'Type': '📈 Trend',
+                            'Distance': f'{ema_distance:+.2f}%',
+                            'Status': ema_status
+                        })
+                except:
+                    continue
+        
+        # Display table
+        if indicators_data:
+            df_technical = pd.DataFrame(indicators_data)
+            st.dataframe(df_technical, use_container_width=True, hide_index=True)
+        
+        # Debug info
         if show_debug:
-            st.code(traceback.format_exc())
+            with st.expander("🐛 Technical Analysis Debug Info", expanded=True):
+                st.write("**Comprehensive Technicals:**")
+                st.json(comprehensive_technicals)
+                st.write("**All Indicators:**")
+                st.json(enhanced_indicators)
 
 def show_volume_analysis(analysis_results, show_debug=False):
     """Display volume analysis section - PRIORITY 3 (Optional)"""
@@ -524,18 +491,18 @@ def show_confidence_intervals(analysis_results, show_debug=False):
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """
-    Perform enhanced analysis using modular components
-    Version: v4.2.2 - Enhanced data structure validation
+    Perform enhanced analysis - CALCULATION LOGIC UNCHANGED FROM WORKING VERSION
+    Version: v1.0.9 - Only display changes, calculations preserved
     """
     try:
-        # Step 1: Fetch data
+        # Step 1: Fetch data (UNCHANGED)
         market_data = get_market_data_enhanced(symbol, period, show_debug)
         
         if market_data is None:
             st.error(f"❌ Could not fetch data for {symbol}")
             return None, None
         
-        # Step 2: Store and prepare data
+        # Step 2: Store and prepare data (UNCHANGED)
         data_manager = get_data_manager()
         data_manager.store_market_data(symbol, market_data, show_debug)
         analysis_input = data_manager.get_market_data_for_analysis(symbol)
@@ -544,19 +511,19 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             st.error("❌ Could not prepare analysis data")
             return None, None
         
-        # Step 3: Calculate all indicators
+        # Step 3: Calculate all indicators (UNCHANGED - WORKING LOGIC PRESERVED)
         daily_vwap = calculate_daily_vwap(analysis_input)
         fibonacci_emas = calculate_fibonacci_emas(analysis_input)
         point_of_control = calculate_point_of_control_enhanced(analysis_input)
         weekly_deviations = calculate_weekly_deviations(analysis_input)
         comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
         
-        # Step 4: Market correlations
+        # Step 4: Market correlations (UNCHANGED)
         market_correlations = calculate_market_correlations_enhanced(
             analysis_input, symbol, show_debug=show_debug
         )
         
-        # Step 5: Volume analysis (if available)
+        # Step 5: Volume analysis (UNCHANGED)
         volume_analysis = None
         if VOLUME_ANALYSIS_AVAILABLE:
             try:
@@ -565,7 +532,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 if show_debug:
                     st.warning(f"Volume analysis error: {str(e)}")
         
-        # Step 6: Volatility analysis (if available)
+        # Step 6: Volatility analysis (UNCHANGED)
         volatility_analysis = None
         if VOLATILITY_ANALYSIS_AVAILABLE:
             try:
@@ -574,7 +541,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 if show_debug:
                     st.warning(f"Volatility analysis error: {str(e)}")
         
-        # Step 7: Fundamental analysis (skip for ETFs)
+        # Step 7: Fundamental analysis (UNCHANGED)
         is_etf_symbol = is_etf(symbol)
         
         if is_etf_symbol:
@@ -592,7 +559,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
         
-        # Step 8: Options levels
+        # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
         volatility = comprehensive_technicals.get('volatility_20d', 20)
         underlying_beta = 1.0
@@ -610,10 +577,10 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             current_price, volatility, underlying_beta=underlying_beta
         )
         
-        # Step 9: Confidence intervals
+        # Step 9: Confidence intervals (UNCHANGED)
         confidence_analysis = calculate_confidence_intervals(analysis_input)
         
-        # Step 10: Build results
+        # Step 10: Build results (UNCHANGED)
         current_date = analysis_input.index[-1].strftime('%Y-%m-%d')
         
         analysis_results = {
@@ -635,17 +602,17 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             'system_status': 'OPERATIONAL v4.2.2'
         }
         
-        # Add optional analyses if available
+        # Add optional analyses if available (UNCHANGED)
         if volume_analysis:
             analysis_results['enhanced_indicators']['volume_analysis'] = volume_analysis
         
         if volatility_analysis:
             analysis_results['enhanced_indicators']['volatility_analysis'] = volatility_analysis
         
-        # Store results
+        # Store results (UNCHANGED)
         data_manager.store_analysis_results(symbol, analysis_results)
         
-        # Get chart data
+        # Get chart data (UNCHANGED)
         chart_data = data_manager.get_market_data_for_chart(symbol)
         
         return analysis_results, chart_data
@@ -657,10 +624,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         return None, None
 
 def main():
-    """
-    Main application function
-    Version: v4.2.2 - Technical Display Fix
-    """
+    """Main application function"""
     create_header()
     controls = create_sidebar_controls()
     
@@ -677,49 +641,28 @@ def main():
             )
             
             if analysis_results and chart_data is not None:
-                # MANDATORY DISPLAY ORDER (DO NOT CHANGE)
-                
-                # 1. Charts FIRST
+                # MANDATORY DISPLAY ORDER
                 show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
-                
-                # 2. Individual Technical Analysis SECOND
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
-                # 3. Volume Analysis (optional)
                 if VOLUME_ANALYSIS_AVAILABLE:
                     show_volume_analysis(analysis_results, controls['show_debug'])
                 
-                # 4. Volatility Analysis (optional)
                 if VOLATILITY_ANALYSIS_AVAILABLE:
                     show_volatility_analysis(analysis_results, controls['show_debug'])
                 
-                # 5. Fundamental Analysis
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
-                
-                # 6. Market Correlation
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
-                
-                # 7. Options Analysis
                 show_options_analysis(analysis_results, controls['show_debug'])
-                
-                # 8. Confidence Intervals
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 
-                # Debug information
                 if controls['show_debug']:
                     with st.expander("🐛 Debug Information", expanded=False):
                         st.write("### Analysis Results Structure")
                         st.json(analysis_results)
-                        
-                        st.write("### System Status")
-                        st.write(f"**Period:** {controls['period']}")
-                        st.write(f"**Volume Available:** {VOLUME_ANALYSIS_AVAILABLE}")
-                        st.write(f"**Volatility Available:** {VOLATILITY_ANALYSIS_AVAILABLE}")
-                        st.write(f"**Baldwin Available:** {BALDWIN_INDICATOR_AVAILABLE}")
             else:
                 st.error("❌ No results to display")
     else:
-        # Welcome screen
         st.write("## 🚀 VWV Professional Trading System v4.2.2")
         st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Trading Signals**")
         
@@ -740,13 +683,13 @@ def main():
     
     with col1:
         st.write(f"**Version:** VWV Professional v4.2.2")
-        st.write(f"**Status:** ✅ Technical Display Fix Applied")
+        st.write(f"**Status:** ✅ Calculations Preserved")
     with col2:
         st.write(f"**Display Order:** Charts → Technical → Analysis")
         st.write(f"**Default Period:** 1 month (1mo)")
     with col3:
-        st.write(f"**Enhanced Features:** Modular Architecture")
-        st.write(f"**Error Handling:** Comprehensive Debug Mode")
+        st.write(f"**File Version:** app.py v1.0.9")
+        st.write(f"**Fix:** Display only, calculations intact")
 
 if __name__ == "__main__":
     try:

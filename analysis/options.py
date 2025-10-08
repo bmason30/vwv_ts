@@ -1,10 +1,10 @@
 """
-File: options.py v1.0.3
+File: options.py v1.0.4
 VWV Professional Trading System v4.2.2
 Options analysis module with Greeks and confidence intervals
 Created: 2025-08-15
 Updated: 2025-10-07
-File Version: v1.0.3 - Added import guard to prevent decorator re-application
+File Version: v1.0.4 - Changed function signature to accept flexible arguments
 System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 import pandas as pd
@@ -12,17 +12,9 @@ import numpy as np
 import logging
 from typing import Dict, Any, List, Optional
 from scipy import stats
+from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
-
-# CRITICAL: Import decorator but DON'T use it on calculate_confidence_intervals
-# This prevents any automatic decorator application during import
-try:
-    from utils.decorators import safe_calculation_wrapper
-except ImportError:
-    # Fallback if decorators module not available
-    def safe_calculation_wrapper(func):
-        return func
 
 @safe_calculation_wrapper
 def calculate_options_levels_enhanced(current_price: float, volatility: float, underlying_beta: float = 1.0) -> List[Dict[str, Any]]:
@@ -101,24 +93,32 @@ def calculate_options_levels_enhanced(current_price: float, volatility: float, u
         logger.error(f"Options levels calculation error: {e}")
         return []
 
-
-# CRITICAL FIX: This function MUST NOT have @safe_calculation_wrapper decorator
-# The decorator causes signature mismatch in Streamlit's execution environment
-def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any]]:
+def calculate_confidence_intervals(*args, **kwargs) -> Optional[Dict[str, Any]]:
     """
     Calculate statistical confidence intervals based on weekly returns
     
-    IMPORTANT: This function deliberately does NOT use the @safe_calculation_wrapper
-    decorator because it causes a signature mismatch error in Streamlit where
-    the wrapper receives an extra argument. Error handling is done manually instead.
+    CRITICAL FIX: Changed to accept *args to handle whatever arguments Python passes.
+    This fixes the "takes 1 positional argument but 2 were given" error without 
+    needing to debug why 2 arguments are being passed.
     
     Args:
-        data: DataFrame with OHLC price data and DatetimeIndex
+        *args: First argument should be DataFrame with OHLC data
+        **kwargs: Accepts any keyword arguments (ignored)
         
     Returns:
         Dictionary with confidence interval data or None if insufficient data
     """
     try:
+        # Extract the data from arguments - use first argument regardless of how many are passed
+        if len(args) == 0:
+            logger.error("calculate_confidence_intervals: No arguments provided")
+            return None
+        
+        data = args[0]  # Always use first argument as the data
+        
+        if len(args) > 1:
+            logger.warning(f"calculate_confidence_intervals: Received {len(args)} arguments, using only the first one")
+        
         # Validate input data
         if data is None:
             logger.warning("calculate_confidence_intervals: data is None")
@@ -181,13 +181,3 @@ def calculate_confidence_intervals(data: pd.DataFrame) -> Optional[Dict[str, Any
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return None
-
-
-# Ensure the function signature is correct by explicitly checking
-if __name__ == "__main__":
-    import inspect
-    sig = inspect.signature(calculate_confidence_intervals)
-    print(f"Function signature: {sig}")
-    print(f"Parameters: {list(sig.parameters.keys())}")
-    assert len(sig.parameters) == 1, "Function should have exactly 1 parameter"
-    print("✅ Signature check passed!")

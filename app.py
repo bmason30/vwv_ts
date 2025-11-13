@@ -256,17 +256,56 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         with col1:
             rsi = comprehensive_technicals.get('rsi_14', 50)
-            st.metric("RSI (14)", f"{rsi:.2f}", "Oversold < 30")
+            if rsi > 70:
+                rsi_status = f"Overbought ({rsi:.1f} > 70)"
+                rsi_delta = f"+{rsi - 70:.1f}"
+            elif rsi < 30:
+                rsi_status = f"Oversold ({rsi:.1f} < 30)"
+                rsi_delta = f"{rsi - 30:.1f}"
+            else:
+                rsi_status = "Neutral"
+                rsi_delta = None
+            st.metric("RSI (14)", f"{rsi:.2f}", rsi_delta, help=rsi_status)
+
         with col2:
             mfi = comprehensive_technicals.get('mfi_14', 50)
-            st.metric("MFI (14)", f"{mfi:.2f}", "Oversold < 20")
+            if mfi > 80:
+                mfi_status = f"Overbought ({mfi:.1f} > 80)"
+                mfi_delta = f"+{mfi - 80:.1f}"
+            elif mfi < 20:
+                mfi_status = f"Oversold ({mfi:.1f} < 20)"
+                mfi_delta = f"{mfi - 20:.1f}"
+            else:
+                mfi_status = "Neutral"
+                mfi_delta = None
+            st.metric("MFI (14)", f"{mfi:.2f}", mfi_delta, help=mfi_status)
+
         with col3:
             stoch = comprehensive_technicals.get('stochastic', {})
             stoch_k = stoch.get('k', 50) if isinstance(stoch, dict) else 50
-            st.metric("Stochastic %K", f"{stoch_k:.2f}", "Oversold < 20")
+            if stoch_k > 80:
+                stoch_status = f"Overbought ({stoch_k:.1f} > 80)"
+                stoch_delta = f"+{stoch_k - 80:.1f}"
+            elif stoch_k < 20:
+                stoch_status = f"Oversold ({stoch_k:.1f} < 20)"
+                stoch_delta = f"{stoch_k - 20:.1f}"
+            else:
+                stoch_status = "Neutral"
+                stoch_delta = None
+            st.metric("Stochastic %K", f"{stoch_k:.2f}", stoch_delta, help=stoch_status)
+
         with col4:
             williams_r = comprehensive_technicals.get('williams_r', -50)
-            st.metric("Williams %R", f"{williams_r:.2f}", "Oversold < -80")
+            if williams_r > -20:
+                williams_status = f"Overbought ({williams_r:.1f} > -20)"
+                williams_delta = f"+{williams_r + 20:.1f}"
+            elif williams_r < -80:
+                williams_status = f"Oversold ({williams_r:.1f} < -80)"
+                williams_delta = f"{williams_r + 80:.1f}"
+            else:
+                williams_status = "Neutral"
+                williams_delta = None
+            st.metric("Williams %R", f"{williams_r:.2f}", williams_delta, help=williams_status)
         
         # --- 3. TREND ANALYSIS ---
         st.subheader("Trend Analysis")

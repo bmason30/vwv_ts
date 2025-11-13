@@ -84,7 +84,7 @@ def get_etf_description(etf: str) -> str:
     """Get description of ETF"""
     descriptions = {
         'FNGD': '🐻 3x Inverse Technology ETF',
-        'FNGU': '🚀 3x Leveraged Technology ETF',
+        'FNGU': '📈 3x Leveraged Technology ETF',
         'MAGS': '🏛️ Magnificent Seven ETF'
     }
     return descriptions.get(etf, 'ETF')

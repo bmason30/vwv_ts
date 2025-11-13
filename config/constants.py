@@ -99,7 +99,7 @@ QUICK_LINK_CATEGORIES = {
     '🌍 International': ['EWW', 'FXI', 'INDA', 'UUP', 'UDN'],
     '🥇 Commodities': ['GLD', 'GDX', 'SLV', 'URNM', 'PHYS'],
     '💰 Income ETFs': ['JEPI', 'DIVO', 'SCHD', 'SPYI', 'HYG', 'JNK'],
-    '🚀 Tech Giants': ['TSLA', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'NFLX', 'META'],
+    '💻 Tech Giants': ['TSLA', 'AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'NFLX', 'META'],
     '💾 Semiconductors': ['CHIPS', 'SMCI', 'INTC', 'MU', 'AVGO', 'AMD', 'LRCX', 'QCOM', 'SOXL'],
     '🌐 Software & AI': ['NET', 'PLTR', 'SNOW', 'PANW', 'ORCL', 'AI'],
     '🏢 Blue Chips': ['UNH', 'HD', 'COST', 'WMT', 'V', 'GS', 'DIS', 'CAT', 'BA', 'XOM'],

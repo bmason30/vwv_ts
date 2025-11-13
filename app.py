@@ -91,6 +91,8 @@ def create_sidebar_controls():
     # Initialize session state for toggles
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
+    if 'last_analyzed_symbol' not in st.session_state:
+        st.session_state.last_analyzed_symbol = None
     if 'show_charts' not in st.session_state:
         st.session_state.show_charts = True
     if 'show_technical_analysis' not in st.session_state:
@@ -846,7 +848,13 @@ def main():
     create_header()
     controls = create_sidebar_controls()
     
-    if controls['analyze_button'] and controls['symbol']:
+    # Trigger analysis on button click OR when Enter is pressed (symbol changes)
+    symbol_changed = (controls['symbol'] and
+                     controls['symbol'] != st.session_state.last_analyzed_symbol)
+    should_analyze = (controls['analyze_button'] or symbol_changed) and controls['symbol']
+
+    if should_analyze:
+        st.session_state.last_analyzed_symbol = controls['symbol']
         add_to_recently_viewed(controls['symbol'])
         
         st.write(f"## 📊 VWV Trading Analysis v4.2.2 - {controls['symbol']}")

@@ -1,4 +1,4 @@
-# 🚀 VWV Professional Trading System
+# VWV Professional Trading System
 
 Advanced market analysis and intelligent options strategy platform with 32+ years of proven logic.
 

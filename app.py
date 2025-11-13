@@ -118,12 +118,12 @@ def create_sidebar_controls():
         help="Enter a stock symbol (e.g., AAPL, TSLA, SPY)"
     ).upper()
     
-    # Data period selection with 1mo as default
+    # Data period selection with 3mo as default (optimal for all modules)
     period = st.sidebar.selectbox(
         "Data Period",
         options=['1mo', '3mo', '6mo', '1y', '2y', '5y'],
-        index=0,  # Default to 1mo
-        help="Select the historical data period for analysis"
+        index=1,  # Default to 3mo (recommended for technical analysis)
+        help="Select the historical data period for analysis. 3mo+ recommended for all modules."
     )
     
     # Analysis sections toggle
@@ -216,9 +216,20 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         return
     
     symbol = analysis_results.get('symbol', 'Unknown')
-    
+    period = analysis_results.get('period', 'Unknown')
+    data_points = analysis_results.get('data_points', 0)
+
     with st.expander(f"📊 Technical Analysis - {symbol}", expanded=True):
-        
+
+        # Timeframe warning for insufficient data
+        if data_points < 50:
+            st.warning(
+                f"⚠️ **Limited Data Alert:** Only {data_points} data points available. "
+                f"Technical analysis requires **50+ data points** for accurate indicators. "
+                f"**Use 3mo or longer period** for reliable results. "
+                f"Values may show as defaults (50) with current {period} timeframe."
+            )
+
         # Get data - ONLY changed .get() to handle missing keys, NOT calculation logic
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         comprehensive_technicals = enhanced_indicators.get('comprehensive_technicals', {})
@@ -340,8 +351,21 @@ def show_volume_analysis(analysis_results, show_debug=False):
     """Display volume analysis section - PRIORITY 3 (Optional)"""
     if not st.session_state.show_volume_analysis or not VOLUME_ANALYSIS_AVAILABLE:
         return
-        
-    with st.expander(f"📊 Volume Analysis - {analysis_results['symbol']}", expanded=True):
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    period = analysis_results.get('period', 'Unknown')
+    data_points = analysis_results.get('data_points', 0)
+
+    with st.expander(f"📊 Volume Analysis - {symbol}", expanded=True):
+
+        # Timeframe warning for insufficient data
+        if data_points < 30:
+            st.warning(
+                f"⚠️ **Insufficient Data:** Only {data_points} data points available. "
+                f"Volume analysis requires **30+ data points** (about 1.5 months). "
+                f"**Use 3mo or longer period** for accurate volume metrics with current {period} timeframe."
+            )
+
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volume_analysis = enhanced_indicators.get('volume_analysis', {})
         
@@ -386,8 +410,21 @@ def show_volatility_analysis(analysis_results, show_debug=False):
     """Display volatility analysis section - PRIORITY 4 (Optional)"""
     if not st.session_state.show_volatility_analysis or not VOLATILITY_ANALYSIS_AVAILABLE:
         return
-        
-    with st.expander(f"📊 Volatility Analysis - {analysis_results['symbol']}", expanded=True):
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    period = analysis_results.get('period', 'Unknown')
+    data_points = analysis_results.get('data_points', 0)
+
+    with st.expander(f"📊 Volatility Analysis - {symbol}", expanded=True):
+
+        # Timeframe warning for insufficient data
+        if data_points < 30:
+            st.warning(
+                f"⚠️ **Insufficient Data:** Only {data_points} data points available. "
+                f"Volatility analysis requires **30+ data points** (about 1.5 months). "
+                f"**Use 3mo or longer period** for accurate volatility metrics with current {period} timeframe."
+            )
+
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
         
@@ -591,11 +628,22 @@ def show_confidence_intervals(analysis_results, show_debug=False):
     """Display confidence intervals section - PRIORITY 9"""
     if not st.session_state.show_confidence_intervals:
         return
-        
+
+    period = analysis_results.get('period', 'Unknown')
+    data_points = analysis_results.get('data_points', 0)
     confidence_analysis = analysis_results.get('confidence_analysis')
-    
+
     if confidence_analysis:
         with st.expander("📊 Statistical Confidence Intervals", expanded=True):
+
+            # Timeframe warning for insufficient data
+            if data_points < 100:
+                st.warning(
+                    f"⚠️ **Limited Statistical Confidence:** Only {data_points} data points available. "
+                    f"Confidence intervals are most reliable with **100+ data points** (about 5 months). "
+                    f"**Use 6mo or 1y period** for statistically significant results. "
+                    f"Current {period} timeframe may produce wider intervals."
+                )
             col1, col2, col3 = st.columns(3)
             
             with col1:
@@ -755,6 +803,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             'symbol': symbol,
             'timestamp': current_date,
             'current_price': current_price,
+            'period': period,  # Store period for timeframe validation in displays
+            'data_points': len(analysis_input),  # Store actual data points count
             'enhanced_indicators': {
                 'daily_vwap': daily_vwap,
                 'fibonacci_emas': fibonacci_emas,
@@ -843,10 +893,11 @@ def main():
         
         with st.expander("🚀 Quick Start Guide", expanded=True):
             st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, TSLA, SPY)")
-            st.write("2. **Default period is 1 month** - optimal for most analysis")
-            st.write("3. **Charts display FIRST** - immediate visual analysis")
-            st.write("4. **Technical analysis SECOND** - professional scoring")
-            st.write("5. **Use Quick Links** for instant analysis")
+            st.write("2. **Default period is 3 months** - optimal for all analysis modules")
+            st.write("3. **⚠️ Use 3mo+ for best results** - 1mo period has limited data")
+            st.write("4. **Charts display FIRST** - immediate visual analysis")
+            st.write("5. **Technical analysis SECOND** - professional scoring")
+            st.write("6. **Use Quick Links** for instant analysis")
     
     # Footer
     st.markdown("---")

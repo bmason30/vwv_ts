@@ -40,28 +40,32 @@ def calculate_graham_score(symbol, show_debug=False):
             score += 1
             criteria.append("✓ P/E < 15")
         else:
-            criteria.append(f"✗ P/E {pe_ratio:.2f if pe_ratio else 'N/A'} >= 15")
+            pe_display = f"{pe_ratio:.2f}" if pe_ratio else "N/A"
+            criteria.append(f"✗ P/E {pe_display} >= 15")
 
         # Criterion 2: P/B Ratio < 1.5
         if pb_ratio and pb_ratio < 1.5:
             score += 1
             criteria.append("✓ P/B < 1.5")
         else:
-            criteria.append(f"✗ P/B {pb_ratio:.2f if pb_ratio else 'N/A'} >= 1.5")
+            pb_display = f"{pb_ratio:.2f}" if pb_ratio else "N/A"
+            criteria.append(f"✗ P/B {pb_display} >= 1.5")
 
         # Criterion 3: Debt to Equity < 0.5
         if debt_to_equity and debt_to_equity < 0.5:
             score += 1
             criteria.append("✓ Debt/Equity < 0.5")
         else:
-            criteria.append(f"✗ Debt/Equity {debt_to_equity:.2f if debt_to_equity else 'N/A'} >= 0.5")
+            de_display = f"{debt_to_equity:.2f}" if debt_to_equity else "N/A"
+            criteria.append(f"✗ Debt/Equity {de_display} >= 0.5")
 
         # Criterion 4: Current Ratio > 2.0
         if current_ratio and current_ratio > 2.0:
             score += 1
             criteria.append("✓ Current Ratio > 2.0")
         else:
-            criteria.append(f"✗ Current Ratio {current_ratio:.2f if current_ratio else 'N/A'} <= 2.0")
+            cr_display = f"{current_ratio:.2f}" if current_ratio else "N/A"
+            criteria.append(f"✗ Current Ratio {cr_display} <= 2.0")
 
         # Criterion 5: Dividend Yield > 0
         if dividend_yield and dividend_yield > 0:
@@ -75,7 +79,8 @@ def calculate_graham_score(symbol, show_debug=False):
             score += 1
             criteria.append(f"✓ Profit Margin > 10% ({profit_margins*100:.1f}%)")
         else:
-            criteria.append(f"✗ Profit Margin <= 10% ({profit_margins*100:.1f}% if profit_margins else 'N/A')")
+            pm_display = f"{profit_margins*100:.1f}%" if profit_margins else "N/A"
+            criteria.append(f"✗ Profit Margin <= 10% ({pm_display})")
 
         # Criterion 7: Earnings Growth (check if available in financials)
         try:

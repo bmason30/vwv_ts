@@ -62,10 +62,12 @@ except ImportError:
 
 # Baldwin indicator import with safe fallback
 try:
-    from analysis.baldwin import calculate_baldwin_market_regime
+    from analysis.baldwin_indicator import calculate_baldwin_indicator_complete, format_baldwin_for_display
     BALDWIN_INDICATOR_AVAILABLE = True
 except ImportError:
     BALDWIN_INDICATOR_AVAILABLE = False
+    calculate_baldwin_indicator_complete = None
+    format_baldwin_for_display = None
 
 from ui.components import create_technical_score_bar, create_header
 from utils.helpers import format_large_number, get_market_status, get_etf_description
@@ -105,7 +107,9 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = True
     if 'show_confidence_intervals' not in st.session_state:
         st.session_state.show_confidence_intervals = True
-    
+    if 'show_baldwin_indicator' not in st.session_state:
+        st.session_state.show_baldwin_indicator = True
+
     # Symbol input with Enter key support
     symbol_input = st.sidebar.text_input(
         "Symbol",
@@ -134,6 +138,8 @@ def create_sidebar_controls():
         st.session_state.show_market_correlation = st.checkbox("Show Market Correlation", value=st.session_state.show_market_correlation)
         st.session_state.show_options_analysis = st.checkbox("Show Options Analysis", value=st.session_state.show_options_analysis)
         st.session_state.show_confidence_intervals = st.checkbox("Show Confidence Intervals", value=st.session_state.show_confidence_intervals)
+        if BALDWIN_INDICATOR_AVAILABLE:
+            st.session_state.show_baldwin_indicator = st.checkbox("Show Baldwin Indicator", value=st.session_state.show_baldwin_indicator)
     
     # Analyze button
     analyze_button = st.sidebar.button("🔍 Analyze Now", use_container_width=True, type="primary")
@@ -340,21 +346,41 @@ def show_volume_analysis(analysis_results, show_debug=False):
         volume_analysis = enhanced_indicators.get('volume_analysis', {})
         
         if volume_analysis and 'error' not in volume_analysis:
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
+                current_vol = volume_analysis.get('current_volume', 0)
+                st.metric("Current Volume", format_large_number(current_vol))
+            with col2:
                 vol_5d = volume_analysis.get('volume_5d_avg', 0)
                 st.metric("5D Avg Volume", format_large_number(vol_5d))
-            with col2:
+            with col3:
                 vol_30d = volume_analysis.get('volume_30d_avg', 0)
                 st.metric("30D Avg Volume", format_large_number(vol_30d))
-            with col3:
-                vol_trend = volume_analysis.get('volume_trend', 0)
-                st.metric("Volume Trend", f"{vol_trend:+.2f}%")
             with col4:
+                vol_ratio = volume_analysis.get('volume_ratio', 1.0)
+                st.metric("Volume Ratio", f"{vol_ratio:.2f}x")
+            with col5:
                 vol_score = volume_analysis.get('volume_score', 50)
                 st.metric("Volume Score", f"{vol_score:.1f}/100")
+
+            # Second row with regime and implications
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                vol_regime = volume_analysis.get('volume_regime', 'Normal')
+                st.metric("Volume Regime", vol_regime)
+            with col2:
+                vol_trend = volume_analysis.get('volume_trend_5d', 0)
+                st.metric("5D Trend", f"{vol_trend:+.2f}%")
+            with col3:
+                vol_zscore = volume_analysis.get('volume_zscore', 0)
+                st.metric("Z-Score", f"{vol_zscore:.2f}")
+
+            # Trading implications
+            implications = volume_analysis.get('trading_implications', 'N/A')
+            st.info(f"**Trading Implications:** {implications}")
         else:
-            st.warning("⚠️ Volume analysis not available - insufficient data")
+            error_msg = volume_analysis.get('error', 'insufficient data') if volume_analysis else 'insufficient data'
+            st.warning(f"⚠️ Volume analysis not available - {error_msg}")
 
 def show_volatility_analysis(analysis_results, show_debug=False):
     """Display volatility analysis section - PRIORITY 4 (Optional)"""
@@ -366,21 +392,35 @@ def show_volatility_analysis(analysis_results, show_debug=False):
         volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
         
         if volatility_analysis and 'error' not in volatility_analysis:
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
-                vol_5d = volatility_analysis.get('volatility_5d', 0)
-                st.metric("5D Volatility", f"{vol_5d:.2f}%")
+                vol_20d = volatility_analysis.get('volatility_20d', 0)
+                st.metric("20D Volatility", f"{vol_20d:.2f}%")
             with col2:
-                vol_30d = volatility_analysis.get('volatility_30d', 0)
-                st.metric("30D Volatility", f"{vol_30d:.2f}%")
+                realized_vol = volatility_analysis.get('realized_volatility', 0)
+                st.metric("Realized Vol", f"{realized_vol:.2f}%")
             with col3:
                 vol_percentile = volatility_analysis.get('volatility_percentile', 50)
                 st.metric("Vol Percentile", f"{vol_percentile:.1f}%")
             with col4:
                 vol_score = volatility_analysis.get('volatility_score', 50)
                 st.metric("Volatility Score", f"{vol_score:.1f}/100")
+            with col5:
+                vol_regime = volatility_analysis.get('volatility_regime', 'Normal')
+                st.metric("Regime", vol_regime)
+
+            # Additional metrics in a second row
+            st.subheader("Trading Implications")
+            col1, col2 = st.columns(2)
+            with col1:
+                options_strategy = volatility_analysis.get('options_strategy', 'N/A')
+                st.info(f"**Options Strategy:** {options_strategy}")
+            with col2:
+                implications = volatility_analysis.get('trading_implications', 'N/A')
+                st.info(f"**Implications:** {implications}")
         else:
-            st.warning("⚠️ Volatility analysis not available - insufficient data")
+            error_msg = volatility_analysis.get('error', 'insufficient data') if volatility_analysis else 'insufficient data'
+            st.warning(f"⚠️ Volatility analysis not available - {error_msg}")
 
 def show_fundamental_analysis(analysis_results, show_debug=False):
     """Display fundamental analysis section - PRIORITY 5"""
@@ -443,6 +483,60 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
                 st.dataframe(df_corr, use_container_width=True, hide_index=True)
         else:
             st.warning("⚠️ Market correlation data not available")
+
+def show_baldwin_indicator(show_debug=False):
+    """Display Baldwin Market Regime Indicator - PRIORITY 6"""
+    if not st.session_state.show_baldwin_indicator or not BALDWIN_INDICATOR_AVAILABLE:
+        return
+
+    with st.expander("🚦 Baldwin Market Regime Indicator", expanded=True):
+        try:
+            baldwin_results = calculate_baldwin_indicator_complete(show_debug=show_debug)
+
+            if 'error' in baldwin_results:
+                st.error(f"❌ Baldwin Indicator Error: {baldwin_results.get('error', 'Unknown error')}")
+                return
+
+            # Display overall score and regime
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                score = baldwin_results.get('baldwin_score', 0)
+                st.metric("Baldwin Score", f"{score:.1f}/100")
+
+            with col2:
+                regime = baldwin_results.get('market_regime', 'UNKNOWN')
+                regime_color = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(regime, "⚪")
+                st.metric("Market Regime", f"{regime_color} {regime}")
+
+            with col3:
+                timestamp = baldwin_results.get('timestamp', 'N/A')
+                st.metric("Updated", timestamp.split(' ')[1] if ' ' in timestamp else timestamp)
+
+            # Display strategy
+            st.info(f"**Strategy:** {baldwin_results.get('strategy', 'N/A')}")
+
+            # Display component breakdown
+            components = baldwin_results.get('components', {})
+            if components:
+                st.subheader("Component Breakdown")
+
+                component_data = []
+                for name, data in components.items():
+                    component_data.append({
+                        'Component': name.replace('_', ' & '),
+                        'Score': f"{data.get('component_score', 0):.1f}/100"
+                    })
+
+                if component_data:
+                    df_components = pd.DataFrame(component_data)
+                    st.dataframe(df_components, use_container_width=True, hide_index=True)
+
+        except Exception as e:
+            st.error(f"❌ Baldwin Indicator Error: {str(e)}")
+            if show_debug:
+                import traceback
+                st.code(traceback.format_exc())
 
 def show_options_analysis(analysis_results, show_debug=False):
     """Display options analysis section - PRIORITY 8"""
@@ -518,9 +612,9 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         weekly_deviations = calculate_weekly_deviations(analysis_input)
         comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
         
-        # Step 4: Market correlations (UNCHANGED)
+        # Step 4: Market correlations (FIXED: pass period parameter)
         market_correlations = calculate_market_correlations_enhanced(
-            analysis_input, symbol, show_debug=show_debug
+            analysis_input, symbol, period=period, show_debug=show_debug
         )
         
         # Step 5: Volume analysis (UNCHANGED)
@@ -653,6 +747,10 @@ def main():
                 
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
+
+                if BALDWIN_INDICATOR_AVAILABLE:
+                    show_baldwin_indicator(controls['show_debug'])
+
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])
                 

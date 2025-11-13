@@ -79,7 +79,7 @@ warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 # Page configuration
 st.set_page_config(
     page_title="VWV Professional Trading System v4.2.2",
-    page_icon="🚀",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -885,13 +885,13 @@ def main():
             else:
                 st.error("❌ No results to display")
     else:
-        st.write("## 🚀 VWV Professional Trading System v4.2.2")
+        st.write("## VWV Professional Trading System v4.2.2")
         st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Trading Signals**")
         
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
         
-        with st.expander("🚀 Quick Start Guide", expanded=True):
+        with st.expander("📖 Quick Start Guide", expanded=True):
             st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, TSLA, SPY)")
             st.write("2. **Default period is 3 months** - optimal for all analysis modules")
             st.write("3. **⚠️ Use 3mo+ for best results** - 1mo period has limited data")

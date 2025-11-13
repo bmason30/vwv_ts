@@ -440,22 +440,56 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
             st.info("ℹ️ Fundamental analysis not applicable for ETFs")
             return
         
-        # Display scores
+        # Display scores with detailed criteria
         col1, col2 = st.columns(2)
-        
+
         with col1:
-            st.subheader("Graham Score")
+            st.subheader("Graham Score (Value Investing)")
             if 'error' not in graham_data:
-                st.metric("Score", f"{graham_data.get('score', 0)}/10")
+                score = graham_data.get('score', 0)
+                total = graham_data.get('total_possible', 10)
+                grade = graham_data.get('grade', 'F')
+                interpretation = graham_data.get('interpretation', 'Unknown')
+
+                st.metric("Score", f"{score}/{total}", delta=f"Grade: {grade}")
+                st.caption(interpretation)
+
+                # Show criteria details
+                criteria = graham_data.get('criteria', [])
+                if criteria:
+                    with st.expander("📋 Detailed Criteria", expanded=False):
+                        for criterion in criteria:
+                            if '✓' in criterion:
+                                st.success(criterion)
+                            else:
+                                st.error(criterion)
             else:
                 st.metric("Score", "0/10")
-        
+                st.error(f"Error: {graham_data.get('error', 'Unknown error')}")
+
         with col2:
-            st.subheader("Piotroski Score")
+            st.subheader("Piotroski F-Score (Financial Health)")
             if 'error' not in piotroski_data:
-                st.metric("Score", f"{piotroski_data.get('score', 0)}/9")
+                score = piotroski_data.get('score', 0)
+                total = piotroski_data.get('total_possible', 9)
+                grade = piotroski_data.get('grade', 'F')
+                interpretation = piotroski_data.get('interpretation', 'Unknown')
+
+                st.metric("Score", f"{score}/{total}", delta=f"Grade: {grade}")
+                st.caption(interpretation)
+
+                # Show criteria details
+                criteria = piotroski_data.get('criteria', [])
+                if criteria:
+                    with st.expander("📋 Detailed Criteria", expanded=False):
+                        for criterion in criteria:
+                            if '✓' in criterion:
+                                st.success(criterion)
+                            else:
+                                st.error(criterion)
             else:
                 st.metric("Score", "0/9")
+                st.error(f"Error: {piotroski_data.get('error', 'Unknown error')}")
 
 def show_market_correlation_analysis(analysis_results, show_debug=False):
     """Display market correlation analysis section - PRIORITY 7 (After Baldwin)"""
@@ -605,53 +639,93 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             st.error("❌ Could not prepare analysis data")
             return None, None
         
-        # Step 3: Calculate all indicators (UNCHANGED - WORKING LOGIC PRESERVED)
+        # Step 3: Calculate all indicators (FIXED: Added debug output)
+        if show_debug:
+            st.write(f"📊 Calculating technical indicators for {len(analysis_input)} data points...")
+
         daily_vwap = calculate_daily_vwap(analysis_input)
         fibonacci_emas = calculate_fibonacci_emas(analysis_input)
         point_of_control = calculate_point_of_control_enhanced(analysis_input)
         weekly_deviations = calculate_weekly_deviations(analysis_input)
         comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
+
+        if show_debug:
+            st.write(f"✓ Daily VWAP: ${daily_vwap:.2f}" if daily_vwap else "✗ Daily VWAP failed")
+            st.write(f"✓ Fibonacci EMAs: {len(fibonacci_emas)} calculated")
+            st.write(f"✓ Point of Control: ${point_of_control:.2f}" if point_of_control else "✗ POC failed")
+            st.write(f"✓ Comprehensive technicals: {list(comprehensive_technicals.keys()) if comprehensive_technicals else 'EMPTY!'}")
+            if comprehensive_technicals:
+                rsi = comprehensive_technicals.get('rsi_14', 'N/A')
+                st.write(f"  - RSI: {rsi}")
+                macd = comprehensive_technicals.get('macd', {})
+                st.write(f"  - MACD: {macd}")
+            else:
+                st.error("⚠️ CRITICAL: comprehensive_technicals is EMPTY - data length may be < 50")
         
-        # Step 4: Market correlations (FIXED: pass period parameter)
+        # Step 4: Market correlations (FIXED: pass period parameter + debug)
         market_correlations = calculate_market_correlations_enhanced(
             analysis_input, symbol, period=period, show_debug=show_debug
         )
+        if show_debug:
+            if market_correlations:
+                st.write(f"✓ Market correlations calculated: {list(market_correlations.keys())}")
+            else:
+                st.warning("⚠️ Market correlations returned empty")
         
-        # Step 5: Volume analysis (UNCHANGED)
+        # Step 5: Volume analysis (FIXED: Better error handling)
         volume_analysis = None
         if VOLUME_ANALYSIS_AVAILABLE:
             try:
                 volume_analysis = calculate_complete_volume_analysis(analysis_input)
+                if show_debug and volume_analysis:
+                    st.write(f"✓ Volume analysis calculated: {list(volume_analysis.keys())}")
             except Exception as e:
+                volume_analysis = {'error': f'Volume calculation failed: {str(e)}'}
                 if show_debug:
                     st.warning(f"Volume analysis error: {str(e)}")
+                    st.code(traceback.format_exc())
         
-        # Step 6: Volatility analysis (UNCHANGED)
+        # Step 6: Volatility analysis (FIXED: Better error handling)
         volatility_analysis = None
         if VOLATILITY_ANALYSIS_AVAILABLE:
             try:
                 volatility_analysis = calculate_complete_volatility_analysis(analysis_input)
+                if show_debug and volatility_analysis:
+                    st.write(f"✓ Volatility analysis calculated: {list(volatility_analysis.keys())}")
             except Exception as e:
+                volatility_analysis = {'error': f'Volatility calculation failed: {str(e)}'}
                 if show_debug:
                     st.warning(f"Volatility analysis error: {str(e)}")
+                    st.code(traceback.format_exc())
         
-        # Step 7: Fundamental analysis (UNCHANGED)
+        # Step 7: Fundamental analysis (FIXED: Better error handling and debug)
         is_etf_symbol = is_etf(symbol)
-        
+
         if is_etf_symbol:
             graham_score = {
-                'score': 0, 
-                'total_possible': 10, 
+                'score': 0,
+                'total_possible': 10,
                 'error': 'ETF - Fundamental analysis not applicable'
             }
             piotroski_score = {
-                'score': 0, 
-                'total_possible': 9, 
+                'score': 0,
+                'total_possible': 9,
                 'error': 'ETF - Fundamental analysis not applicable'
             }
+            if show_debug:
+                st.info(f"Symbol {symbol} detected as ETF - skipping fundamental analysis")
         else:
+            if show_debug:
+                st.write(f"Calculating fundamental scores for {symbol}...")
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
+            if show_debug:
+                st.write(f"✓ Graham score: {graham_score.get('score', 0)}/10")
+                st.write(f"✓ Piotroski score: {piotroski_score.get('score', 0)}/9")
+                if 'error' in graham_score:
+                    st.warning(f"Graham error: {graham_score['error']}")
+                if 'error' in piotroski_score:
+                    st.warning(f"Piotroski error: {piotroski_score['error']}")
         
         # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)

@@ -31,7 +31,8 @@ from analysis.technical import (
 from analysis.fundamental import (
     calculate_graham_score,
     calculate_piotroski_score,
-    calculate_altman_z_score
+    calculate_altman_z_score,
+    calculate_roic
 )
 from analysis.market import (
     calculate_market_correlations_enhanced,
@@ -600,6 +601,42 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.metric("Z-Score", "0.00")
                 st.error(f"Error: {altman_data.get('error', 'Unknown error')}")
 
+        # Add ROIC in a second row
+        st.divider()
+        roic_data = enhanced_indicators.get('roic', {})
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+
+        with col2:
+            st.subheader("ROIC (Return on Invested Capital)")
+            if 'error' not in roic_data:
+                roic_percent = roic_data.get('roic_percent', 0)
+                grade = roic_data.get('grade', 'F')
+                interpretation = roic_data.get('interpretation', 'Unknown')
+
+                # Color code based on grade
+                if grade in ['A+', 'A']:
+                    grade_color = "🟢"
+                elif grade == 'B':
+                    grade_color = "🟡"
+                elif grade == 'C':
+                    grade_color = "🟠"
+                else:
+                    grade_color = "🔴"
+
+                st.metric("ROIC", f"{roic_percent:.2f}%", delta=f"{grade_color} Grade: {grade}")
+                st.caption(interpretation)
+
+                # Show component details
+                criteria = roic_data.get('criteria', [])
+                if criteria:
+                    with st.expander("📋 Calculation Details", expanded=False):
+                        for criterion in criteria:
+                            st.text(criterion)
+            else:
+                st.metric("ROIC", "0.00%")
+                st.error(f"Error: {roic_data.get('error', 'Unknown error')}")
+
 def show_market_correlation_analysis(analysis_results, show_debug=False):
     """Display market correlation analysis section - PRIORITY 7 (After Baldwin)"""
     if not st.session_state.show_market_correlation:
@@ -837,6 +874,12 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'zone': 'Unknown',
                 'error': 'ETF - Fundamental analysis not applicable'
             }
+            roic_data = {
+                'roic': 0,
+                'roic_percent': 0,
+                'grade': 'F',
+                'error': 'ETF - Fundamental analysis not applicable'
+            }
             if show_debug:
                 st.info(f"Symbol {symbol} detected as ETF - skipping fundamental analysis")
         else:
@@ -845,16 +888,20 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
             altman_z_score = calculate_altman_z_score(symbol, show_debug)
+            roic_data = calculate_roic(symbol, show_debug)
             if show_debug:
                 st.write(f"✓ Graham score: {graham_score.get('score', 0)}/10")
                 st.write(f"✓ Piotroski score: {piotroski_score.get('score', 0)}/9")
                 st.write(f"✓ Altman Z-Score: {altman_z_score.get('z_score', 0):.2f} ({altman_z_score.get('zone', 'Unknown')})")
+                st.write(f"✓ ROIC: {roic_data.get('roic_percent', 0):.2f}% (Grade: {roic_data.get('grade', 'F')})")
                 if 'error' in graham_score:
                     st.warning(f"Graham error: {graham_score['error']}")
                 if 'error' in piotroski_score:
                     st.warning(f"Piotroski error: {piotroski_score['error']}")
                 if 'error' in altman_z_score:
                     st.warning(f"Altman error: {altman_z_score['error']}")
+                if 'error' in roic_data:
+                    st.warning(f"ROIC error: {roic_data['error']}")
         
         # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
@@ -896,7 +943,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'options_levels': options_levels,
                 'graham_score': graham_score,
                 'piotroski_score': piotroski_score,
-                'altman_z_score': altman_z_score
+                'altman_z_score': altman_z_score,
+                'roic': roic_data
             },
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL v4.2.2'

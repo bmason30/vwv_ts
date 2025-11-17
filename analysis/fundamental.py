@@ -545,6 +545,170 @@ def calculate_altman_z_score(symbol, show_debug=False):
         logger.error(f"Altman Z-Score calculation error for {symbol}: {e}")
         return {'z_score': 0, 'components': {}, 'zone': 'Unknown', 'criteria': [], 'error': str(e)}
 
+@safe_calculation_wrapper
+def calculate_roic(symbol, show_debug=False):
+    """
+    Calculate Return on Invested Capital (ROIC).
+
+    ROIC measures how efficiently a company generates returns from its invested capital.
+
+    Formula: ROIC = NOPAT / Invested Capital
+    Where:
+        NOPAT = Net Operating Profit After Tax = EBIT × (1 - Tax Rate)
+        Invested Capital = Total Assets - Current Liabilities
+
+    Interpretation:
+        ROIC > 20%: Excellent - strong competitive advantage
+        15% < ROIC < 20%: Very Good - above average efficiency
+        10% < ROIC < 15%: Good - adequate returns
+        5% < ROIC < 10%: Fair - below average
+        ROIC < 5%: Poor - inefficient capital allocation
+    """
+    try:
+        if show_debug:
+            import streamlit as st
+            st.write(f"📊 Calculating ROIC for {symbol}...")
+
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        balance_sheet = ticker.balance_sheet
+        financials = ticker.financials
+
+        if balance_sheet.empty or financials.empty:
+            return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'Insufficient financial data'}
+
+        components = {}
+        criteria = []
+
+        try:
+            current_year = 0
+
+            # Calculate NOPAT (Net Operating Profit After Tax)
+            # NOPAT = EBIT × (1 - Tax Rate)
+            try:
+                # Try to get EBIT from info first
+                ebit = info.get('ebit')
+
+                if ebit is None:
+                    # Calculate from financials: EBIT = Operating Income or Net Income + Interest + Tax
+                    operating_income_idx = [idx for idx in financials.index if 'Operating Income' in str(idx) or 'EBIT' in str(idx)]
+
+                    if operating_income_idx:
+                        ebit = financials.loc[operating_income_idx[0]].iloc[current_year]
+                    else:
+                        # Fallback: try to calculate from Net Income
+                        net_income_idx = [idx for idx in financials.index if 'Net Income' in str(idx)]
+                        interest_idx = [idx for idx in financials.index if 'Interest Expense' in str(idx)]
+                        tax_idx = [idx for idx in financials.index if 'Tax' in str(idx) and 'Income Tax' in str(idx)]
+
+                        if net_income_idx:
+                            net_income = financials.loc[net_income_idx[0]].iloc[current_year]
+                            interest_expense = financials.loc[interest_idx[0]].iloc[current_year] if interest_idx else 0
+                            tax_expense = financials.loc[tax_idx[0]].iloc[current_year] if tax_idx else 0
+                            ebit = net_income - interest_expense + tax_expense
+
+                if ebit is None or ebit == 0:
+                    criteria.append("EBIT: Data unavailable or zero")
+                    return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'Cannot calculate EBIT'}
+
+                components['ebit'] = ebit
+                criteria.append(f"EBIT: ${ebit:,.0f}")
+
+                # Calculate Tax Rate
+                # Tax Rate = Income Tax Expense / Pretax Income
+                tax_rate = info.get('taxRate')
+
+                if tax_rate is None:
+                    # Try to calculate from financials
+                    pretax_income_idx = [idx for idx in financials.index if 'Pretax Income' in str(idx) or 'Income Before Tax' in str(idx)]
+                    tax_provision_idx = [idx for idx in financials.index if 'Tax Provision' in str(idx) or 'Income Tax' in str(idx)]
+
+                    if pretax_income_idx and tax_provision_idx:
+                        pretax_income = financials.loc[pretax_income_idx[0]].iloc[current_year]
+                        tax_provision = financials.loc[tax_provision_idx[0]].iloc[current_year]
+
+                        if pretax_income != 0:
+                            tax_rate = tax_provision / pretax_income
+                        else:
+                            tax_rate = 0.21  # Default corporate tax rate
+                    else:
+                        tax_rate = 0.21  # Default corporate tax rate
+
+                # Ensure tax rate is between 0 and 1
+                if tax_rate < 0:
+                    tax_rate = 0
+                elif tax_rate > 1:
+                    tax_rate = tax_rate / 100  # Convert percentage to decimal
+
+                components['tax_rate'] = tax_rate
+                criteria.append(f"Tax Rate: {tax_rate*100:.2f}%")
+
+                # Calculate NOPAT
+                nopat = ebit * (1 - tax_rate)
+                components['nopat'] = nopat
+                criteria.append(f"NOPAT: ${nopat:,.0f}")
+
+            except Exception as e:
+                criteria.append(f"NOPAT calculation failed: {str(e)[:30]}")
+                return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'NOPAT calculation failed'}
+
+            # Calculate Invested Capital
+            # Invested Capital = Total Assets - Current Liabilities
+            try:
+                total_assets_idx = [idx for idx in balance_sheet.index if 'Total Assets' in str(idx)]
+                current_liabilities_idx = [idx for idx in balance_sheet.index if 'Current Liabilities' in str(idx)]
+
+                if total_assets_idx and current_liabilities_idx:
+                    total_assets = balance_sheet.loc[total_assets_idx[0]].iloc[current_year]
+                    current_liabilities = balance_sheet.loc[current_liabilities_idx[0]].iloc[current_year]
+
+                    invested_capital = total_assets - current_liabilities
+
+                    if invested_capital <= 0:
+                        criteria.append("Invested Capital: Zero or negative")
+                        return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'Invalid invested capital'}
+
+                    components['total_assets'] = total_assets
+                    components['current_liabilities'] = current_liabilities
+                    components['invested_capital'] = invested_capital
+                    criteria.append(f"Total Assets: ${total_assets:,.0f}")
+                    criteria.append(f"Current Liabilities: ${current_liabilities:,.0f}")
+                    criteria.append(f"Invested Capital: ${invested_capital:,.0f}")
+                else:
+                    criteria.append("Invested Capital: Data unavailable")
+                    return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'Cannot calculate invested capital'}
+
+            except Exception as e:
+                criteria.append(f"Invested Capital calculation failed: {str(e)[:30]}")
+                return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': 'Invested capital calculation failed'}
+
+            # Calculate ROIC
+            roic = nopat / invested_capital
+            roic_percent = roic * 100
+
+            components['roic'] = roic
+            components['roic_percent'] = roic_percent
+
+            grade = get_roic_grade(roic_percent)
+            interpretation = get_roic_interpretation(roic_percent)
+
+            return {
+                'roic': roic,
+                'roic_percent': roic_percent,
+                'components': components,
+                'criteria': criteria,
+                'grade': grade,
+                'interpretation': interpretation
+            }
+
+        except Exception as e:
+            logger.error(f"ROIC component calculation error: {e}")
+            return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': str(e)}
+
+    except Exception as e:
+        logger.error(f"ROIC calculation error for {symbol}: {e}")
+        return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': str(e)}
+
 def get_graham_grade(score):
     if score >= 8: return "A";
     elif score >= 6: return "B";
@@ -584,3 +748,29 @@ def get_altman_interpretation(z_score):
         return "Moderate risk - requires monitoring"
     else:
         return "High bankruptcy risk - financial distress"
+
+def get_roic_grade(roic_percent):
+    """Return grade for ROIC percentage"""
+    if roic_percent > 20:
+        return "A+"
+    elif roic_percent > 15:
+        return "A"
+    elif roic_percent > 10:
+        return "B"
+    elif roic_percent > 5:
+        return "C"
+    else:
+        return "F"
+
+def get_roic_interpretation(roic_percent):
+    """Return interpretation of ROIC percentage"""
+    if roic_percent > 20:
+        return "Excellent - strong competitive advantage"
+    elif roic_percent > 15:
+        return "Very Good - above average efficiency"
+    elif roic_percent > 10:
+        return "Good - adequate returns"
+    elif roic_percent > 5:
+        return "Fair - below average"
+    else:
+        return "Poor - inefficient capital allocation"

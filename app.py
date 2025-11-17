@@ -30,7 +30,8 @@ from analysis.technical import (
 )
 from analysis.fundamental import (
     calculate_graham_score,
-    calculate_piotroski_score
+    calculate_piotroski_score,
+    calculate_altman_z_score
 )
 from analysis.market import (
     calculate_market_correlations_enhanced,
@@ -509,17 +510,18 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         graham_data = enhanced_indicators.get('graham_score', {})
         piotroski_data = enhanced_indicators.get('piotroski_score', {})
-        
+        altman_data = enhanced_indicators.get('altman_z_score', {})
+
         # Check if symbol is ETF
-        is_etf_symbol = ('ETF' in str(graham_data.get('error', '')) or 
+        is_etf_symbol = ('ETF' in str(graham_data.get('error', '')) or
                          'ETF' in str(piotroski_data.get('error', '')))
-        
+
         if is_etf_symbol:
             st.info("ℹ️ Fundamental analysis not applicable for ETFs")
             return
-        
+
         # Display scores with detailed criteria
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
 
         with col1:
             st.subheader("Graham Score (Value Investing)")
@@ -568,6 +570,35 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
             else:
                 st.metric("Score", "0/9")
                 st.error(f"Error: {piotroski_data.get('error', 'Unknown error')}")
+
+        with col3:
+            st.subheader("Altman Z-Score (Bankruptcy Risk)")
+            if 'error' not in altman_data:
+                z_score = altman_data.get('z_score', 0)
+                zone = altman_data.get('zone', 'Unknown')
+                interpretation = altman_data.get('interpretation', 'Unknown')
+
+                # Color code based on zone
+                if zone == "Safe Zone":
+                    zone_color = "🟢"
+                elif zone == "Grey Zone":
+                    zone_color = "🟡"
+                else:  # Distress Zone
+                    zone_color = "🔴"
+
+                st.metric("Z-Score", f"{z_score:.2f}", delta=f"{zone_color} {zone}")
+                st.caption(interpretation)
+
+                # Show component details
+                components = altman_data.get('components', {})
+                criteria = altman_data.get('criteria', [])
+                if criteria:
+                    with st.expander("📋 Component Details", expanded=False):
+                        for criterion in criteria:
+                            st.text(criterion)
+            else:
+                st.metric("Z-Score", "0.00")
+                st.error(f"Error: {altman_data.get('error', 'Unknown error')}")
 
 def show_market_correlation_analysis(analysis_results, show_debug=False):
     """Display market correlation analysis section - PRIORITY 7 (After Baldwin)"""
@@ -801,6 +832,11 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'total_possible': 9,
                 'error': 'ETF - Fundamental analysis not applicable'
             }
+            altman_z_score = {
+                'z_score': 0,
+                'zone': 'Unknown',
+                'error': 'ETF - Fundamental analysis not applicable'
+            }
             if show_debug:
                 st.info(f"Symbol {symbol} detected as ETF - skipping fundamental analysis")
         else:
@@ -808,13 +844,17 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 st.write(f"Calculating fundamental scores for {symbol}...")
             graham_score = calculate_graham_score(symbol, show_debug)
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
+            altman_z_score = calculate_altman_z_score(symbol, show_debug)
             if show_debug:
                 st.write(f"✓ Graham score: {graham_score.get('score', 0)}/10")
                 st.write(f"✓ Piotroski score: {piotroski_score.get('score', 0)}/9")
+                st.write(f"✓ Altman Z-Score: {altman_z_score.get('z_score', 0):.2f} ({altman_z_score.get('zone', 'Unknown')})")
                 if 'error' in graham_score:
                     st.warning(f"Graham error: {graham_score['error']}")
                 if 'error' in piotroski_score:
                     st.warning(f"Piotroski error: {piotroski_score['error']}")
+                if 'error' in altman_z_score:
+                    st.warning(f"Altman error: {altman_z_score['error']}")
         
         # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
@@ -855,7 +895,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'market_correlations': market_correlations,
                 'options_levels': options_levels,
                 'graham_score': graham_score,
-                'piotroski_score': piotroski_score
+                'piotroski_score': piotroski_score,
+                'altman_z_score': altman_z_score
             },
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL v4.2.2'

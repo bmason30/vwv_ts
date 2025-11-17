@@ -32,7 +32,8 @@ from analysis.fundamental import (
     calculate_graham_score,
     calculate_piotroski_score,
     calculate_altman_z_score,
-    calculate_roic
+    calculate_roic,
+    calculate_key_value_metrics
 )
 from analysis.market import (
     calculate_market_correlations_enhanced,
@@ -637,6 +638,93 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.metric("ROIC", "0.00%")
                 st.error(f"Error: {roic_data.get('error', 'Unknown error')}")
 
+def show_key_value_metrics(analysis_results, show_debug=False):
+    """Display key fundamental value metrics"""
+    if not st.session_state.show_fundamental_analysis:
+        return
+
+    with st.expander("💹 Key Value Metrics", expanded=True):
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        metrics_data = enhanced_indicators.get('key_value_metrics', {})
+
+        # Check if ETF or error
+        if 'error' in metrics_data:
+            st.info("ℹ️ Key value metrics not applicable for ETFs")
+            return
+
+        metrics = metrics_data.get('metrics', {})
+        company_name = metrics_data.get('company_name', '')
+
+        if company_name:
+            st.caption(f"**{company_name}**")
+
+        if not metrics:
+            st.warning("⚠️ No metrics data available")
+            return
+
+        # Display metrics in two rows
+        # Row 1: P/E, P/B, D/E
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            pe_data = metrics.get('pe_ratio', {})
+            st.metric(
+                "P/E Ratio",
+                pe_data.get('display', 'N/A'),
+                help="Price-to-Earnings Ratio: Compares stock price to earnings per share"
+            )
+            st.caption(pe_data.get('interpretation', ''))
+
+        with col2:
+            pb_data = metrics.get('pb_ratio', {})
+            st.metric(
+                "P/B Ratio",
+                pb_data.get('display', 'N/A'),
+                help="Price-to-Book Ratio: Compares market price to book value"
+            )
+            st.caption(pb_data.get('interpretation', ''))
+
+        with col3:
+            de_data = metrics.get('de_ratio', {})
+            st.metric(
+                "Debt-to-Equity",
+                de_data.get('display', 'N/A'),
+                help="Debt-to-Equity Ratio: Measures financial leverage"
+            )
+            st.caption(de_data.get('interpretation', ''))
+
+        st.divider()
+
+        # Row 2: Dividend Yield, FCF, ROE
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            div_data = metrics.get('dividend_yield', {})
+            st.metric(
+                "Dividend Yield",
+                div_data.get('display', 'N/A'),
+                help="Annual dividend payments relative to stock price"
+            )
+            st.caption(div_data.get('interpretation', ''))
+
+        with col2:
+            fcf_data = metrics.get('free_cash_flow', {})
+            st.metric(
+                "Free Cash Flow",
+                fcf_data.get('display', 'N/A'),
+                help="Cash remaining after operating expenses and capital expenditures"
+            )
+            st.caption(fcf_data.get('interpretation', ''))
+
+        with col3:
+            roe_data = metrics.get('roe', {})
+            st.metric(
+                "Return on Equity",
+                roe_data.get('display', 'N/A'),
+                help="Profit generated from shareholders' equity"
+            )
+            st.caption(roe_data.get('interpretation', ''))
+
 def show_market_correlation_analysis(analysis_results, show_debug=False):
     """Display market correlation analysis section - PRIORITY 7 (After Baldwin)"""
     if not st.session_state.show_market_correlation:
@@ -880,6 +968,10 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'grade': 'F',
                 'error': 'ETF - Fundamental analysis not applicable'
             }
+            key_value_metrics = {
+                'metrics': {},
+                'error': 'ETF - Fundamental analysis not applicable'
+            }
             if show_debug:
                 st.info(f"Symbol {symbol} detected as ETF - skipping fundamental analysis")
         else:
@@ -889,11 +981,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             piotroski_score = calculate_piotroski_score(symbol, show_debug)
             altman_z_score = calculate_altman_z_score(symbol, show_debug)
             roic_data = calculate_roic(symbol, show_debug)
+            key_value_metrics = calculate_key_value_metrics(symbol, show_debug)
             if show_debug:
                 st.write(f"✓ Graham score: {graham_score.get('score', 0)}/10")
                 st.write(f"✓ Piotroski score: {piotroski_score.get('score', 0)}/9")
                 st.write(f"✓ Altman Z-Score: {altman_z_score.get('z_score', 0):.2f} ({altman_z_score.get('zone', 'Unknown')})")
                 st.write(f"✓ ROIC: {roic_data.get('roic_percent', 0):.2f}% (Grade: {roic_data.get('grade', 'F')})")
+                st.write(f"✓ Key Value Metrics calculated: {len(key_value_metrics.get('metrics', {}))  } metrics")
                 if 'error' in graham_score:
                     st.warning(f"Graham error: {graham_score['error']}")
                 if 'error' in piotroski_score:
@@ -902,6 +996,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                     st.warning(f"Altman error: {altman_z_score['error']}")
                 if 'error' in roic_data:
                     st.warning(f"ROIC error: {roic_data['error']}")
+                if 'error' in key_value_metrics:
+                    st.warning(f"Key Value Metrics error: {key_value_metrics['error']}")
         
         # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
@@ -944,7 +1040,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'graham_score': graham_score,
                 'piotroski_score': piotroski_score,
                 'altman_z_score': altman_z_score,
-                'roic': roic_data
+                'roic': roic_data,
+                'key_value_metrics': key_value_metrics
             },
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL v4.2.2'
@@ -1006,6 +1103,7 @@ def main():
                     show_volatility_analysis(analysis_results, controls['show_debug'])
                 
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
+                show_key_value_metrics(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
 
                 if BALDWIN_INDICATOR_AVAILABLE:

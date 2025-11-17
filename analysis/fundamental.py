@@ -709,6 +709,241 @@ def calculate_roic(symbol, show_debug=False):
         logger.error(f"ROIC calculation error for {symbol}: {e}")
         return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': str(e)}
 
+@safe_calculation_wrapper
+def calculate_key_value_metrics(symbol, show_debug=False):
+    """
+    Calculate key fundamental value metrics.
+
+    Returns:
+        - P/E Ratio: Price-to-Earnings
+        - P/B Ratio: Price-to-Book
+        - D/E Ratio: Debt-to-Equity
+        - Dividend Yield: Annual dividend return
+        - Free Cash Flow (FCF): Cash after operating expenses and capex
+        - Return on Equity (ROE): Profit generated from shareholder equity
+    """
+    try:
+        if show_debug:
+            import streamlit as st
+            st.write(f"📊 Calculating key value metrics for {symbol}...")
+
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        balance_sheet = ticker.balance_sheet
+        financials = ticker.financials
+        cashflow = ticker.cashflow
+
+        metrics = {}
+
+        # 1. Price-to-Earnings (P/E) Ratio
+        try:
+            pe_ratio = info.get('trailingPE')
+            if pe_ratio:
+                metrics['pe_ratio'] = {
+                    'value': pe_ratio,
+                    'display': f"{pe_ratio:.2f}",
+                    'interpretation': get_pe_interpretation(pe_ratio)
+                }
+            else:
+                metrics['pe_ratio'] = {
+                    'value': None,
+                    'display': 'N/A',
+                    'interpretation': 'Data unavailable'
+                }
+        except Exception as e:
+            metrics['pe_ratio'] = {
+                'value': None,
+                'display': 'N/A',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        # 2. Price-to-Book (P/B) Ratio
+        try:
+            pb_ratio = info.get('priceToBook')
+            if pb_ratio:
+                metrics['pb_ratio'] = {
+                    'value': pb_ratio,
+                    'display': f"{pb_ratio:.2f}",
+                    'interpretation': get_pb_interpretation(pb_ratio)
+                }
+            else:
+                metrics['pb_ratio'] = {
+                    'value': None,
+                    'display': 'N/A',
+                    'interpretation': 'Data unavailable'
+                }
+        except Exception as e:
+            metrics['pb_ratio'] = {
+                'value': None,
+                'display': 'N/A',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        # 3. Debt-to-Equity (D/E) Ratio
+        try:
+            de_ratio = info.get('debtToEquity')
+            if de_ratio:
+                # Convert from percentage to ratio if needed
+                de_value = de_ratio / 100 if de_ratio > 10 else de_ratio
+                metrics['de_ratio'] = {
+                    'value': de_value,
+                    'display': f"{de_value:.2f}",
+                    'interpretation': get_de_interpretation(de_value)
+                }
+            else:
+                metrics['de_ratio'] = {
+                    'value': None,
+                    'display': 'N/A',
+                    'interpretation': 'Data unavailable'
+                }
+        except Exception as e:
+            metrics['de_ratio'] = {
+                'value': None,
+                'display': 'N/A',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        # 4. Dividend Yield
+        try:
+            dividend_yield = info.get('dividendYield')
+            if dividend_yield:
+                dividend_percent = dividend_yield * 100
+                metrics['dividend_yield'] = {
+                    'value': dividend_yield,
+                    'display': f"{dividend_percent:.2f}%",
+                    'interpretation': get_dividend_interpretation(dividend_percent)
+                }
+            else:
+                metrics['dividend_yield'] = {
+                    'value': 0,
+                    'display': '0.00%',
+                    'interpretation': 'No dividend paid'
+                }
+        except Exception as e:
+            metrics['dividend_yield'] = {
+                'value': 0,
+                'display': '0.00%',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        # 5. Free Cash Flow (FCF)
+        try:
+            if not cashflow.empty and not financials.empty:
+                current_year = 0
+
+                # Get Operating Cash Flow
+                ocf_idx = [idx for idx in cashflow.index if 'Operating Cash Flow' in str(idx) or 'Total Cash From Operating' in str(idx)]
+
+                # Get Capital Expenditures
+                capex_idx = [idx for idx in cashflow.index if 'Capital Expenditure' in str(idx)]
+
+                if ocf_idx and capex_idx:
+                    ocf = cashflow.loc[ocf_idx[0]].iloc[current_year]
+                    capex = cashflow.loc[capex_idx[0]].iloc[current_year]
+
+                    # CapEx is usually negative, so we add it (subtract its absolute value)
+                    fcf = ocf + capex  # capex is negative
+
+                    metrics['free_cash_flow'] = {
+                        'value': fcf,
+                        'display': f"${fcf:,.0f}",
+                        'interpretation': get_fcf_interpretation(fcf)
+                    }
+                else:
+                    # Try to get from info
+                    fcf = info.get('freeCashflow')
+                    if fcf:
+                        metrics['free_cash_flow'] = {
+                            'value': fcf,
+                            'display': f"${fcf:,.0f}",
+                            'interpretation': get_fcf_interpretation(fcf)
+                        }
+                    else:
+                        metrics['free_cash_flow'] = {
+                            'value': None,
+                            'display': 'N/A',
+                            'interpretation': 'Data unavailable'
+                        }
+            else:
+                metrics['free_cash_flow'] = {
+                    'value': None,
+                    'display': 'N/A',
+                    'interpretation': 'Data unavailable'
+                }
+        except Exception as e:
+            metrics['free_cash_flow'] = {
+                'value': None,
+                'display': 'N/A',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        # 6. Return on Equity (ROE)
+        try:
+            roe = info.get('returnOnEquity')
+            if roe:
+                roe_percent = roe * 100
+                metrics['roe'] = {
+                    'value': roe,
+                    'display': f"{roe_percent:.2f}%",
+                    'interpretation': get_roe_interpretation(roe_percent)
+                }
+            else:
+                # Try to calculate manually: ROE = Net Income / Shareholder Equity
+                if not financials.empty and not balance_sheet.empty:
+                    current_year = 0
+
+                    net_income_idx = [idx for idx in financials.index if 'Net Income' in str(idx)]
+                    equity_idx = [idx for idx in balance_sheet.index if 'Stockholders Equity' in str(idx) or 'Total Equity' in str(idx)]
+
+                    if net_income_idx and equity_idx:
+                        net_income = financials.loc[net_income_idx[0]].iloc[current_year]
+                        equity = balance_sheet.loc[equity_idx[0]].iloc[current_year]
+
+                        if equity != 0:
+                            roe = net_income / equity
+                            roe_percent = roe * 100
+                            metrics['roe'] = {
+                                'value': roe,
+                                'display': f"{roe_percent:.2f}%",
+                                'interpretation': get_roe_interpretation(roe_percent)
+                            }
+                        else:
+                            metrics['roe'] = {
+                                'value': None,
+                                'display': 'N/A',
+                                'interpretation': 'Zero equity'
+                            }
+                    else:
+                        metrics['roe'] = {
+                            'value': None,
+                            'display': 'N/A',
+                            'interpretation': 'Data unavailable'
+                        }
+                else:
+                    metrics['roe'] = {
+                        'value': None,
+                        'display': 'N/A',
+                        'interpretation': 'Data unavailable'
+                    }
+        except Exception as e:
+            metrics['roe'] = {
+                'value': None,
+                'display': 'N/A',
+                'interpretation': f'Error: {str(e)[:30]}'
+            }
+
+        return {
+            'metrics': metrics,
+            'company_name': info.get('longName', symbol)
+        }
+
+    except Exception as e:
+        logger.error(f"Key value metrics calculation error for {symbol}: {e}")
+        return {
+            'metrics': {},
+            'error': str(e)
+        }
+
 def get_graham_grade(score):
     if score >= 8: return "A";
     elif score >= 6: return "B";
@@ -774,3 +1009,81 @@ def get_roic_interpretation(roic_percent):
         return "Fair - below average"
     else:
         return "Poor - inefficient capital allocation"
+
+def get_pe_interpretation(pe_ratio):
+    """Return interpretation of P/E ratio"""
+    if pe_ratio < 0:
+        return "Negative - company has losses"
+    elif pe_ratio < 15:
+        return "Undervalued or low growth expectations"
+    elif pe_ratio < 25:
+        return "Fairly valued"
+    elif pe_ratio < 40:
+        return "Premium valuation - high growth expected"
+    else:
+        return "Very expensive - justify with strong growth"
+
+def get_pb_interpretation(pb_ratio):
+    """Return interpretation of P/B ratio"""
+    if pb_ratio < 1:
+        return "Trading below book value - potential value"
+    elif pb_ratio < 3:
+        return "Reasonable valuation"
+    elif pb_ratio < 5:
+        return "Premium to book value"
+    else:
+        return "Very high premium - justify with ROE"
+
+def get_de_interpretation(de_ratio):
+    """Return interpretation of D/E ratio"""
+    if de_ratio < 0.3:
+        return "Conservative - low financial risk"
+    elif de_ratio < 0.5:
+        return "Moderate - healthy balance"
+    elif de_ratio < 1.0:
+        return "Elevated - monitor debt levels"
+    elif de_ratio < 2.0:
+        return "High - significant financial risk"
+    else:
+        return "Very high - risky capital structure"
+
+def get_dividend_interpretation(dividend_percent):
+    """Return interpretation of dividend yield"""
+    if dividend_percent == 0:
+        return "No dividend - growth-focused"
+    elif dividend_percent < 2:
+        return "Low yield - modest income"
+    elif dividend_percent < 4:
+        return "Moderate yield - good income"
+    elif dividend_percent < 6:
+        return "High yield - strong income"
+    else:
+        return "Very high - verify sustainability"
+
+def get_fcf_interpretation(fcf):
+    """Return interpretation of free cash flow"""
+    if fcf > 1_000_000_000:
+        return "Strong - excellent cash generation"
+    elif fcf > 100_000_000:
+        return "Healthy - good cash generation"
+    elif fcf > 0:
+        return "Positive - generating cash"
+    elif fcf > -100_000_000:
+        return "Slightly negative - monitor closely"
+    else:
+        return "Negative - cash burn concern"
+
+def get_roe_interpretation(roe_percent):
+    """Return interpretation of ROE"""
+    if roe_percent > 20:
+        return "Excellent - highly profitable"
+    elif roe_percent > 15:
+        return "Strong - above average"
+    elif roe_percent > 10:
+        return "Good - adequate profitability"
+    elif roe_percent > 5:
+        return "Fair - below average"
+    elif roe_percent > 0:
+        return "Weak - poor profitability"
+    else:
+        return "Negative - company losing money"

@@ -372,6 +372,179 @@ def calculate_piotroski_score(symbol, show_debug=False):
         logger.error(f"Piotroski score calculation error for {symbol}: {e}")
         return {'score': 0, 'total_possible': 9, 'criteria': [], 'error': str(e)}
 
+@safe_calculation_wrapper
+def calculate_altman_z_score(symbol, show_debug=False):
+    """
+    Calculate Altman Z-Score for bankruptcy prediction.
+
+    Formula: Z = 1.2*X1 + 1.4*X2 + 3.3*X3 + 0.6*X4 + 1.0*X5
+    Where:
+        X1 = Working Capital / Total Assets
+        X2 = Retained Earnings / Total Assets
+        X3 = EBIT / Total Assets
+        X4 = Market Value of Equity / Total Liabilities
+        X5 = Sales / Total Assets
+
+    Interpretation:
+        Z > 2.99: Safe Zone (low bankruptcy risk)
+        1.81 < Z < 2.99: Grey Zone (moderate risk)
+        Z < 1.81: Distress Zone (high bankruptcy risk)
+    """
+    try:
+        if show_debug:
+            import streamlit as st
+            st.write(f"📊 Calculating Altman Z-Score for {symbol}...")
+
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        balance_sheet = ticker.balance_sheet
+        financials = ticker.financials
+
+        if balance_sheet.empty or financials.empty:
+            return {'z_score': 0, 'components': {}, 'zone': 'Unknown', 'error': 'Insufficient financial data'}
+
+        components = {}
+        criteria = []
+
+        try:
+            # Get most recent financial data
+            current_year = 0
+
+            # X1 = Working Capital / Total Assets
+            try:
+                current_assets_idx = [idx for idx in balance_sheet.index if 'Current Assets' in str(idx)]
+                current_liabilities_idx = [idx for idx in balance_sheet.index if 'Current Liabilities' in str(idx)]
+                total_assets_idx = [idx for idx in balance_sheet.index if 'Total Assets' in str(idx)]
+
+                if current_assets_idx and current_liabilities_idx and total_assets_idx:
+                    current_assets = balance_sheet.loc[current_assets_idx[0]].iloc[current_year]
+                    current_liabilities = balance_sheet.loc[current_liabilities_idx[0]].iloc[current_year]
+                    total_assets = balance_sheet.loc[total_assets_idx[0]].iloc[current_year]
+
+                    working_capital = current_assets - current_liabilities
+                    x1 = working_capital / total_assets if total_assets != 0 else 0
+                    components['X1'] = x1
+                    criteria.append(f"X1 (Working Capital / Total Assets): {x1:.4f}")
+                else:
+                    components['X1'] = 0
+                    criteria.append("X1: Data unavailable")
+            except Exception as e:
+                components['X1'] = 0
+                criteria.append(f"X1: Calculation failed ({str(e)[:30]})")
+
+            # X2 = Retained Earnings / Total Assets
+            try:
+                retained_earnings_idx = [idx for idx in balance_sheet.index if 'Retained Earnings' in str(idx)]
+
+                if retained_earnings_idx and total_assets_idx:
+                    retained_earnings = balance_sheet.loc[retained_earnings_idx[0]].iloc[current_year]
+                    total_assets = balance_sheet.loc[total_assets_idx[0]].iloc[current_year]
+
+                    x2 = retained_earnings / total_assets if total_assets != 0 else 0
+                    components['X2'] = x2
+                    criteria.append(f"X2 (Retained Earnings / Total Assets): {x2:.4f}")
+                else:
+                    components['X2'] = 0
+                    criteria.append("X2: Data unavailable")
+            except Exception as e:
+                components['X2'] = 0
+                criteria.append(f"X2: Calculation failed ({str(e)[:30]})")
+
+            # X3 = EBIT / Total Assets
+            try:
+                # Try to get EBIT from info, otherwise calculate from financials
+                ebit = info.get('ebit')
+
+                if ebit is None:
+                    # Calculate EBIT = Net Income + Interest Expense + Tax Expense
+                    net_income_idx = [idx for idx in financials.index if 'Net Income' in str(idx)]
+                    interest_idx = [idx for idx in financials.index if 'Interest Expense' in str(idx)]
+                    tax_idx = [idx for idx in financials.index if 'Tax' in str(idx) and 'Income Tax' in str(idx)]
+
+                    if net_income_idx:
+                        net_income = financials.loc[net_income_idx[0]].iloc[current_year]
+                        interest_expense = financials.loc[interest_idx[0]].iloc[current_year] if interest_idx else 0
+                        tax_expense = financials.loc[tax_idx[0]].iloc[current_year] if tax_idx else 0
+
+                        # Interest expense is usually negative in financials, so we add it back
+                        ebit = net_income - interest_expense + tax_expense
+
+                if ebit is not None and total_assets_idx:
+                    total_assets = balance_sheet.loc[total_assets_idx[0]].iloc[current_year]
+                    x3 = ebit / total_assets if total_assets != 0 else 0
+                    components['X3'] = x3
+                    criteria.append(f"X3 (EBIT / Total Assets): {x3:.4f}")
+                else:
+                    components['X3'] = 0
+                    criteria.append("X3: Data unavailable")
+            except Exception as e:
+                components['X3'] = 0
+                criteria.append(f"X3: Calculation failed ({str(e)[:30]})")
+
+            # X4 = Market Value of Equity / Total Liabilities
+            try:
+                market_cap = info.get('marketCap')
+                total_liabilities_idx = [idx for idx in balance_sheet.index if 'Total Liabilities' in str(idx) or 'Total Liab' in str(idx)]
+
+                if market_cap and total_liabilities_idx:
+                    total_liabilities = balance_sheet.loc[total_liabilities_idx[0]].iloc[current_year]
+
+                    x4 = market_cap / total_liabilities if total_liabilities != 0 else 0
+                    components['X4'] = x4
+                    criteria.append(f"X4 (Market Cap / Total Liabilities): {x4:.4f}")
+                else:
+                    components['X4'] = 0
+                    criteria.append("X4: Data unavailable")
+            except Exception as e:
+                components['X4'] = 0
+                criteria.append(f"X4: Calculation failed ({str(e)[:30]})")
+
+            # X5 = Sales / Total Assets
+            try:
+                total_revenue_idx = [idx for idx in financials.index if 'Total Revenue' in str(idx)]
+
+                if total_revenue_idx and total_assets_idx:
+                    total_revenue = financials.loc[total_revenue_idx[0]].iloc[current_year]
+                    total_assets = balance_sheet.loc[total_assets_idx[0]].iloc[current_year]
+
+                    x5 = total_revenue / total_assets if total_assets != 0 else 0
+                    components['X5'] = x5
+                    criteria.append(f"X5 (Sales / Total Assets): {x5:.4f}")
+                else:
+                    components['X5'] = 0
+                    criteria.append("X5: Data unavailable")
+            except Exception as e:
+                components['X5'] = 0
+                criteria.append(f"X5: Calculation failed ({str(e)[:30]})")
+
+            # Calculate final Z-Score
+            x1 = components.get('X1', 0)
+            x2 = components.get('X2', 0)
+            x3 = components.get('X3', 0)
+            x4 = components.get('X4', 0)
+            x5 = components.get('X5', 0)
+
+            z_score = 1.2*x1 + 1.4*x2 + 3.3*x3 + 0.6*x4 + 1.0*x5
+
+            zone = get_altman_zone(z_score)
+            interpretation = get_altman_interpretation(z_score)
+
+            return {
+                'z_score': z_score,
+                'components': components,
+                'criteria': criteria,
+                'zone': zone,
+                'interpretation': interpretation
+            }
+
+        except Exception as e:
+            logger.error(f"Altman Z-Score component calculation error: {e}")
+            return {'z_score': 0, 'components': {}, 'zone': 'Unknown', 'criteria': ['Calculation error'], 'error': str(e)}
+
+    except Exception as e:
+        logger.error(f"Altman Z-Score calculation error for {symbol}: {e}")
+        return {'z_score': 0, 'components': {}, 'zone': 'Unknown', 'criteria': [], 'error': str(e)}
+
 def get_graham_grade(score):
     if score >= 8: return "A";
     elif score >= 6: return "B";
@@ -393,3 +566,21 @@ def get_piotroski_interpretation(score):
     if score >= 8: return "Very strong fundamentals"
     elif score >= 6: return "Strong fundamentals"
     else: return "Weak fundamentals"
+
+def get_altman_zone(z_score):
+    """Return the Altman Z-Score zone classification"""
+    if z_score > 2.99:
+        return "Safe Zone"
+    elif z_score > 1.81:
+        return "Grey Zone"
+    else:
+        return "Distress Zone"
+
+def get_altman_interpretation(z_score):
+    """Return interpretation of Altman Z-Score"""
+    if z_score > 2.99:
+        return "Low bankruptcy risk - financially healthy"
+    elif z_score > 1.81:
+        return "Moderate risk - requires monitoring"
+    else:
+        return "High bankruptcy risk - financial distress"

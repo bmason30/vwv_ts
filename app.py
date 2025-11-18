@@ -36,6 +36,8 @@ from analysis.fundamental import (
     calculate_key_value_metrics,
     calculate_composite_fundamental_score
 )
+from analysis.divergence import calculate_divergence_score
+from analysis.master_score import calculate_master_score_with_agreement
 from analysis.market import (
     calculate_market_correlations_enhanced,
     calculate_breakout_breakdown_analysis
@@ -115,6 +117,10 @@ def create_sidebar_controls():
         st.session_state.show_confidence_intervals = True
     if 'show_baldwin_indicator' not in st.session_state:
         st.session_state.show_baldwin_indicator = True
+    if 'show_master_score' not in st.session_state:
+        st.session_state.show_master_score = True
+    if 'show_divergence' not in st.session_state:
+        st.session_state.show_divergence = True
     if 'selected_symbol' not in st.session_state:
         st.session_state.selected_symbol = None
 
@@ -143,7 +149,9 @@ def create_sidebar_controls():
     # Analysis sections toggle
     with st.sidebar.expander("📊 Analysis Sections", expanded=False):
         st.session_state.show_charts = st.checkbox("Show Charts", value=st.session_state.show_charts)
+        st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
         st.session_state.show_technical_analysis = st.checkbox("Show Technical Analysis", value=st.session_state.show_technical_analysis)
+        st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         if VOLUME_ANALYSIS_AVAILABLE:
             st.session_state.show_volume_analysis = st.checkbox("Show Volume Analysis", value=st.session_state.show_volume_analysis)
         if VOLATILITY_ANALYSIS_AVAILABLE:
@@ -871,6 +879,161 @@ def show_confidence_intervals(analysis_results, show_debug=False):
             df_intervals = pd.DataFrame(intervals_data)
             st.dataframe(df_intervals, use_container_width=True, hide_index=True)
 
+def show_master_score(analysis_results, show_debug=False):
+    """
+    Display Master Score - unified scoring across all analysis modules.
+    Phase 1a implementation.
+    """
+    if not st.session_state.get('show_master_score', True):
+        return
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    master_score_data = analysis_results.get('enhanced_indicators', {}).get('master_score', {})
+
+    if not master_score_data or 'error' in master_score_data:
+        return
+
+    with st.expander(f"🎯 Master Score - {symbol}", expanded=True):
+        st.subheader("Unified Analysis Score (0-100)")
+
+        # Main score display
+        master_score = master_score_data.get('master_score', 0)
+        interpretation = master_score_data.get('interpretation', 'Unknown')
+        signal_strength = master_score_data.get('signal_strength', 'Unknown')
+
+        # Color-coded score bar similar to technical and fundamental scores
+        from ui.components import create_technical_score_bar
+
+        # Create score bar HTML (reuse technical score bar with custom text)
+        score_html = f"""
+        <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 10px; margin: 10px 0;">
+            <div style="text-align: center; color: white;">
+                <h2 style="margin: 0; font-size: 3em; font-weight: bold;">{master_score:.1f}/100</h2>
+                <p style="margin: 5px 0; font-size: 1.2em;">{interpretation}</p>
+                <p style="margin: 5px 0; font-size: 1em;">Signal Strength: {signal_strength}</p>
+            </div>
+            <div style="background: rgba(255,255,255,0.2); height: 20px; border-radius: 10px; margin-top: 15px;">
+                <div style="background: white; height: 100%; width: {master_score}%; border-radius: 10px;"></div>
+            </div>
+        </div>
+        """
+        st.components.v1.html(score_html, height=180)
+
+        # Component breakdown
+        st.subheader("Component Scores")
+        components = master_score_data.get('components', {})
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            tech_score = components.get('technical', {}).get('raw', 0)
+            st.metric("Technical", f"{tech_score:.1f}/100",
+                     help=f"Weight: {components.get('technical', {}).get('weight', 0):.0%}")
+
+        with col2:
+            fund_score = components.get('fundamental', {}).get('raw', 0)
+            st.metric("Fundamental", f"{fund_score:.1f}/100",
+                     help=f"Weight: {components.get('fundamental', {}).get('weight', 0):.0%}")
+
+        with col3:
+            momentum_score = components.get('momentum', {}).get('raw', 0)
+            st.metric("Momentum", f"{momentum_score:.1f}/100",
+                     help=f"Weight: {components.get('momentum', {}).get('weight', 0):.0%}")
+
+        with col4:
+            div_score = components.get('divergence', {}).get('raw', 0)
+            st.metric("Divergence", f"{div_score:+.1f}",
+                     help=f"Weight: {components.get('divergence', {}).get('weight', 0):.0%}")
+
+        # Agreement analysis
+        st.subheader("Component Agreement")
+        agreement = master_score_data.get('agreement', {})
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Agreement Level", agreement.get('agreement_level', 'N/A'))
+
+        with col2:
+            st.metric("Consensus", agreement.get('consensus', 'N/A'))
+
+        with col3:
+            std_dev = agreement.get('std_dev', 0)
+            st.metric("Std Deviation", f"{std_dev:.1f}",
+                     help="Lower = More agreement between components")
+
+def show_divergence_analysis(analysis_results, show_debug=False):
+    """
+    Display Divergence Detection analysis.
+    Phase 1a implementation - simplified divergence.
+    """
+    if not st.session_state.get('show_divergence', True):
+        return
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    divergence_data = analysis_results.get('enhanced_indicators', {}).get('divergence', {})
+
+    if not divergence_data or 'error' in divergence_data:
+        return
+
+    with st.expander(f"🔄 Divergence Detection - {symbol}", expanded=False):
+        st.subheader("Price/Oscillator Divergence Analysis")
+
+        # Main metrics
+        score = divergence_data.get('score', 0)
+        status = divergence_data.get('status', 'Unknown')
+        total_div = divergence_data.get('total_divergences', 0)
+        bullish_count = divergence_data.get('bullish_count', 0)
+        bearish_count = divergence_data.get('bearish_count', 0)
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Divergence Score", f"{score:+.1f}",
+                     help="Positive = Bullish, Negative = Bearish")
+
+        with col2:
+            st.metric("Status", status)
+
+        with col3:
+            st.metric("Bullish Signals", bullish_count)
+
+        with col4:
+            st.metric("Bearish Signals", bearish_count)
+
+        # Detected divergences
+        divergences = divergence_data.get('divergences', [])
+
+        if divergences:
+            st.subheader("Detected Divergences")
+
+            div_data = []
+            for div in divergences:
+                div_data.append({
+                    'Type': div.get('type', 'Unknown').replace('_', ' ').title(),
+                    'Oscillator': div.get('oscillator', 'Unknown').upper(),
+                    'Strength': div.get('strength', 'Unknown').title(),
+                    'Score': f"{div.get('score', 0):+.1f}",
+                    'Description': div.get('description', 'N/A')
+                })
+
+            df_div = pd.DataFrame(div_data)
+            st.dataframe(df_div, use_container_width=True, hide_index=True)
+        else:
+            st.info("No divergences detected in current analysis period.")
+
+        # Info box
+        with st.container():
+            st.markdown("""
+            **About Divergence Detection:**
+            - **Bullish Divergence**: Price declining but oscillators rising → Potential reversal up
+            - **Bearish Divergence**: Price rising but oscillators declining → Potential reversal down
+            - **Hidden Divergence**: Indicates trend continuation rather than reversal
+
+            *Phase 1a uses simplified slope-based detection. Advanced peak matching coming in Phase 1b.*
+            """)
+
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """
     Perform enhanced analysis - CALCULATION LOGIC UNCHANGED FROM WORKING VERSION
@@ -903,6 +1066,9 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         weekly_deviations = calculate_weekly_deviations(analysis_input)
         comprehensive_technicals = calculate_comprehensive_technicals(analysis_input)
 
+        # Step 3.1: Calculate divergence detection
+        divergence_result = calculate_divergence_score(analysis_input, comprehensive_technicals)
+
         if show_debug:
             st.write(f"✓ Daily VWAP: ${daily_vwap:.2f}" if daily_vwap else "✗ Daily VWAP failed")
             st.write(f"✓ Fibonacci EMAs: {len(fibonacci_emas)} calculated")
@@ -915,6 +1081,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 st.write(f"  - MACD: {macd}")
             else:
                 st.error("⚠️ CRITICAL: comprehensive_technicals is EMPTY - data length may be < 50")
+            st.write(f"✓ Divergence Score: {divergence_result.get('score', 0)} ({divergence_result.get('status', 'Unknown')})")
         
         # Step 4: Market correlations (FIXED: pass period parameter + debug)
         market_correlations = calculate_market_correlations_enhanced(
@@ -1007,7 +1174,54 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                     st.warning(f"ROIC error: {roic_data['error']}")
                 if 'error' in key_value_metrics:
                     st.warning(f"Key Value Metrics error: {key_value_metrics['error']}")
-        
+
+        # Step 7.1: Calculate Master Score
+        # Prepare component scores for master score calculation
+        technical_composite_score, _ = calculate_composite_technical_score({
+            'enhanced_indicators': {
+                'comprehensive_technicals': comprehensive_technicals,
+                'fibonacci_emas': fibonacci_emas,
+                'daily_vwap': daily_vwap,
+                'point_of_control': point_of_control
+            },
+            'current_price': float(analysis_input['Close'].iloc[-1])
+        })
+
+        fundamental_composite_score, _ = calculate_composite_fundamental_score({
+            'graham_score': graham_score,
+            'piotroski_score': piotroski_score,
+            'altman_z_score': altman_z_score,
+            'roic': roic_data,
+            'key_value_metrics': key_value_metrics
+        })
+
+        # Calculate momentum score from oscillators
+        rsi = comprehensive_technicals.get('rsi_14', 50)
+        mfi = comprehensive_technicals.get('mfi_14', 50)
+        stoch_k = comprehensive_technicals.get('stochastic', {}).get('k', 50) if isinstance(comprehensive_technicals.get('stochastic'), dict) else 50
+        williams = comprehensive_technicals.get('williams_r', -50)
+        momentum_score = (rsi + mfi + stoch_k + (williams + 100)) / 4  # Normalize to 0-100
+
+        # Prepare master score inputs
+        master_score_inputs = {
+            'technical_score': technical_composite_score,
+            'fundamental_score': fundamental_composite_score,
+            'vwv_signal': 0,  # Will be integrated in future phase
+            'momentum_score': momentum_score,
+            'divergence_score': divergence_result.get('score', 0),
+            'volume_score': 0,  # Will be integrated from volume analysis
+            'volatility_score': 0  # Will be integrated from volatility analysis
+        }
+
+        # Calculate master score with agreement analysis
+        master_score_result = calculate_master_score_with_agreement(master_score_inputs)
+
+        if show_debug:
+            st.write(f"✓ Master Score: {master_score_result.get('master_score', 0):.1f}/100")
+            st.write(f"  - Interpretation: {master_score_result.get('interpretation', 'Unknown')}")
+            st.write(f"  - Signal Strength: {master_score_result.get('signal_strength', 'Unknown')}")
+            st.write(f"  - Agreement: {master_score_result.get('agreement', {}).get('agreement_level', 'Unknown')}")
+
         # Step 8: Options levels (UNCHANGED)
         current_price = round(float(analysis_input['Close'].iloc[-1]), 2)
         volatility = comprehensive_technicals.get('volatility_20d', 20)
@@ -1050,7 +1264,9 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
                 'piotroski_score': piotroski_score,
                 'altman_z_score': altman_z_score,
                 'roic': roic_data,
-                'key_value_metrics': key_value_metrics
+                'key_value_metrics': key_value_metrics,
+                'divergence': divergence_result,
+                'master_score': master_score_result
             },
             'confidence_analysis': confidence_analysis,
             'system_status': 'OPERATIONAL v4.2.2'
@@ -1103,6 +1319,7 @@ def main():
             if analysis_results and chart_data is not None:
                 # MANDATORY DISPLAY ORDER
                 show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+                show_master_score(analysis_results, controls['show_debug'])
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
                 if VOLUME_ANALYSIS_AVAILABLE:
@@ -1110,7 +1327,8 @@ def main():
                 
                 if VOLATILITY_ANALYSIS_AVAILABLE:
                     show_volatility_analysis(analysis_results, controls['show_debug'])
-                
+
+                show_divergence_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
 

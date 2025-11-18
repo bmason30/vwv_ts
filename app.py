@@ -142,22 +142,14 @@ def create_sidebar_controls():
         st.session_state.show_backtest = True
     if 'show_patterns' not in st.session_state:
         st.session_state.show_patterns = True
-    if 'selected_symbol' not in st.session_state:
-        st.session_state.selected_symbol = None
 
     # Symbol input with Enter key support
-    # Use selected_symbol if it was set by quicklinks/recent, otherwise use default
-    default_symbol = st.session_state.selected_symbol if st.session_state.selected_symbol else "tsla"
     symbol_input = st.sidebar.text_input(
         "Symbol",
-        value=default_symbol,
+        value="TSLA",
         key="symbol_input",
         help="Enter a stock symbol (e.g., AAPL, TSLA, SPY)"
     ).upper()
-
-    # Clear selected_symbol after it's been used
-    if st.session_state.selected_symbol:
-        st.session_state.selected_symbol = None
     
     # Data period selection with 3mo as default (optimal for all modules)
     period = st.sidebar.selectbox(
@@ -195,11 +187,12 @@ def create_sidebar_controls():
         if st.session_state.recently_viewed:
             for viewed_symbol in st.session_state.recently_viewed[-5:]:
                 if st.button(viewed_symbol, key=f"recent_{viewed_symbol}", use_container_width=True):
-                    st.session_state.selected_symbol = viewed_symbol
+                    st.session_state.symbol_input = viewed_symbol
+                    st.session_state.last_analyzed_symbol = None  # Force re-analysis
                     st.rerun()
         else:
             st.write("No recent symbols")
-    
+
     # Quick Links
     with st.sidebar.expander("🔗 Quick Links", expanded=False):
         for category, symbols in QUICK_LINK_CATEGORIES.items():
@@ -208,7 +201,8 @@ def create_sidebar_controls():
             for idx, symbol in enumerate(symbols):
                 with cols[idx % 2]:
                     if st.button(symbol, key=f"quick_{symbol}", use_container_width=True):
-                        st.session_state.selected_symbol = symbol
+                        st.session_state.symbol_input = symbol
+                        st.session_state.last_analyzed_symbol = None  # Force re-analysis
                         st.rerun()
     
     # Debug mode
@@ -1899,6 +1893,7 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             'current_price': current_price,
             'period': period,  # Store period for timeframe validation in displays
             'data_points': len(analysis_input),  # Store actual data points count
+            'hist_data': market_data,  # Historical OHLCV data for backtesting and patterns
             'enhanced_indicators': {
                 'daily_vwap': daily_vwap,
                 'fibonacci_emas': fibonacci_emas,

@@ -39,6 +39,12 @@ from analysis.fundamental import (
 from analysis.divergence import calculate_divergence_score
 from analysis.master_score import calculate_master_score_with_agreement
 from analysis.confluence import calculate_signal_confluence, create_confluence_summary
+from analysis.backtest import (
+    BacktestEngine,
+    backtest_buy_and_hold,
+    compare_strategies,
+    generate_backtest_report
+)
 from analysis.market import (
     calculate_market_correlations_enhanced,
     calculate_breakout_breakdown_analysis
@@ -124,6 +130,8 @@ def create_sidebar_controls():
         st.session_state.show_divergence = True
     if 'show_confluence' not in st.session_state:
         st.session_state.show_confluence = True
+    if 'show_backtest' not in st.session_state:
+        st.session_state.show_backtest = True
     if 'selected_symbol' not in st.session_state:
         st.session_state.selected_symbol = None
 
@@ -154,6 +162,7 @@ def create_sidebar_controls():
         st.session_state.show_charts = st.checkbox("Show Charts", value=st.session_state.show_charts)
         st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
         st.session_state.show_confluence = st.checkbox("Show Signal Confluence", value=st.session_state.show_confluence)
+        st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
         st.session_state.show_technical_analysis = st.checkbox("Show Technical Analysis", value=st.session_state.show_technical_analysis)
         st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         if VOLUME_ANALYSIS_AVAILABLE:
@@ -1247,6 +1256,249 @@ def show_signal_confluence(analysis_results, show_debug=False):
             - **Low Confluence (<40)**: Conflicting signals, wait for clarity
             """)
 
+
+def show_backtest_analysis(analysis_results, show_debug=False):
+    """
+    Display Backtest Performance & Strategy Validation
+    Phase 2A implementation.
+    """
+    if not st.session_state.get('show_backtest', True):
+        return
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    hist_data = analysis_results.get('hist_data', None)
+
+    if hist_data is None or len(hist_data) < 60:
+        return  # Need sufficient data for backtesting
+
+    with st.expander(f"📈 Strategy Performance (Backtest) - {symbol}", expanded=True):
+        st.subheader("Historical Performance Validation")
+
+        # Info message
+        st.info("""
+        **Phase 2A Backtesting** validates signal quality using historical data.
+        This shows how the strategy would have performed in the past.
+        Note: Past performance does not guarantee future results.
+        """)
+
+        # Backtest configuration
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.markdown("**Backtest Configuration:**")
+
+        with col2:
+            if st.button("🔄 Run Backtest", key=f"backtest_{symbol}"):
+                st.session_state[f'run_backtest_{symbol}'] = True
+
+        # Run backtest if button clicked
+        if st.session_state.get(f'run_backtest_{symbol}', False):
+            with st.spinner("Running backtest... This may take a moment..."):
+                try:
+                    # Run Buy & Hold benchmark
+                    benchmark_result = backtest_buy_and_hold(hist_data)
+
+                    # Display benchmark results
+                    st.subheader("📊 Buy & Hold Strategy (Benchmark)")
+
+                    metrics = benchmark_result['metrics']
+
+                    if 'error' not in metrics:
+                        # Main metrics row
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            total_return = metrics.get('total_return', 0)
+                            st.metric("Total Return",
+                                     f"{total_return:+.2f}%",
+                                     help="Total profit/loss percentage")
+
+                        with col2:
+                            win_rate = metrics.get('win_rate', 0)
+                            st.metric("Win Rate",
+                                     f"{win_rate:.1f}%",
+                                     help="Percentage of winning trades")
+
+                        with col3:
+                            max_dd = metrics.get('max_drawdown_pct', 0)
+                            st.metric("Max Drawdown",
+                                     f"{max_dd:.2f}%",
+                                     delta=f"{max_dd:.2f}%",
+                                     delta_color="inverse",
+                                     help="Largest peak-to-trough decline")
+
+                        with col4:
+                            sharpe = metrics.get('sharpe_ratio', 0)
+                            st.metric("Sharpe Ratio",
+                                     f"{sharpe:.2f}",
+                                     help="Risk-adjusted return (>1.0 is good)")
+
+                        # Additional metrics row
+                        col1, col2, col3, col4 = st.columns(4)
+
+                        with col1:
+                            annual_return = metrics.get('annualized_return', 0)
+                            st.metric("Annual Return",
+                                     f"{annual_return:+.2f}%",
+                                     help="Annualized return percentage")
+
+                        with col2:
+                            total_trades = metrics.get('total_trades', 0)
+                            st.metric("Total Trades",
+                                     f"{total_trades}",
+                                     help="Number of completed trades")
+
+                        with col3:
+                            profit_factor = metrics.get('profit_factor', 0)
+                            st.metric("Profit Factor",
+                                     f"{profit_factor:.2f}",
+                                     help="Gross profit / gross loss (>1.0 is profitable)")
+
+                        with col4:
+                            expectancy = metrics.get('expectancy', 0)
+                            st.metric("Expectancy/Trade",
+                                     f"{expectancy:+.2f}%",
+                                     help="Average expected return per trade")
+
+                        # Equity curve chart
+                        st.subheader("📈 Equity Curve")
+
+                        equity_curve = benchmark_result.get('equity_curve', pd.DataFrame())
+                        if not equity_curve.empty:
+                            import plotly.graph_objects as go
+
+                            fig = go.Figure()
+
+                            fig.add_trace(go.Scatter(
+                                x=equity_curve['date'],
+                                y=equity_curve['equity'],
+                                mode='lines',
+                                name='Portfolio Value',
+                                line=dict(color='#1f77b4', width=2),
+                                fill='tozeroy',
+                                fillcolor='rgba(31, 119, 180, 0.1)'
+                            ))
+
+                            # Add initial capital line
+                            fig.add_hline(
+                                y=100000,  # Initial capital
+                                line_dash="dash",
+                                line_color="gray",
+                                annotation_text="Initial Capital",
+                                annotation_position="right"
+                            )
+
+                            fig.update_layout(
+                                title="Portfolio Equity Over Time",
+                                xaxis_title="Date",
+                                yaxis_title="Portfolio Value ($)",
+                                hovermode='x unified',
+                                height=400,
+                                showlegend=True
+                            )
+
+                            st.plotly_chart(fig, use_container_width=True)
+
+                        # Trades table
+                        st.subheader("📋 Trade History")
+
+                        trades_df = benchmark_result.get('trades', pd.DataFrame())
+                        if not trades_df.empty:
+                            # Format for display
+                            display_df = trades_df.copy()
+                            display_df['entry_date'] = pd.to_datetime(display_df['entry_date']).dt.strftime('%Y-%m-%d')
+                            display_df['exit_date'] = pd.to_datetime(display_df['exit_date']).dt.strftime('%Y-%m-%d')
+                            display_df['entry_price'] = display_df['entry_price'].apply(lambda x: f"${x:.2f}")
+                            display_df['exit_price'] = display_df['exit_price'].apply(lambda x: f"${x:.2f}")
+                            display_df['pnl'] = display_df['pnl'].apply(lambda x: f"${x:+.2f}")
+                            display_df['pnl_pct'] = display_df['pnl_pct'].apply(lambda x: f"{x:+.2f}%")
+
+                            # Rename columns for display
+                            display_df = display_df.rename(columns={
+                                'entry_date': 'Entry Date',
+                                'entry_price': 'Entry Price',
+                                'exit_date': 'Exit Date',
+                                'exit_price': 'Exit Price',
+                                'direction': 'Direction',
+                                'holding_days': 'Days Held',
+                                'pnl': 'P&L ($)',
+                                'pnl_pct': 'Return %',
+                                'exit_reason': 'Exit Reason'
+                            })
+
+                            st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+                        # Performance summary
+                        st.subheader("📝 Performance Summary")
+
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.markdown("**Strengths:**")
+                            strengths = []
+                            if total_return > 0:
+                                strengths.append(f"✅ Positive total return (+{total_return:.2f}%)")
+                            if sharpe > 1.0:
+                                strengths.append(f"✅ Good risk-adjusted returns (Sharpe: {sharpe:.2f})")
+                            if win_rate > 50:
+                                strengths.append(f"✅ Above 50% win rate ({win_rate:.1f}%)")
+                            if profit_factor > 1.5:
+                                strengths.append(f"✅ Strong profit factor ({profit_factor:.2f})")
+
+                            if strengths:
+                                for s in strengths:
+                                    st.write(s)
+                            else:
+                                st.write("No significant strengths detected")
+
+                        with col2:
+                            st.markdown("**Areas for Improvement:**")
+                            weaknesses = []
+                            if total_return < 0:
+                                weaknesses.append(f"⚠️ Negative total return ({total_return:.2f}%)")
+                            if sharpe < 1.0:
+                                weaknesses.append(f"⚠️ Low risk-adjusted returns (Sharpe: {sharpe:.2f})")
+                            if win_rate < 50:
+                                weaknesses.append(f"⚠️ Below 50% win rate ({win_rate:.1f}%)")
+                            if max_dd > 20:
+                                weaknesses.append(f"⚠️ Large drawdown ({max_dd:.1f}%)")
+
+                            if weaknesses:
+                                for w in weaknesses:
+                                    st.write(w)
+                            else:
+                                st.write("No significant weaknesses detected")
+
+                    else:
+                        st.error(f"Backtest error: {metrics['error']}")
+
+                except Exception as e:
+                    st.error(f"Error running backtest: {str(e)}")
+                    if show_debug:
+                        st.exception(e)
+
+        # Information box
+        with st.container():
+            st.markdown("""
+            **Understanding Backtest Metrics:**
+
+            - **Total Return**: Overall profit/loss percentage over the entire period
+            - **Annualized Return**: Return adjusted to yearly basis for comparison
+            - **Max Drawdown**: Largest peak-to-trough decline (risk indicator)
+            - **Sharpe Ratio**: Risk-adjusted return (higher is better, >1.0 is good)
+            - **Win Rate**: Percentage of profitable trades
+            - **Profit Factor**: Ratio of gross profit to gross loss (>1.0 = profitable)
+            - **Expectancy**: Average expected return per trade
+
+            **Phase 2A Note:** Currently showing Buy & Hold benchmark. Future updates will add:
+            - Master Score strategy backtest
+            - Divergence signal strategy
+            - Confluence strategy
+            - Combined multi-signal strategy
+            - Strategy comparison table
+            """)
+
+
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """
     Perform enhanced analysis - CALCULATION LOGIC UNCHANGED FROM WORKING VERSION
@@ -1556,6 +1808,9 @@ def main():
                 show_divergence_analysis(analysis_results, controls['show_debug'])
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
+
+                # Phase 2A: Backtest Performance
+                show_backtest_analysis(analysis_results, controls['show_debug'])
 
                 if BALDWIN_INDICATOR_AVAILABLE:
                     show_baldwin_indicator(controls['show_debug'])

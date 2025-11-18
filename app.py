@@ -1049,6 +1049,57 @@ def show_divergence_analysis(analysis_results, show_debug=False):
         else:
             st.info("No divergences detected in current analysis period.")
 
+        # Debug diagnostics
+        if show_debug:
+            st.subheader("🔍 Divergence Debug Info")
+
+            # Get data for diagnostics
+            data_points = analysis_results.get('data_points', 0)
+            from config.settings import get_momentum_divergence_config
+            config = get_momentum_divergence_config()
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Data Points", data_points)
+                st.caption(f"Lookback: {config['lookback_period']} bars")
+
+            with col2:
+                st.metric("Peak Prominence", f"{config['peak_prominence']*100}%")
+                st.caption(f"Min distance: {config['min_swing_distance']} bars")
+
+            with col3:
+                regular = divergence_data.get('regular_count', 0)
+                hidden = divergence_data.get('hidden_count', 0)
+                st.metric("Types Found", f"{regular}R + {hidden}H")
+                st.caption("Regular + Hidden")
+
+            # Peak detection info
+            try:
+                from scipy.signal import find_peaks
+                import numpy as np
+
+                # Get recent data (would need to pass this through, but for now show general info)
+                st.info(f"""
+                **Peak Detection Status:**
+                - Using scipy.signal.find_peaks
+                - Requires 2+ peaks/troughs for divergence
+                - Current settings are conservative (low false positives)
+
+                **No divergences is NORMAL when:**
+                - Market trending steadily
+                - No recent reversals
+                - Price and oscillators in sync
+
+                **To increase sensitivity:** Edit config/settings.py
+                - Decrease `peak_prominence` (currently {config['peak_prominence']})
+                - Increase `lookback_period` (currently {config['lookback_period']})
+                - Decrease `min_swing_distance` (currently {config['min_swing_distance']})
+                """)
+
+            except Exception as e:
+                st.warning(f"Debug info error: {e}")
+
         # Info box
         with st.container():
             st.markdown("""
@@ -1058,7 +1109,11 @@ def show_divergence_analysis(analysis_results, show_debug=False):
             - **Hidden Divergence**: Indicates trend continuation rather than reversal
 
             *Phase 1b now uses advanced peak matching with scipy for improved accuracy.*
+
+            **💡 Tip:** Divergences are rare signals (2-4x/year on stable stocks). Zero divergences is normal!
+            Try volatile symbols (COIN, MARA, SOXL) during market reversals for higher detection rates.
             """)
+
 
 def show_signal_confluence(analysis_results, show_debug=False):
     """

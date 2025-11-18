@@ -115,14 +115,22 @@ def create_sidebar_controls():
         st.session_state.show_confidence_intervals = True
     if 'show_baldwin_indicator' not in st.session_state:
         st.session_state.show_baldwin_indicator = True
+    if 'selected_symbol' not in st.session_state:
+        st.session_state.selected_symbol = None
 
     # Symbol input with Enter key support
+    # Use selected_symbol if it was set by quicklinks/recent, otherwise use default
+    default_symbol = st.session_state.selected_symbol if st.session_state.selected_symbol else "tsla"
     symbol_input = st.sidebar.text_input(
         "Symbol",
-        value="tsla",
+        value=default_symbol,
         key="symbol_input",
         help="Enter a stock symbol (e.g., AAPL, TSLA, SPY)"
     ).upper()
+
+    # Clear selected_symbol after it's been used
+    if st.session_state.selected_symbol:
+        st.session_state.selected_symbol = None
     
     # Data period selection with 3mo as default (optimal for all modules)
     period = st.sidebar.selectbox(
@@ -155,7 +163,7 @@ def create_sidebar_controls():
         if st.session_state.recently_viewed:
             for viewed_symbol in st.session_state.recently_viewed[-5:]:
                 if st.button(viewed_symbol, key=f"recent_{viewed_symbol}", use_container_width=True):
-                    st.session_state.symbol_input = viewed_symbol
+                    st.session_state.selected_symbol = viewed_symbol
                     st.rerun()
         else:
             st.write("No recent symbols")
@@ -168,7 +176,7 @@ def create_sidebar_controls():
             for idx, symbol in enumerate(symbols):
                 with cols[idx % 2]:
                     if st.button(symbol, key=f"quick_{symbol}", use_container_width=True):
-                        st.session_state.symbol_input = symbol
+                        st.session_state.selected_symbol = symbol
                         st.rerun()
     
     # Debug mode

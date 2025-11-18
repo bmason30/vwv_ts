@@ -1188,11 +1188,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         })
 
         fundamental_composite_score, _ = calculate_composite_fundamental_score({
-            'graham_score': graham_score,
-            'piotroski_score': piotroski_score,
-            'altman_z_score': altman_z_score,
-            'roic': roic_data,
-            'key_value_metrics': key_value_metrics
+            'enhanced_indicators': {
+                'graham_score': graham_score,
+                'piotroski_score': piotroski_score,
+                'altman_z_score': altman_z_score,
+                'roic': roic_data,
+                'key_value_metrics': key_value_metrics
+            }
         })
 
         # Calculate momentum score from oscillators

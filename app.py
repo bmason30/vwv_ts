@@ -38,6 +38,7 @@ from analysis.fundamental import (
 )
 from analysis.divergence import calculate_divergence_score
 from analysis.master_score import calculate_master_score_with_agreement
+from analysis.confluence import calculate_signal_confluence, create_confluence_summary
 from analysis.market import (
     calculate_market_correlations_enhanced,
     calculate_breakout_breakdown_analysis
@@ -121,6 +122,8 @@ def create_sidebar_controls():
         st.session_state.show_master_score = True
     if 'show_divergence' not in st.session_state:
         st.session_state.show_divergence = True
+    if 'show_confluence' not in st.session_state:
+        st.session_state.show_confluence = True
     if 'selected_symbol' not in st.session_state:
         st.session_state.selected_symbol = None
 
@@ -150,6 +153,7 @@ def create_sidebar_controls():
     with st.sidebar.expander("📊 Analysis Sections", expanded=False):
         st.session_state.show_charts = st.checkbox("Show Charts", value=st.session_state.show_charts)
         st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
+        st.session_state.show_confluence = st.checkbox("Show Signal Confluence", value=st.session_state.show_confluence)
         st.session_state.show_technical_analysis = st.checkbox("Show Technical Analysis", value=st.session_state.show_technical_analysis)
         st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         if VOLUME_ANALYSIS_AVAILABLE:
@@ -329,13 +333,35 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         # --- 3. TREND ANALYSIS ---
         st.subheader("Trend Analysis")
-        col1, col2 = st.columns(2)
-        
+        col1, col2, col3, col4 = st.columns(4)
+
         with col1:
             macd_data = comprehensive_technicals.get('macd', {})
             macd_hist = macd_data.get('histogram', 0) if isinstance(macd_data, dict) else 0
             macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
             st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
+
+        with col2:
+            adx_data = comprehensive_technicals.get('adx', {})
+            if isinstance(adx_data, dict):
+                adx_value = adx_data.get('adx', 0)
+                trend_strength = adx_data.get('trend_strength', 'Unknown')
+                st.metric("ADX (14)", f"{adx_value:.2f}",
+                         help=f"Trend Strength: {trend_strength}")
+
+        with col3:
+            if isinstance(adx_data, dict):
+                plus_di = adx_data.get('plus_di', 0)
+                st.metric("+DI", f"{plus_di:.2f}",
+                         help="Plus Directional Indicator (bullish movement)")
+
+        with col4:
+            if isinstance(adx_data, dict):
+                minus_di = adx_data.get('minus_di', 0)
+                trend_dir = adx_data.get('trend_direction', 'Unknown')
+                st.metric("-DI", f"{minus_di:.2f}",
+                         delta=trend_dir if trend_dir != 'Unknown' else None,
+                         help="Minus Directional Indicator (bearish movement)")
         
         # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
         st.subheader("Price-Based Indicators & Key Levels")
@@ -1031,7 +1057,139 @@ def show_divergence_analysis(analysis_results, show_debug=False):
             - **Bearish Divergence**: Price rising but oscillators declining → Potential reversal down
             - **Hidden Divergence**: Indicates trend continuation rather than reversal
 
-            *Phase 1a uses simplified slope-based detection. Advanced peak matching coming in Phase 1b.*
+            *Phase 1b now uses advanced peak matching with scipy for improved accuracy.*
+            """)
+
+def show_signal_confluence(analysis_results, show_debug=False):
+    """
+    Display Signal Confluence Dashboard - agreement across all modules.
+    Phase 1b implementation.
+    """
+    if not st.session_state.get('show_confluence', True):
+        return
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    confluence_data = analysis_results.get('enhanced_indicators', {}).get('confluence', {})
+
+    if not confluence_data or 'error' in confluence_data:
+        return
+
+    with st.expander(f"📊 Signal Confluence Dashboard - {symbol}", expanded=True):
+        st.subheader("Cross-Module Signal Agreement")
+
+        # Main metrics
+        confluence_score = confluence_data.get('confluence_score', 50)
+        confidence = confluence_data.get('confidence', {})
+        bullish_count = confluence_data.get('bullish_modules', 0)
+        bearish_count = confluence_data.get('bearish_modules', 0)
+        neutral_count = confluence_data.get('neutral_modules', 0)
+        total_modules = confluence_data.get('total_modules', 0)
+
+        # Top metrics row
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+            st.metric("Confluence Score", f"{confluence_score:.1f}/100",
+                     help="Agreement level across all analysis modules")
+
+        with col2:
+            st.metric("Confidence Level", confidence.get('level', 'Unknown'),
+                     help=f"Score: {confidence.get('score', 0):.1f}")
+
+        with col3:
+            st.metric("Bullish Modules", f"{bullish_count}/{total_modules}",
+                     delta=f"+{bullish_count - bearish_count}" if bullish_count > bearish_count else None)
+
+        with col4:
+            st.metric("Bearish Modules", f"{bearish_count}/{total_modules}",
+                     delta=f"+{bearish_count - bullish_count}" if bearish_count > bullish_count else None)
+
+        # Visual confluence bar
+        st.subheader("Signal Direction Breakdown")
+
+        # Create a visual representation
+        if total_modules > 0:
+            bullish_pct = (bullish_count / total_modules) * 100
+            bearish_pct = (bearish_count / total_modules) * 100
+            neutral_pct = (neutral_count / total_modules) * 100
+
+            col1, col2, col3 = st.columns([bullish_count or 1, neutral_count or 1, bearish_count or 1])
+
+            with col1:
+                st.success(f"🟢 Bullish: {bullish_pct:.0f}%")
+
+            with col2:
+                st.info(f"⚪ Neutral: {neutral_pct:.0f}%")
+
+            with col3:
+                st.error(f"🔴 Bearish: {bearish_pct:.0f}%")
+
+        # Module signals table
+        st.subheader("Module Signal Breakdown")
+
+        signals = confluence_data.get('signals', {})
+        if signals:
+            signal_data = []
+            for module_name, signal in signals.items():
+                # Format direction with emoji
+                direction = signal.get('direction', 'neutral')
+                if direction == 'bullish':
+                    direction_display = "🟢 Bullish"
+                elif direction == 'bearish':
+                    direction_display = "🔴 Bearish"
+                else:
+                    direction_display = "⚪ Neutral"
+
+                signal_data.append({
+                    'Module': module_name.replace('_', ' ').title(),
+                    'Direction': direction_display,
+                    'Strength': f"{signal.get('strength', 0):.1f}",
+                    'Score': f"{signal.get('score', 0):.2f}",
+                    'Description': signal.get('description', 'N/A')
+                })
+
+            df_signals = pd.DataFrame(signal_data)
+            st.dataframe(df_signals, use_container_width=True, hide_index=True)
+
+        # Conflicts section
+        conflicts = confluence_data.get('conflicts', [])
+        if conflicts:
+            st.subheader("⚠️ Signal Conflicts Detected")
+
+            for conflict in conflicts:
+                conflict_type = conflict.get('type', 'Unknown')
+                description = conflict.get('description', 'N/A')
+
+                if conflict_type == 'directional_conflict':
+                    st.warning(f"**Directional Conflict**: {description}")
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        bullish_mods = conflict.get('bullish', [])
+                        st.write("**Bullish Modules:**")
+                        for mod in bullish_mods:
+                            st.write(f"  - {mod.replace('_', ' ').title()}")
+
+                    with col2:
+                        bearish_mods = conflict.get('bearish', [])
+                        st.write("**Bearish Modules:**")
+                        for mod in bearish_mods:
+                            st.write(f"  - {mod.replace('_', ' ').title()}")
+
+                elif conflict_type == 'strength_mismatch':
+                    st.info(f"**Strength Mismatch**: {description}")
+
+        # Summary text
+        with st.container():
+            st.markdown(f"""
+            **Interpretation:**
+
+            {create_confluence_summary(confluence_data)}
+
+            **How to Use:**
+            - **High Confluence (70+)**: Strong agreement suggests reliable signals
+            - **Medium Confluence (40-70)**: Mixed signals, use additional confirmation
+            - **Low Confluence (<40)**: Conflicting signals, wait for clarity
             """)
 
 def perform_enhanced_analysis(symbol, period, show_debug=False):
@@ -1188,11 +1346,13 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         })
 
         fundamental_composite_score, _ = calculate_composite_fundamental_score({
-            'graham_score': graham_score,
-            'piotroski_score': piotroski_score,
-            'altman_z_score': altman_z_score,
-            'roic': roic_data,
-            'key_value_metrics': key_value_metrics
+            'enhanced_indicators': {
+                'graham_score': graham_score,
+                'piotroski_score': piotroski_score,
+                'altman_z_score': altman_z_score,
+                'roic': roic_data,
+                'key_value_metrics': key_value_metrics
+            }
         })
 
         # Calculate momentum score from oscillators
@@ -1275,10 +1435,19 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         # Add optional analyses if available (UNCHANGED)
         if volume_analysis:
             analysis_results['enhanced_indicators']['volume_analysis'] = volume_analysis
-        
+
         if volatility_analysis:
             analysis_results['enhanced_indicators']['volatility_analysis'] = volatility_analysis
-        
+
+        # Calculate signal confluence across all modules
+        confluence_result = calculate_signal_confluence(analysis_results)
+        analysis_results['enhanced_indicators']['confluence'] = confluence_result
+
+        if show_debug:
+            st.write(f"✓ Signal Confluence: {confluence_result.get('confluence_score', 0):.1f}/100")
+            st.write(f"  - Confidence: {confluence_result.get('confidence', {}).get('level', 'Unknown')}")
+            st.write(f"  - Modules: {confluence_result.get('bullish_modules', 0)} Bullish, {confluence_result.get('bearish_modules', 0)} Bearish")
+
         # Store results (UNCHANGED)
         data_manager.store_analysis_results(symbol, analysis_results)
         
@@ -1320,6 +1489,7 @@ def main():
                 # MANDATORY DISPLAY ORDER
                 show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
                 show_master_score(analysis_results, controls['show_debug'])
+                show_signal_confluence(analysis_results, controls['show_debug'])
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
                 
                 if VOLUME_ANALYSIS_AVAILABLE:

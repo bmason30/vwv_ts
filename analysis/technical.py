@@ -215,6 +215,108 @@ def calculate_weekly_deviations(data: pd.DataFrame) -> Dict[str, Any]:
     return deviations
 
 @safe_calculation_wrapper
+def calculate_adx(data: pd.DataFrame, period: int = 14) -> Dict[str, float]:
+    """
+    Calculate ADX (Average Directional Index) for trend strength.
+
+    ADX measures the strength of a trend (not direction):
+    - 0-25: Weak or no trend (range-bound market)
+    - 25-50: Strong trend
+    - 50-75: Very strong trend
+    - 75-100: Extremely strong trend
+
+    Args:
+        data: DataFrame with OHLC data
+        period: Lookback period (default 14)
+
+    Returns:
+        Dict with adx, plus_di, minus_di, and trend_strength
+    """
+    if len(data) < period * 2:
+        return {
+            'adx': 0,
+            'plus_di': 0,
+            'minus_di': 0,
+            'trend_strength': 'Insufficient data'
+        }
+
+    try:
+        high = data['High']
+        low = data['Low']
+        close = data['Close']
+
+        # Calculate True Range (TR)
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=period).mean()
+
+        # Calculate Directional Movement
+        up_move = high - high.shift()
+        down_move = low.shift() - low
+
+        # +DM and -DM
+        plus_dm = pd.Series(np.where((up_move > down_move) & (up_move > 0), up_move, 0), index=data.index)
+        minus_dm = pd.Series(np.where((down_move > up_move) & (down_move > 0), down_move, 0), index=data.index)
+
+        # Smooth DM
+        plus_dm_smooth = plus_dm.rolling(window=period).sum()
+        minus_dm_smooth = minus_dm.rolling(window=period).sum()
+
+        # Calculate +DI and -DI
+        plus_di = 100 * (plus_dm_smooth / atr)
+        minus_di = 100 * (minus_dm_smooth / atr)
+
+        # Calculate DX (Directional Index)
+        dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di).replace(0, np.inf)
+
+        # Calculate ADX (average of DX)
+        adx = dx.rolling(window=period).mean()
+
+        # Get latest values
+        adx_value = round(float(adx.iloc[-1]), 2) if not adx.iloc[-1] != adx.iloc[-1] else 0  # Check for NaN
+        plus_di_value = round(float(plus_di.iloc[-1]), 2) if not plus_di.iloc[-1] != plus_di.iloc[-1] else 0
+        minus_di_value = round(float(minus_di.iloc[-1]), 2) if not minus_di.iloc[-1] != minus_di.iloc[-1] else 0
+
+        # Interpret trend strength
+        if adx_value < 25:
+            strength = "Weak/No Trend"
+        elif adx_value < 50:
+            strength = "Strong Trend"
+        elif adx_value < 75:
+            strength = "Very Strong Trend"
+        else:
+            strength = "Extremely Strong Trend"
+
+        # Determine trend direction
+        if plus_di_value > minus_di_value:
+            direction = "Bullish"
+        elif minus_di_value > plus_di_value:
+            direction = "Bearish"
+        else:
+            direction = "Neutral"
+
+        return {
+            'adx': adx_value,
+            'plus_di': plus_di_value,
+            'minus_di': minus_di_value,
+            'trend_strength': strength,
+            'trend_direction': direction,
+            'adx_series': adx  # Include full series for charting
+        }
+
+    except Exception as e:
+        logger.error(f"ADX calculation error: {e}")
+        return {
+            'adx': 0,
+            'plus_di': 0,
+            'minus_di': 0,
+            'trend_strength': 'Error',
+            'trend_direction': 'Unknown'
+        }
+
+@safe_calculation_wrapper
 def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
     """Calculate a comprehensive set of technical indicators."""
     if len(data) < 50:
@@ -227,7 +329,10 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
     
     returns = close.pct_change().dropna()
     volatility_20d = returns.rolling(20).std().iloc[-1] * (252 ** 0.5) * 100 if len(returns) >= 20 else 0
-    
+
+    # Calculate ADX for trend strength
+    adx_data = calculate_adx(data, period=14)
+
     return {
         'rsi_14': round(float(safe_rsi(close, 14).iloc[-1]), 2),
         'mfi_14': round(float(calculate_mfi(data, 14)), 2),
@@ -236,7 +341,8 @@ def calculate_comprehensive_technicals(data: pd.DataFrame) -> Dict[str, Any]:
         'stochastic': calculate_stochastic(data),
         'williams_r': calculate_williams_r(data),
         'volume_ratio': round(float(volume.iloc[-1] / volume_sma_20), 2) if volume_sma_20 > 0 else 1,
-        'volatility_20d': round(float(volatility_20d), 2)
+        'volatility_20d': round(float(volatility_20d), 2),
+        'adx': adx_data  # ADX trend strength indicator
     }
 
 @safe_calculation_wrapper

@@ -75,6 +75,70 @@ DIVERGENCE_CONFIG = {
     }
 }
 
+# Momentum Divergence Detection Configuration
+MOMENTUM_DIVERGENCE_CONFIG = {
+    'lookback_period': 20,  # Bars to look back for divergence detection
+    'min_swing_distance': 5,  # Minimum bars between peaks/troughs
+    'peak_prominence': 0.02,  # 2% minimum prominence for peak detection
+    'oscillators': ['rsi', 'mfi', 'stochastic', 'williams_r'],  # Oscillators to check
+    'score_weights': {
+        'bullish_divergence': 15,  # Points for bullish divergence
+        'bearish_divergence': -15,  # Points for bearish divergence
+        'hidden_bullish': 10,  # Points for hidden bullish divergence
+        'hidden_bearish': -10  # Points for hidden bearish divergence
+    },
+    'thresholds': {
+        'rsi_oversold': 30,
+        'rsi_overbought': 70,
+        'mfi_oversold': 20,
+        'mfi_overbought': 80,
+        'stochastic_oversold': 20,
+        'stochastic_overbought': 80,
+        'williams_oversold': -80,
+        'williams_overbought': -20
+    }
+}
+
+# Master Score System Configuration
+MASTER_SCORE_CONFIG = {
+    'weights': {
+        'technical': 0.25,      # Technical analysis weight
+        'fundamental': 0.20,    # Fundamental analysis weight
+        'vwv_signal': 0.15,     # VWV signal weight
+        'momentum': 0.15,       # Momentum indicators weight
+        'divergence': 0.10,     # Divergence detection weight
+        'volume': 0.10,         # Volume analysis weight
+        'volatility': 0.05      # Volatility analysis weight
+    },
+    'normalization': {
+        'technical_max': 100,
+        'fundamental_max': 100,
+        'vwv_max': 10,
+        'momentum_max': 100,
+        'divergence_max': 30,
+        'volume_max': 5,
+        'volatility_max': 5
+    },
+    'score_thresholds': {
+        'extreme_bullish': 80,
+        'strong_bullish': 70,
+        'moderate_bullish': 60,
+        'neutral_high': 55,
+        'neutral': 50,
+        'neutral_low': 45,
+        'moderate_bearish': 40,
+        'strong_bearish': 30,
+        'extreme_bearish': 20
+    },
+    'signal_strength': {
+        'very_strong': 85,
+        'strong': 70,
+        'moderate': 55,
+        'weak': 45,
+        'very_weak': 30
+    }
+}
+
 # Insider Analysis Configuration
 INSIDER_CONFIG = {
     'lookback_days': 30,
@@ -294,3 +358,11 @@ def get_sentiment_config():
 def get_breakout_config():
     """Get enhanced breakout configuration"""
     return BREAKOUT_CONFIG.copy()
+
+def get_momentum_divergence_config():
+    """Get momentum divergence detection configuration"""
+    return MOMENTUM_DIVERGENCE_CONFIG.copy()
+
+def get_master_score_config():
+    """Get master score system configuration"""
+    return MASTER_SCORE_CONFIG.copy()

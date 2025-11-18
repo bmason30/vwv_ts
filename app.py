@@ -329,13 +329,35 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         # --- 3. TREND ANALYSIS ---
         st.subheader("Trend Analysis")
-        col1, col2 = st.columns(2)
-        
+        col1, col2, col3, col4 = st.columns(4)
+
         with col1:
             macd_data = comprehensive_technicals.get('macd', {})
             macd_hist = macd_data.get('histogram', 0) if isinstance(macd_data, dict) else 0
             macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
             st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
+
+        with col2:
+            adx_data = comprehensive_technicals.get('adx', {})
+            if isinstance(adx_data, dict):
+                adx_value = adx_data.get('adx', 0)
+                trend_strength = adx_data.get('trend_strength', 'Unknown')
+                st.metric("ADX (14)", f"{adx_value:.2f}",
+                         help=f"Trend Strength: {trend_strength}")
+
+        with col3:
+            if isinstance(adx_data, dict):
+                plus_di = adx_data.get('plus_di', 0)
+                st.metric("+DI", f"{plus_di:.2f}",
+                         help="Plus Directional Indicator (bullish movement)")
+
+        with col4:
+            if isinstance(adx_data, dict):
+                minus_di = adx_data.get('minus_di', 0)
+                trend_dir = adx_data.get('trend_direction', 'Unknown')
+                st.metric("-DI", f"{minus_di:.2f}",
+                         delta=trend_dir if trend_dir != 'Unknown' else None,
+                         help="Minus Directional Indicator (bearish movement)")
         
         # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
         st.subheader("Price-Based Indicators & Key Levels")

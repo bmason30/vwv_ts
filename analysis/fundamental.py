@@ -944,6 +944,203 @@ def calculate_key_value_metrics(symbol, show_debug=False):
             'error': str(e)
         }
 
+def calculate_composite_fundamental_score(analysis_results):
+    """
+    Calculate composite fundamental score (0-100) from all fundamental metrics.
+
+    Weights:
+    - Graham Score: 15%
+    - Piotroski F-Score: 15%
+    - Altman Z-Score: 15%
+    - ROIC: 15%
+    - P/E Ratio: 10%
+    - P/B Ratio: 10%
+    - Debt-to-Equity: 10%
+    - Dividend Yield: 5%
+    - Free Cash Flow: 5%
+    - ROE: 10%
+
+    Returns:
+        tuple: (composite_score, score_details)
+    """
+    try:
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+
+        # Get all fundamental data
+        graham_data = enhanced_indicators.get('graham_score', {})
+        piotroski_data = enhanced_indicators.get('piotroski_score', {})
+        altman_data = enhanced_indicators.get('altman_z_score', {})
+        roic_data = enhanced_indicators.get('roic', {})
+        metrics_data = enhanced_indicators.get('key_value_metrics', {})
+
+        # Check if ETF or error
+        if 'error' in graham_data and 'ETF' in str(graham_data.get('error', '')):
+            return 0.0, {'error': 'Not applicable for ETFs'}
+
+        component_scores = {}
+
+        # 1. Graham Score (0-100, weighted 15%)
+        graham_score = graham_data.get('score', 0)
+        graham_total = graham_data.get('total_possible', 10)
+        if graham_total > 0:
+            component_scores['graham'] = (graham_score / graham_total) * 100
+        else:
+            component_scores['graham'] = 0
+
+        # 2. Piotroski F-Score (0-100, weighted 15%)
+        piotroski_score = piotroski_data.get('score', 0)
+        piotroski_total = piotroski_data.get('total_possible', 9)
+        if piotroski_total > 0:
+            component_scores['piotroski'] = (piotroski_score / piotroski_total) * 100
+        else:
+            component_scores['piotroski'] = 0
+
+        # 3. Altman Z-Score (0-100, weighted 15%)
+        z_score = altman_data.get('z_score', 0)
+        if z_score > 2.99:
+            component_scores['altman'] = 100  # Safe
+        elif z_score > 1.81:
+            component_scores['altman'] = 50 + ((z_score - 1.81) / (2.99 - 1.81)) * 50  # Grey -> Safe
+        else:
+            component_scores['altman'] = (z_score / 1.81) * 50  # Distress -> Grey
+        component_scores['altman'] = max(0, min(100, component_scores['altman']))
+
+        # 4. ROIC (0-100, weighted 15%)
+        roic_percent = roic_data.get('roic_percent', 0)
+        if roic_percent > 20:
+            component_scores['roic'] = 100
+        elif roic_percent > 15:
+            component_scores['roic'] = 75 + ((roic_percent - 15) / 5) * 25
+        elif roic_percent > 10:
+            component_scores['roic'] = 50 + ((roic_percent - 10) / 5) * 25
+        elif roic_percent > 5:
+            component_scores['roic'] = 25 + ((roic_percent - 5) / 5) * 25
+        elif roic_percent > 0:
+            component_scores['roic'] = (roic_percent / 5) * 25
+        else:
+            component_scores['roic'] = 0
+
+        metrics = metrics_data.get('metrics', {})
+
+        # 5. P/E Ratio (0-100, weighted 10%)
+        pe_data = metrics.get('pe_ratio', {})
+        pe_value = pe_data.get('value')
+        if pe_value is not None and pe_value > 0:
+            if pe_value < 15:
+                component_scores['pe'] = 100  # Undervalued
+            elif pe_value < 25:
+                component_scores['pe'] = 75  # Fair
+            elif pe_value < 40:
+                component_scores['pe'] = 50  # Premium
+            else:
+                component_scores['pe'] = 25  # Expensive
+        else:
+            component_scores['pe'] = 50  # Neutral if unavailable or negative
+
+        # 6. P/B Ratio (0-100, weighted 10%)
+        pb_data = metrics.get('pb_ratio', {})
+        pb_value = pb_data.get('value')
+        if pb_value is not None and pb_value > 0:
+            if pb_value < 1:
+                component_scores['pb'] = 100  # Below book
+            elif pb_value < 3:
+                component_scores['pb'] = 75  # Reasonable
+            elif pb_value < 5:
+                component_scores['pb'] = 50  # Premium
+            else:
+                component_scores['pb'] = 25  # Very high
+        else:
+            component_scores['pb'] = 50  # Neutral if unavailable
+
+        # 7. Debt-to-Equity (0-100, weighted 10%)
+        de_data = metrics.get('de_ratio', {})
+        de_value = de_data.get('value')
+        if de_value is not None:
+            if de_value < 0.3:
+                component_scores['de'] = 100  # Conservative
+            elif de_value < 0.5:
+                component_scores['de'] = 80  # Moderate
+            elif de_value < 1.0:
+                component_scores['de'] = 60  # Elevated
+            elif de_value < 2.0:
+                component_scores['de'] = 30  # High
+            else:
+                component_scores['de'] = 10  # Very high
+        else:
+            component_scores['de'] = 50  # Neutral if unavailable
+
+        # 8. Dividend Yield (0-100, weighted 5%)
+        div_data = metrics.get('dividend_yield', {})
+        div_value = div_data.get('value', 0)
+        div_percent = div_value * 100 if div_value else 0
+        if div_percent == 0:
+            component_scores['dividend'] = 30  # Growth-focused, not bad
+        elif div_percent < 2:
+            component_scores['dividend'] = 50
+        elif div_percent < 4:
+            component_scores['dividend'] = 75
+        elif div_percent < 6:
+            component_scores['dividend'] = 100
+        else:
+            component_scores['dividend'] = 70  # Very high - verify sustainability
+
+        # 9. Free Cash Flow (0-100, weighted 5%)
+        fcf_data = metrics.get('free_cash_flow', {})
+        fcf_value = fcf_data.get('value')
+        if fcf_value is not None:
+            if fcf_value > 1_000_000_000:
+                component_scores['fcf'] = 100
+            elif fcf_value > 100_000_000:
+                component_scores['fcf'] = 80
+            elif fcf_value > 0:
+                component_scores['fcf'] = 60
+            elif fcf_value > -100_000_000:
+                component_scores['fcf'] = 30
+            else:
+                component_scores['fcf'] = 10
+        else:
+            component_scores['fcf'] = 50
+
+        # 10. ROE (0-100, weighted 10%)
+        roe_data = metrics.get('roe', {})
+        roe_value = roe_data.get('value')
+        roe_percent = roe_value * 100 if roe_value else 0
+        if roe_percent > 20:
+            component_scores['roe'] = 100
+        elif roe_percent > 15:
+            component_scores['roe'] = 80
+        elif roe_percent > 10:
+            component_scores['roe'] = 60
+        elif roe_percent > 5:
+            component_scores['roe'] = 40
+        elif roe_percent > 0:
+            component_scores['roe'] = 20
+        else:
+            component_scores['roe'] = 0
+
+        # Apply weights and calculate composite
+        weights = {
+            'graham': 0.15,
+            'piotroski': 0.15,
+            'altman': 0.15,
+            'roic': 0.15,
+            'pe': 0.10,
+            'pb': 0.10,
+            'de': 0.10,
+            'dividend': 0.05,
+            'fcf': 0.05,
+            'roe': 0.10
+        }
+
+        composite_score = sum(component_scores.get(key, 0) * weight
+                             for key, weight in weights.items())
+
+        return round(composite_score, 1), {'component_scores': component_scores}
+
+    except Exception as e:
+        logger.error(f"Composite fundamental score calculation error: {e}")
+        return 50.0, {}
+
 def get_graham_grade(score):
     if score >= 8: return "A";
     elif score >= 6: return "B";

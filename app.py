@@ -33,7 +33,8 @@ from analysis.fundamental import (
     calculate_piotroski_score,
     calculate_altman_z_score,
     calculate_roic,
-    calculate_key_value_metrics
+    calculate_key_value_metrics,
+    calculate_composite_fundamental_score
 )
 from analysis.market import (
     calculate_market_correlations_enhanced,
@@ -72,7 +73,7 @@ except ImportError:
     calculate_baldwin_indicator_complete = None
     format_baldwin_for_display = None
 
-from ui.components import create_technical_score_bar, create_header
+from ui.components import create_technical_score_bar, create_fundamental_score_bar, create_header
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
@@ -507,7 +508,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
     """Display fundamental analysis section - PRIORITY 5"""
     if not st.session_state.show_fundamental_analysis:
         return
-        
+
     with st.expander("📊 Fundamental Analysis - Value Investment Scores", expanded=True):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         graham_data = enhanced_indicators.get('graham_score', {})
@@ -521,6 +522,16 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
         if is_etf_symbol:
             st.info("ℹ️ Fundamental analysis not applicable for ETFs")
             return
+
+        # --- COMPOSITE FUNDAMENTAL SCORE BAR ---
+        try:
+            composite_score, score_details = calculate_composite_fundamental_score(analysis_results)
+            score_bar_html = create_fundamental_score_bar(composite_score, score_details)
+            st.components.v1.html(score_bar_html, height=160)
+        except Exception as e:
+            if show_debug:
+                st.error(f"Composite score error: {str(e)}")
+            st.metric("Composite Fundamental Score", "Calculating...")
 
         # Display scores with detailed criteria
         col1, col2, col3 = st.columns(3)
@@ -638,20 +649,11 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.metric("ROIC", "0.00%")
                 st.error(f"Error: {roic_data.get('error', 'Unknown error')}")
 
-def show_key_value_metrics(analysis_results, show_debug=False):
-    """Display key fundamental value metrics"""
-    if not st.session_state.show_fundamental_analysis:
-        return
+        # --- KEY VALUE METRICS ---
+        st.divider()
+        st.subheader("Key Value Metrics")
 
-    with st.expander("💹 Key Value Metrics", expanded=True):
-        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         metrics_data = enhanced_indicators.get('key_value_metrics', {})
-
-        # Check if ETF or error
-        if 'error' in metrics_data:
-            st.info("ℹ️ Key value metrics not applicable for ETFs")
-            return
-
         metrics = metrics_data.get('metrics', {})
         company_name = metrics_data.get('company_name', '')
 
@@ -660,70 +662,69 @@ def show_key_value_metrics(analysis_results, show_debug=False):
 
         if not metrics:
             st.warning("⚠️ No metrics data available")
-            return
+        else:
+            # Display metrics in two rows
+            # Row 1: P/E, P/B, D/E
+            col1, col2, col3 = st.columns(3)
 
-        # Display metrics in two rows
-        # Row 1: P/E, P/B, D/E
-        col1, col2, col3 = st.columns(3)
+            with col1:
+                pe_data = metrics.get('pe_ratio', {})
+                st.metric(
+                    "P/E Ratio",
+                    pe_data.get('display', 'N/A'),
+                    help="Price-to-Earnings Ratio: Compares stock price to earnings per share"
+                )
+                st.caption(pe_data.get('interpretation', ''))
 
-        with col1:
-            pe_data = metrics.get('pe_ratio', {})
-            st.metric(
-                "P/E Ratio",
-                pe_data.get('display', 'N/A'),
-                help="Price-to-Earnings Ratio: Compares stock price to earnings per share"
-            )
-            st.caption(pe_data.get('interpretation', ''))
+            with col2:
+                pb_data = metrics.get('pb_ratio', {})
+                st.metric(
+                    "P/B Ratio",
+                    pb_data.get('display', 'N/A'),
+                    help="Price-to-Book Ratio: Compares market price to book value"
+                )
+                st.caption(pb_data.get('interpretation', ''))
 
-        with col2:
-            pb_data = metrics.get('pb_ratio', {})
-            st.metric(
-                "P/B Ratio",
-                pb_data.get('display', 'N/A'),
-                help="Price-to-Book Ratio: Compares market price to book value"
-            )
-            st.caption(pb_data.get('interpretation', ''))
+            with col3:
+                de_data = metrics.get('de_ratio', {})
+                st.metric(
+                    "Debt-to-Equity",
+                    de_data.get('display', 'N/A'),
+                    help="Debt-to-Equity Ratio: Measures financial leverage"
+                )
+                st.caption(de_data.get('interpretation', ''))
 
-        with col3:
-            de_data = metrics.get('de_ratio', {})
-            st.metric(
-                "Debt-to-Equity",
-                de_data.get('display', 'N/A'),
-                help="Debt-to-Equity Ratio: Measures financial leverage"
-            )
-            st.caption(de_data.get('interpretation', ''))
+            st.divider()
 
-        st.divider()
+            # Row 2: Dividend Yield, FCF, ROE
+            col1, col2, col3 = st.columns(3)
 
-        # Row 2: Dividend Yield, FCF, ROE
-        col1, col2, col3 = st.columns(3)
+            with col1:
+                div_data = metrics.get('dividend_yield', {})
+                st.metric(
+                    "Dividend Yield",
+                    div_data.get('display', 'N/A'),
+                    help="Annual dividend payments relative to stock price"
+                )
+                st.caption(div_data.get('interpretation', ''))
 
-        with col1:
-            div_data = metrics.get('dividend_yield', {})
-            st.metric(
-                "Dividend Yield",
-                div_data.get('display', 'N/A'),
-                help="Annual dividend payments relative to stock price"
-            )
-            st.caption(div_data.get('interpretation', ''))
+            with col2:
+                fcf_data = metrics.get('free_cash_flow', {})
+                st.metric(
+                    "Free Cash Flow",
+                    fcf_data.get('display', 'N/A'),
+                    help="Cash remaining after operating expenses and capital expenditures"
+                )
+                st.caption(fcf_data.get('interpretation', ''))
 
-        with col2:
-            fcf_data = metrics.get('free_cash_flow', {})
-            st.metric(
-                "Free Cash Flow",
-                fcf_data.get('display', 'N/A'),
-                help="Cash remaining after operating expenses and capital expenditures"
-            )
-            st.caption(fcf_data.get('interpretation', ''))
-
-        with col3:
-            roe_data = metrics.get('roe', {})
-            st.metric(
-                "Return on Equity",
-                roe_data.get('display', 'N/A'),
-                help="Profit generated from shareholders' equity"
-            )
-            st.caption(roe_data.get('interpretation', ''))
+            with col3:
+                roe_data = metrics.get('roe', {})
+                st.metric(
+                    "Return on Equity",
+                    roe_data.get('display', 'N/A'),
+                    help="Profit generated from shareholders' equity"
+                )
+                st.caption(roe_data.get('interpretation', ''))
 
 def show_market_correlation_analysis(analysis_results, show_debug=False):
     """Display market correlation analysis section - PRIORITY 7 (After Baldwin)"""
@@ -1103,7 +1104,6 @@ def main():
                     show_volatility_analysis(analysis_results, controls['show_debug'])
                 
                 show_fundamental_analysis(analysis_results, controls['show_debug'])
-                show_key_value_metrics(analysis_results, controls['show_debug'])
                 show_market_correlation_analysis(analysis_results, controls['show_debug'])
 
                 if BALDWIN_INDICATOR_AVAILABLE:

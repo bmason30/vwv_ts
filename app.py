@@ -45,6 +45,14 @@ from analysis.backtest import (
     compare_strategies,
     generate_backtest_report
 )
+from analysis.patterns import (
+    detect_all_patterns,
+    calculate_pattern_score
+)
+from analysis.candlestick import (
+    scan_all_candlestick_patterns,
+    calculate_candlestick_score
+)
 from analysis.market import (
     calculate_market_correlations_enhanced,
     calculate_breakout_breakdown_analysis
@@ -132,6 +140,8 @@ def create_sidebar_controls():
         st.session_state.show_confluence = True
     if 'show_backtest' not in st.session_state:
         st.session_state.show_backtest = True
+    if 'show_patterns' not in st.session_state:
+        st.session_state.show_patterns = True
     if 'selected_symbol' not in st.session_state:
         st.session_state.selected_symbol = None
 
@@ -163,6 +173,7 @@ def create_sidebar_controls():
         st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
         st.session_state.show_confluence = st.checkbox("Show Signal Confluence", value=st.session_state.show_confluence)
         st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
+        st.session_state.show_patterns = st.checkbox("Show Pattern Recognition", value=st.session_state.show_patterns)
         st.session_state.show_technical_analysis = st.checkbox("Show Technical Analysis", value=st.session_state.show_technical_analysis)
         st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         if VOLUME_ANALYSIS_AVAILABLE:
@@ -1499,6 +1510,175 @@ def show_backtest_analysis(analysis_results, show_debug=False):
             """)
 
 
+def show_pattern_recognition(analysis_results, show_debug=False):
+    """
+    Display Pattern Recognition - Chart and Candlestick Patterns
+    Phase 2B implementation.
+    """
+    if not st.session_state.get('show_patterns', True):
+        return
+
+    symbol = analysis_results.get('symbol', 'Unknown')
+    hist_data = analysis_results.get('hist_data', None)
+
+    if hist_data is None or len(hist_data) < 20:
+        return  # Need sufficient data for pattern detection
+
+    with st.expander(f"📐 Pattern Recognition - {symbol}", expanded=True):
+        st.subheader("Chart Patterns & Candlestick Analysis")
+
+        # Info message
+        st.info("""
+        **Phase 2B Pattern Recognition** detects classic chart and candlestick patterns.
+        Patterns provide additional confirmation signals for entries and exits.
+        """)
+
+        try:
+            # Detect chart patterns
+            chart_patterns = detect_all_patterns(hist_data)
+            pattern_score_data = calculate_pattern_score(hist_data)
+
+            # Detect candlestick patterns
+            candlestick_patterns = scan_all_candlestick_patterns(hist_data, lookback=5)
+            candlestick_score_data = calculate_candlestick_score(hist_data)
+
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                chart_score = pattern_score_data.get('score', 50)
+                st.metric("Chart Pattern Score",
+                         f"{chart_score:.1f}/100",
+                         help="0-50 Bearish, 50-100 Bullish")
+
+            with col2:
+                candle_score = candlestick_score_data.get('score', 50)
+                st.metric("Candlestick Score",
+                         f"{candle_score:.1f}/100",
+                         help="Based on recent candlestick patterns")
+
+            with col3:
+                total_chart = chart_patterns.get('total_patterns', 0)
+                total_candle = candlestick_patterns.get('total_patterns', 0)
+                st.metric("Patterns Found",
+                         f"{total_chart + total_candle}",
+                         help=f"{total_chart} chart + {total_candle} candlestick")
+
+            with col4:
+                chart_sentiment = pattern_score_data.get('sentiment', 'neutral')
+                candle_sentiment = candlestick_score_data.get('sentiment', 'neutral')
+                # Combine sentiments
+                if chart_sentiment == candle_sentiment:
+                    combined = chart_sentiment.upper()
+                else:
+                    combined = "MIXED"
+                st.metric("Overall Sentiment",
+                         combined,
+                         help="Combined pattern sentiment")
+
+            # Chart Patterns Section
+            st.subheader("📊 Chart Patterns")
+
+            chart_pattern_list = chart_patterns.get('patterns_found', [])
+
+            if chart_pattern_list:
+                for pattern in chart_pattern_list:
+                    pattern_type = pattern.get('type', 'unknown')
+                    direction = pattern.get('direction', 'neutral')
+                    confidence = pattern.get('confidence', 0)
+                    description = pattern.get('description', 'N/A')
+                    status = pattern.get('status', 'unknown')
+
+                    # Color code by direction
+                    if direction == 'bullish':
+                        st.success(f"**🟢 {pattern_type.replace('_', ' ').title()}** (Confidence: {confidence}%)")
+                    elif direction == 'bearish':
+                        st.error(f"**🔴 {pattern_type.replace('_', ' ').title()}** (Confidence: {confidence}%)")
+                    else:
+                        st.info(f"**⚪ {pattern_type.replace('_', ' ').title()}** (Confidence: {confidence}%)")
+
+                    st.caption(f"Status: {status.upper()} | {description}")
+
+                    # Show pattern details
+                    if show_debug and 'target_price' in pattern:
+                        with st.expander("Pattern Details"):
+                            st.json(pattern)
+
+            else:
+                st.info("No significant chart patterns detected in current period.")
+                st.caption("Chart patterns (H&S, Double Top/Bottom, Triangles) are relatively rare.")
+
+            # Candlestick Patterns Section
+            st.subheader("🕯️ Candlestick Patterns")
+
+            candle_pattern_list = candlestick_patterns.get('patterns_found', [])
+
+            if candle_pattern_list:
+                # Group by date
+                pattern_df_data = []
+
+                for pattern in candle_pattern_list:
+                    pattern_name = pattern.get('name', 'unknown').replace('_', ' ').title()
+                    direction = pattern.get('direction', 'neutral')
+                    strength = pattern.get('strength', 'unknown')
+                    reliability = pattern.get('reliability', 0)
+                    description = pattern.get('description', 'N/A')
+                    date = pattern.get('date', 'N/A')
+
+                    # Direction emoji
+                    if direction == 'bullish':
+                        dir_emoji = "🟢"
+                    elif direction == 'bearish':
+                        dir_emoji = "🔴"
+                    else:
+                        dir_emoji = "⚪"
+
+                    pattern_df_data.append({
+                        'Date': str(date)[:10] if date != 'N/A' else 'N/A',
+                        'Pattern': pattern_name,
+                        'Direction': f"{dir_emoji} {direction.title()}",
+                        'Strength': strength.title(),
+                        'Reliability': f"{reliability}%",
+                        'Description': description
+                    })
+
+                df_patterns = pd.DataFrame(pattern_df_data)
+                st.dataframe(df_patterns, use_container_width=True, hide_index=True)
+
+            else:
+                st.info("No candlestick patterns detected in last 5 candles.")
+                st.caption("Candlestick patterns appear and disappear as new candles form.")
+
+            # Pattern Interpretation Guide
+            with st.container():
+                st.markdown("""
+                **How to Use Pattern Recognition:**
+
+                **Chart Patterns:**
+                - **Head & Shoulders**: Strong reversal signal when completed
+                - **Double Top/Bottom**: Reversal pattern, wait for confirmation
+                - **Triangles**: Continuation patterns, prepare for breakout
+
+                **Candlestick Patterns:**
+                - **Engulfing**: Strong reversal signal
+                - **Hammer/Shooting Star**: Reversal at support/resistance
+                - **Doji**: Indecision, wait for next candle
+                - **Morning/Evening Star**: Powerful 3-candle reversal
+                - **Three Soldiers/Crows**: Strong continuation
+
+                **Best Practices:**
+                - Combine patterns with other analysis (Master Score, Divergence, Confluence)
+                - Higher reliability patterns (>70%) are more trustworthy
+                - Always wait for confirmation before entering trades
+                - Patterns work best at key support/resistance levels
+                """)
+
+        except Exception as e:
+            st.error(f"Error in pattern detection: {str(e)}")
+            if show_debug:
+                st.exception(e)
+
+
 def perform_enhanced_analysis(symbol, period, show_debug=False):
     """
     Perform enhanced analysis - CALCULATION LOGIC UNCHANGED FROM WORKING VERSION
@@ -1811,6 +1991,9 @@ def main():
 
                 # Phase 2A: Backtest Performance
                 show_backtest_analysis(analysis_results, controls['show_debug'])
+
+                # Phase 2B: Pattern Recognition
+                show_pattern_recognition(analysis_results, controls['show_debug'])
 
                 if BALDWIN_INDICATOR_AVAILABLE:
                     show_baldwin_indicator(controls['show_debug'])

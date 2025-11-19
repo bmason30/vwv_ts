@@ -1,16 +1,17 @@
 """
-File: options.py v2.0.0
+File: options.py v2.1.0
 VWV Professional Trading System v4.3.0
 Options analysis module with Black-Scholes pricing and accurate Greeks
 Created: 2025-08-15
 Updated: 2025-11-19
-File Version: v2.0.0 - MAJOR UPGRADE: Implemented Black-Scholes-Merton pricing
+File Version: v2.1.0 - Added strike quality scoring system
 Changes in this version:
-    - Implemented true Black-Scholes-Merton option pricing model
-    - Added accurate Greeks calculations (Delta, Gamma, Theta, Vega, Rho)
-    - Enhanced probability calculations (PoT, PoP) with proper formulas
-    - Added optimal strike calculation for target delta
-    - Added premium pricing for both puts and calls
+    - v2.0.0: Implemented true Black-Scholes-Merton option pricing model
+    - v2.0.0: Added accurate Greeks calculations (Delta, Gamma, Theta, Vega, Rho)
+    - v2.0.0: Enhanced probability calculations (PoT, PoP) with proper formulas
+    - v2.0.0: Added optimal strike calculation for target delta
+    - v2.0.0: Added premium pricing for both puts and calls
+    - v2.1.0: Added strike quality scoring system (0-100 scale)
     - Backward compatible with previous function signatures
 Dependencies: scipy>=1.10.0, numpy>=1.24.0
 System Version: v4.3.0 - Black-Scholes Options Pricing
@@ -314,6 +315,161 @@ def calculate_options_levels_enhanced(
         import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return []
+
+def calculate_strike_quality_score(
+    strike_data: Dict[str, Any],
+    current_price: float,
+    volatility: float,
+    iv_rank: float = 50.0
+) -> Dict[str, Any]:
+    """
+    Calculate quality score for an options strike (0-100 scale)
+
+    VERSION 2.1.0 - Advanced strike quality analysis
+
+    Scoring factors:
+    - Premium quality (30%): Based on IV rank and premium size
+    - Probability of profit (25%): Higher PoP = better score
+    - Greeks efficiency (20%): Theta/Delta ratio for income vs risk
+    - Strike position (15%): Optimal distance from current price
+    - Volatility advantage (10%): Higher IV = better for sellers
+
+    Parameters:
+    -----------
+    strike_data : dict - Strike information with Greeks and probabilities
+    current_price : float - Current stock price
+    volatility : float - Current volatility percentage
+    iv_rank : float - Implied volatility rank (0-100, default 50)
+
+    Returns:
+    --------
+    dict: {
+        'total_score': int (0-100),
+        'rating': str ('Poor', 'Fair', 'Good', 'Excellent'),
+        'stars': int (1-5),
+        'component_scores': dict,
+        'recommendation': str
+    }
+    """
+    try:
+        def safe_float_extract(value, default=0.0):
+            """Extract float from various formats"""
+            if isinstance(value, (int, float)):
+                return float(value)
+            if isinstance(value, str):
+                import re
+                cleaned = re.sub(r'[^\d.-]', '', value)
+                try:
+                    return float(cleaned) if cleaned else default
+                except:
+                    return default
+            return default
+
+        scores = {}
+
+        # 1. Premium Quality (0-30 points) - Based on IV rank
+        premium_score = (iv_rank / 100.0) * 30
+        scores['premium_quality'] = round(premium_score, 2)
+
+        # 2. Probability of Profit (0-25 points)
+        pop_str = strike_data.get('PoP', strike_data.get('Put PoP', strike_data.get('Call PoP', '0%')))
+        pop = safe_float_extract(pop_str)
+        pop_score = (pop / 100.0) * 25
+        scores['probability'] = round(pop_score, 2)
+
+        # 3. Greeks Efficiency (0-20 points) - Theta/Delta ratio
+        try:
+            theta_str = strike_data.get('Theta', strike_data.get('Put Theta', strike_data.get('Call Theta', '$0')))
+            delta_str = strike_data.get('Delta', strike_data.get('Put Delta', strike_data.get('Call Delta', '0')))
+
+            theta = abs(safe_float_extract(theta_str))
+            delta = abs(safe_float_extract(delta_str))
+
+            if delta > 0.01:  # Avoid division by very small numbers
+                efficiency = min(theta / delta, 2.0)  # Cap at 2.0
+                efficiency_score = (efficiency / 2.0) * 20
+            else:
+                efficiency_score = 10  # Default mid-score
+        except:
+            efficiency_score = 10
+
+        scores['greeks_efficiency'] = round(efficiency_score, 2)
+
+        # 4. Strike Position (0-15 points) - Not too far OTM
+        strike_price = safe_float_extract(strike_data.get('Strike', strike_data.get('Put Strike', strike_data.get('Call Strike', current_price))))
+        distance_pct = abs(strike_price - current_price) / current_price
+
+        # Optimal distance: 8-15% OTM = full points
+        if 0.08 <= distance_pct <= 0.15:
+            position_score = 15
+        elif distance_pct < 0.08:
+            position_score = 15 * (distance_pct / 0.08)
+        else:  # > 0.15
+            position_score = max(0, 15 * (1 - (distance_pct - 0.15) / 0.10))
+
+        scores['strike_position'] = round(position_score, 2)
+
+        # 5. Volatility Advantage (0-10 points)
+        if iv_rank >= 70:
+            vol_score = 10
+        elif iv_rank >= 50:
+            vol_score = 7
+        elif iv_rank >= 30:
+            vol_score = 4
+        else:
+            vol_score = 2
+
+        scores['volatility_advantage'] = round(vol_score, 2)
+
+        # Calculate total
+        total_score = int(sum(scores.values()))
+
+        # Rating and stars
+        if total_score >= 80:
+            rating = "Excellent"
+            stars = 5
+        elif total_score >= 65:
+            rating = "Good"
+            stars = 4
+        elif total_score >= 50:
+            rating = "Fair"
+            stars = 3
+        elif total_score >= 35:
+            rating = "Below Average"
+            stars = 2
+        else:
+            rating = "Poor"
+            stars = 1
+
+        # Generate recommendation
+        if total_score >= 80 and pop >= 70:
+            recommendation = "⭐ STRONG SELL - Excellent risk/reward with high probability"
+        elif total_score >= 65 and pop >= 60:
+            recommendation = "✅ GOOD SELL - Solid premium with favorable odds"
+        elif total_score >= 50:
+            recommendation = "⚠️ CONSIDER - Acceptable but not optimal"
+        elif total_score >= 35:
+            recommendation = "❌ CAUTION - Marginal risk/reward profile"
+        else:
+            recommendation = "🚫 AVOID - Poor probability or premium quality"
+
+        return {
+            'total_score': total_score,
+            'rating': rating,
+            'stars': stars,
+            'component_scores': scores,
+            'recommendation': recommendation
+        }
+
+    except Exception as e:
+        logger.error(f"Strike quality score calculation error: {e}")
+        return {
+            'total_score': 50,
+            'rating': 'Unknown',
+            'stars': 3,
+            'component_scores': {},
+            'recommendation': '⚠️ Unable to calculate quality score'
+        }
 
 def calculate_confidence_intervals(*args, **kwargs) -> Optional[Dict[str, Any]]:
     """

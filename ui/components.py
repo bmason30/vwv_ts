@@ -1,18 +1,20 @@
 """
-File: ui/components.py v1.2.0
-VWV Professional Trading System v4.2.2
+File: ui/components.py v1.3.0
+VWV Professional Trading System v4.3.0
 UI Components Module - Professional score bars and headers
 Created: 2025-10-02
 Updated: 2025-11-19
-File Version: v1.2.0 - Added interactive options chart controls
+File Version: v1.3.0 - Added strike quality analysis display
 Changes in this version:
-    - Added create_options_chart_controls() for interactive filtering
-    - Added display functions for enhanced options analysis
-System Version: v4.2.2 - Advanced Options with Fibonacci Integration
+    - v1.2.0: Added create_options_chart_controls() for interactive filtering
+    - v1.2.0: Added display functions for enhanced options analysis
+    - v1.3.0: Added display_strike_quality_table() for quality scoring
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 
 import streamlit as st
-from typing import Dict, Any
+import pandas as pd
+from typing import Dict, Any, List
 
 def create_technical_score_bar(composite_score: float, score_details: Dict[str, Any] = None) -> str:
     """
@@ -347,3 +349,126 @@ def create_options_chart_controls() -> Dict[str, Any]:
         'show_annotations': show_annotations,
         'selected_dtes': selected_dtes if selected_dtes else [7, 14, 30, 45, 60]
     }
+
+def display_strike_quality_table(options_data: List[Dict], current_price: float, volatility: float):
+    """
+    Display comprehensive strike quality analysis with scores and recommendations
+
+    VERSION 1.3.0 - Advanced strike quality scoring display
+
+    Parameters:
+    -----------
+    options_data : list - Options data with strikes and Greeks
+    current_price : float - Current stock price
+    volatility : float - Current volatility (for IV rank estimation)
+    """
+
+    from analysis.options import calculate_strike_quality_score
+
+    st.subheader("⭐ Strike Quality Analysis")
+    st.write("**Comprehensive scoring based on premium, probability, Greeks, and position**")
+
+    # Prepare data for display
+    analysis_data = []
+
+    for opt in options_data:
+        dte = opt['DTE']
+
+        # Analyze put
+        put_data = {
+            'Strike': opt['Put Strike'],
+            'PoP': opt.get('Put PoP', '0%'),
+            'Delta': opt.get('Put Delta', '0'),
+            'Theta': opt.get('Put Theta', '$0'),
+            'Premium': opt.get('Put Premium', '$0')
+        }
+        put_score = calculate_strike_quality_score(put_data, current_price, volatility)
+
+        # Analyze call
+        call_data = {
+            'Strike': opt['Call Strike'],
+            'PoP': opt.get('Call PoP', '0%'),
+            'Delta': opt.get('Call Delta', '0'),
+            'Theta': opt.get('Call Theta', '$0'),
+            'Premium': opt.get('Call Premium', '$0')
+        }
+        call_score = calculate_strike_quality_score(call_data, current_price, volatility)
+
+        # Put row
+        analysis_data.append({
+            'Type': '🔻 PUT',
+            'DTE': dte,
+            'Strike': f"${opt['Put Strike']:.2f}",
+            'Premium': opt.get('Put Premium', 'N/A'),
+            'PoP': opt.get('Put PoP', 'N/A'),
+            'Score': put_score['total_score'],
+            'Rating': put_score['rating'],
+            'Stars': '⭐' * put_score['stars'],
+            'Recommendation': put_score['recommendation']
+        })
+
+        # Call row
+        analysis_data.append({
+            'Type': '🔺 CALL',
+            'DTE': dte,
+            'Strike': f"${opt['Call Strike']:.2f}",
+            'Premium': opt.get('Call Premium', 'N/A'),
+            'PoP': opt.get('Call PoP', 'N/A'),
+            'Score': call_score['total_score'],
+            'Rating': call_score['rating'],
+            'Stars': '⭐' * call_score['stars'],
+            'Recommendation': call_score['recommendation']
+        })
+
+    # Convert to DataFrame and sort by score
+    df_analysis = pd.DataFrame(analysis_data)
+    df_analysis = df_analysis.sort_values('Score', ascending=False)
+
+    # Style the DataFrame
+    def highlight_score(val):
+        """Apply color coding based on score column"""
+        if val >= 80:
+            return 'background-color: rgba(52, 199, 89, 0.2)'
+        elif val >= 65:
+            return 'background-color: rgba(52, 199, 150, 0.15)'
+        elif val >= 50:
+            return 'background-color: rgba(255, 204, 0, 0.1)'
+        else:
+            return 'background-color: rgba(255, 59, 48, 0.1)'
+
+    # Display with styling
+    styled_df = df_analysis.style.applymap(highlight_score, subset=['Score'])
+
+    st.dataframe(
+        styled_df,
+        use_container_width=True,
+        hide_index=True,
+        height=400
+    )
+
+    # Top recommendations
+    st.markdown("---")
+    st.subheader("🎯 Top 3 Recommendations")
+    top_3 = df_analysis.head(3)
+
+    for idx, row in top_3.iterrows():
+        col1, col2, col3 = st.columns([2, 1, 3])
+
+        with col1:
+            st.metric(f"{row['Type']} - {row['DTE']}D", row['Strike'])
+
+        with col2:
+            st.write(f"**{row['Stars']}**")
+            st.write(f"Score: {row['Score']}/100")
+
+        with col3:
+            # Color the recommendation based on score
+            score = row['Score']
+            if score >= 80:
+                st.success(row['Recommendation'])
+            elif score >= 65:
+                st.info(row['Recommendation'])
+            elif score >= 50:
+                st.warning(row['Recommendation'])
+            else:
+                st.error(row['Recommendation'])

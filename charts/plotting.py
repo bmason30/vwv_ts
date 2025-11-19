@@ -1,16 +1,18 @@
 """
-File: plotting.py v1.3.0
-VWV Professional Trading System v4.2.2
+File: plotting.py v1.4.0
+VWV Professional Trading System v4.3.0
 Advanced charting functionality with type-safe data handling
 Created: 2025-08-15
 Updated: 2025-11-19
-File Version: v1.3.0 - Enhanced options visualization with improved colors, expected move, and interactivity
+File Version: v1.4.0 - Added risk/reward scatter plot and Phase 3 enhancements
 Changes in this version:
-    - Improved color scheme with clear put/call differentiation
-    - Added expected move zone visualization
-    - Enhanced annotations with Greeks and probabilities
-    - Added interactive filtering parameters
-System Version: v4.2.2 - Advanced Options with Fibonacci Integration
+    - v1.3.0: Improved color scheme with clear put/call differentiation
+    - v1.3.0: Added expected move zone visualization
+    - v1.3.0: Enhanced annotations with Greeks and probabilities
+    - v1.3.0: Added interactive filtering parameters
+    - v1.4.0: Added risk/reward scatter plot visualization
+    - v1.4.0: Added "sweet spot" analysis zone
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 import plotly.graph_objects as go
 import plotly.express as px
@@ -553,9 +555,158 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         )
         
         return fig
-        
+
     except Exception as e:
         logger.error(f"Technical score chart error: {e}")
+        return None
+
+def create_risk_reward_scatter(options_data: list, current_price: float) -> go.Figure:
+    """
+    Create interactive scatter plot showing risk/reward profile of all strikes
+
+    VERSION 1.4.0 - Advanced risk/reward visualization
+
+    X-axis: Probability of Profit (PoP)
+    Y-axis: Premium collected
+    Size: Days to expiration (larger = longer DTE)
+    Color: Put (red) vs Call (green)
+
+    Parameters:
+    -----------
+    options_data : list - Options data with strikes, premiums, and probabilities
+    current_price : float - Current stock price
+
+    Returns:
+    --------
+    Plotly Figure object
+    """
+    try:
+        fig = go.Figure()
+
+        # Prepare data
+        puts_data = []
+        calls_data = []
+
+        for opt in options_data:
+            # Put data
+            try:
+                put_pop_str = opt.get('Put PoP', '0%')
+                put_premium_str = opt.get('Put Premium', '$0')
+                put_dte = opt['DTE']
+                put_strike = opt['Put Strike']
+
+                put_pop = float(safe_extract_number(put_pop_str, 0))
+                put_premium = float(safe_extract_number(put_premium_str, 0))
+
+                puts_data.append({
+                    'pop': put_pop,
+                    'premium': put_premium,
+                    'dte': put_dte,
+                    'strike': put_strike,
+                    'label': f"Put ${put_strike:.2f} - {put_dte}D"
+                })
+            except:
+                pass
+
+            # Call data
+            try:
+                call_pop_str = opt.get('Call PoP', '0%')
+                call_premium_str = opt.get('Call Premium', '$0')
+                call_dte = opt['DTE']
+                call_strike = opt['Call Strike']
+
+                call_pop = float(safe_extract_number(call_pop_str, 0))
+                call_premium = float(safe_extract_number(call_premium_str, 0))
+
+                calls_data.append({
+                    'pop': call_pop,
+                    'premium': call_premium,
+                    'dte': call_dte,
+                    'strike': call_strike,
+                    'label': f"Call ${call_strike:.2f} - {call_dte}D"
+                })
+            except:
+                pass
+
+        # Plot puts
+        if puts_data:
+            fig.add_trace(go.Scatter(
+                x=[p['pop'] for p in puts_data],
+                y=[p['premium'] for p in puts_data],
+                mode='markers',
+                name='Put Strikes',
+                marker=dict(
+                    size=[p['dte'] * 0.7 for p in puts_data],  # Scale bubble size
+                    sizemode='diameter',
+                    sizemin=8,
+                    color='rgba(255, 59, 48, 0.7)',
+                    line=dict(width=2, color='white')
+                ),
+                text=[p['label'] for p in puts_data],
+                hovertemplate='<b>%{text}</b><br>PoP: %{x:.1f}%<br>Premium: $%{y:.2f}<extra></extra>'
+            ))
+
+        # Plot calls
+        if calls_data:
+            fig.add_trace(go.Scatter(
+                x=[c['pop'] for c in calls_data],
+                y=[c['premium'] for c in calls_data],
+                mode='markers',
+                name='Call Strikes',
+                marker=dict(
+                    size=[c['dte'] * 0.7 for c in calls_data],  # Scale bubble size
+                    sizemode='diameter',
+                    sizemin=8,
+                    color='rgba(52, 199, 89, 0.7)',
+                    line=dict(width=2, color='white')
+                ),
+                text=[c['label'] for c in calls_data],
+                hovertemplate='<b>%{text}</b><br>PoP: %{x:.1f}%<br>Premium: $%{y:.2f}<extra></extra>'
+            ))
+
+        # Add "sweet spot" annotation
+        all_premiums = [p['premium'] for p in puts_data + calls_data]
+        if all_premiums:
+            max_premium = max(all_premiums)
+
+            # Sweet spot zone (PoP > 65%, good premium)
+            fig.add_shape(
+                type="rect",
+                x0=65, x1=95,
+                y0=0, y1=max_premium * 1.1,
+                fillcolor="rgba(52, 199, 89, 0.1)",
+                line=dict(width=0),
+                layer="below"
+            )
+
+            fig.add_annotation(
+                x=80, y=max_premium * 1.05,
+                text="Sweet Spot<br>(High PoP + Good Premium)",
+                showarrow=False,
+                font=dict(size=10, color="green", family="Arial Black"),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="green",
+                borderwidth=1
+            )
+
+        fig.update_layout(
+            title="Risk/Reward Analysis - Strike Selection",
+            xaxis_title="Probability of Profit (%)",
+            yaxis_title="Premium Collected ($)",
+            height=500,
+            hovermode='closest',
+            template='plotly_white',
+            showlegend=True,
+            xaxis=dict(range=[0, 100]),
+            yaxis=dict(range=[0, max(all_premiums) * 1.15 if all_premiums else 10])
+        )
+
+        return fig
+
+    except Exception as e:
+        logger.error(f"Risk/reward scatter plot error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any]):

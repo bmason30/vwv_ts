@@ -1,10 +1,13 @@
 """
-File: ui/components.py v1.0.1
+File: ui/components.py v1.2.0
 VWV Professional Trading System v4.2.2
 UI Components Module - Professional score bars and headers
 Created: 2025-10-02
-Updated: 2025-10-03
-File Version: v1.0.1 - Removed raw dictionary dump from technical score display
+Updated: 2025-11-19
+File Version: v1.2.0 - Added interactive options chart controls
+Changes in this version:
+    - Added create_options_chart_controls() for interactive filtering
+    - Added display functions for enhanced options analysis
 System Version: v4.2.2 - Advanced Options with Fibonacci Integration
 """
 
@@ -297,3 +300,50 @@ def create_header() -> None:
         </div>
         <hr style='border: 1px solid #333; margin: 20px 0;'>
     """, unsafe_allow_html=True)
+
+def create_options_chart_controls() -> Dict[str, Any]:
+    """
+    Create interactive controls for options chart filtering
+
+    VERSION 1.2.0 - New function for enhanced options visualization
+
+    Returns:
+        dict: User selections for chart customization including:
+            - show_puts: bool
+            - show_calls: bool
+            - show_expected_move: bool
+            - show_annotations: bool
+            - selected_dtes: list
+    """
+    st.subheader("📊 Chart Display Options")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        show_puts = st.checkbox("Show Put Strikes", value=True, key="opt_show_puts",
+                               help="Display put option strike levels (red lines)")
+        show_calls = st.checkbox("Show Call Strikes", value=True, key="opt_show_calls",
+                                help="Display call option strike levels (green lines)")
+
+    with col2:
+        show_expected_move = st.checkbox("Show Expected Move Zone", value=True, key="opt_expected_move",
+                                        help="Display ±1 standard deviation price range (blue shaded area)")
+        show_annotations = st.checkbox("Show Strike Details", value=True, key="opt_annotations",
+                                      help="Show detailed Greeks and probabilities for each strike")
+
+    with col3:
+        selected_dtes = st.multiselect(
+            "Select DTEs (Days to Expiration)",
+            options=[7, 14, 30, 45, 60],
+            default=[7, 14, 30, 45],
+            key="opt_selected_dtes",
+            help="Filter which expiration dates to display"
+        )
+
+    return {
+        'show_puts': show_puts,
+        'show_calls': show_calls,
+        'show_expected_move': show_expected_move,
+        'show_annotations': show_annotations,
+        'selected_dtes': selected_dtes if selected_dtes else [7, 14, 30, 45, 60]
+    }

@@ -185,6 +185,103 @@ def create_fundamental_score_bar(composite_score: float, score_details: Dict[str
 
     return html
 
+def create_master_score_bar(composite_score: float, interpretation: str = None, signal_strength: str = None) -> str:
+    """
+    Create professional HTML score bar for master score (unified analysis)
+
+    Args:
+        composite_score: Overall master score (0-100)
+        interpretation: Score interpretation text
+        signal_strength: Signal strength description
+
+    Returns:
+        HTML string for the score bar
+    """
+    # Determine color and label based on score
+    if composite_score >= 70:
+        color = "#4CAF50"  # Green
+        label = "Strong Bullish"
+    elif composite_score >= 60:
+        color = "#8BC34A"  # Light Green
+        label = "Bullish"
+    elif composite_score >= 50:
+        color = "#FFC107"  # Yellow/Amber
+        label = "Neutral"
+    elif composite_score >= 40:
+        color = "#FF9800"  # Orange
+        label = "Bearish"
+    else:
+        color = "#F44336"  # Red
+        label = "Strong Bearish"
+
+    # Use interpretation if provided, otherwise use label
+    display_label = interpretation if interpretation else label
+
+    # Create clean, professional HTML score bar matching technical/fundamental style
+    html = f"""
+    <style>
+        .master-score-container {{
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }}
+        .master-score-header {{
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            text-align: center;
+        }}
+        .master-score-bar-background {{
+            background: #2a2a3e;
+            border-radius: 8px;
+            height: 40px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+        }}
+        .master-score-bar-fill {{
+            background: linear-gradient(90deg, {color} 0%, {color}dd 100%);
+            height: 100%;
+            width: {composite_score}%;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: width 0.3s ease;
+            position: relative;
+        }}
+        .master-score-text {{
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+        }}
+        .master-score-label {{
+            color: #cccccc;
+            font-size: 14px;
+            text-align: center;
+            margin-top: 10px;
+        }}
+    </style>
+    <div class="master-score-container">
+        <div class="master-score-header">Unified Master Score</div>
+        <div class="master-score-bar-background">
+            <div class="master-score-bar-fill">
+                <span class="master-score-text">{composite_score:.1f}</span>
+            </div>
+        </div>
+        <div class="master-score-label">{display_label}</div>
+    </div>
+    """
+
+    return html
+
 def create_header() -> None:
     """
     Create professional header for the trading system

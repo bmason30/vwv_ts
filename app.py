@@ -90,7 +90,7 @@ except ImportError:
     calculate_baldwin_indicator_complete = None
     format_baldwin_for_display = None
 
-from ui.components import create_technical_score_bar, create_fundamental_score_bar, create_header
+from ui.components import create_technical_score_bar, create_fundamental_score_bar, create_master_score_bar, create_header
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
@@ -934,31 +934,14 @@ def show_master_score(analysis_results, show_debug=False):
         return
 
     with st.expander(f"🎯 Master Score - {symbol}", expanded=True):
-        st.subheader("Unified Analysis Score (0-100)")
-
         # Main score display
         master_score = master_score_data.get('master_score', 0)
         interpretation = master_score_data.get('interpretation', 'Unknown')
         signal_strength = master_score_data.get('signal_strength', 'Unknown')
 
-        # Color-coded score bar similar to technical and fundamental scores
-        from ui.components import create_technical_score_bar
-
-        # Create score bar HTML (reuse technical score bar with custom text)
-        score_html = f"""
-        <div style="padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 10px; margin: 10px 0;">
-            <div style="text-align: center; color: white;">
-                <h2 style="margin: 0; font-size: 3em; font-weight: bold;">{master_score:.1f}/100</h2>
-                <p style="margin: 5px 0; font-size: 1.2em;">{interpretation}</p>
-                <p style="margin: 5px 0; font-size: 1em;">Signal Strength: {signal_strength}</p>
-            </div>
-            <div style="background: rgba(255,255,255,0.2); height: 20px; border-radius: 10px; margin-top: 15px;">
-                <div style="background: white; height: 100%; width: {master_score}%; border-radius: 10px;"></div>
-            </div>
-        </div>
-        """
-        st.components.v1.html(score_html, height=180)
+        # Create professional score bar matching technical/fundamental style
+        score_bar_html = create_master_score_bar(master_score, interpretation, signal_strength)
+        st.components.v1.html(score_bar_html, height=160)
 
         # Component breakdown
         st.subheader("Component Scores")

@@ -864,17 +864,64 @@ def show_baldwin_indicator(show_debug=False):
                 st.code(traceback.format_exc())
 
 def show_options_analysis(analysis_results, show_debug=False):
-    """Display options analysis section - PRIORITY 8"""
+    """Display enhanced options analysis section with Black-Scholes pricing - PRIORITY 8"""
     if not st.session_state.show_options_analysis:
         return
-        
-    with st.expander("🎯 Options Analysis - Strike Levels with Greeks", expanded=True):
+
+    with st.expander("🎯 Options Analysis - Black-Scholes Pricing & Strike Quality", expanded=True):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         options_levels = enhanced_indicators.get('options_levels', [])
-        
+        current_price = analysis_results.get('current_price', 0)
+        volatility = enhanced_indicators.get('comprehensive_technicals', {}).get('volatility', 25)
+
         if options_levels:
+            # Display main options table
+            st.subheader("📊 Options Levels with Black-Scholes Pricing")
             df_options = pd.DataFrame(options_levels)
             st.dataframe(df_options, use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+
+            # Add strike quality analysis (Phase 3 enhancement)
+            try:
+                from ui.components import display_strike_quality_table
+                display_strike_quality_table(options_levels, current_price, volatility)
+            except Exception as e:
+                st.error(f"Strike quality analysis error: {str(e)}")
+                if show_debug:
+                    import traceback
+                    st.error(traceback.format_exc())
+
+            st.markdown("---")
+
+            # Add risk/reward scatter plot (Phase 3 enhancement)
+            try:
+                from charts.plotting import create_risk_reward_scatter
+                st.subheader("📊 Risk/Reward Visualization")
+
+                risk_reward_chart = create_risk_reward_scatter(options_levels, current_price)
+                if risk_reward_chart:
+                    st.plotly_chart(risk_reward_chart, use_container_width=True)
+
+                    with st.expander("📖 How to Read This Chart"):
+                        st.write("""
+                        **Ideal strikes are in the upper right:**
+                        - **High PoP (right)**: Greater probability of profit
+                        - **High Premium (top)**: Better income potential
+                        - **Larger bubbles**: Longer time to expiration (more premium, more time risk)
+                        - **Green zone**: "Sweet spot" strikes with optimal risk/reward (PoP > 65%)
+
+                        **Strategy:**
+                        - Target strikes with PoP > 70% for conservative approach
+                        - Balance premium vs. probability based on risk tolerance
+                        - Longer DTE (bigger bubbles) = more premium but more time risk
+                        - Strikes in green zone offer best risk/reward balance
+                        """)
+            except Exception as e:
+                st.error(f"Risk/reward chart error: {str(e)}")
+                if show_debug:
+                    import traceback
+                    st.error(traceback.format_exc())
         else:
             st.warning("⚠️ Options analysis not available - insufficient data")
 

@@ -1,6 +1,13 @@
 """
+File: options_advanced.py v2.0.0
 Advanced Options Analysis with Sigma Levels & Fibonacci Integration
 Multi-factor weighting system with risk level classifications
+Updated: 2025-11-19
+File Version: v2.0.0 - Integrated accurate Black-Scholes calculations
+Changes in this version:
+    - Updated PoT calculations to use accurate Black-Scholes formulas
+    - Integrated with enhanced options.py v2.0.0
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 import pandas as pd
 import numpy as np
@@ -285,21 +292,28 @@ def calculate_sigma_levels_with_weighting(
                 base_price * volume_weight * 1.05  # Slight premium for volume
             ) * volume_adjustment
             
-            # Calculate Probability of Touch (simplified)
+            # Calculate Probability of Touch using accurate Black-Scholes formula
+            # Import from enhanced options module (v2.0.0)
+            from analysis.options import calculate_probability_of_touch
+
             target_pot = risk_config['target_pot']
-            strike_distance_put = abs(base_price - weighted_put_strike) / base_price
-            strike_distance_call = abs(weighted_call_strike - base_price) / base_price
-            
-            # Simplified PoT calculation (to be validated via backtesting)
-            pot_put = min(target_pot * 1.2, strike_distance_put * 2 * 100)
-            pot_call = min(target_pot * 1.2, strike_distance_call * 2 * 100)
+
+            # Use accurate PoT calculation
+            pot_put = calculate_probability_of_touch(
+                base_price, weighted_put_strike, dte / 365.0,
+                volume_adjusted_sigma / base_price  # Convert to volatility decimal
+            )
+            pot_call = calculate_probability_of_touch(
+                base_price, weighted_call_strike, dte / 365.0,
+                volume_adjusted_sigma / base_price  # Convert to volatility decimal
+            )
             
             sigma_levels[f'dte_{dte}'] = {
                 'dte': dte,
                 'put_strike': round(weighted_put_strike, 2),
                 'call_strike': round(weighted_call_strike, 2),
-                'put_pot': round(pot_put * 100, 1),  # Convert to percentage
-                'call_pot': round(pot_call * 100, 1),
+                'put_pot': round(pot_put, 1),  # Already in percentage from calculate_probability_of_touch
+                'call_pot': round(pot_call, 1),  # Already in percentage from calculate_probability_of_touch
                 'time_factor': round(time_factor, 3),
                 'fibonacci_weight': fib_weight,
                 'volatility_weight': vol_weight,

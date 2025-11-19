@@ -1,11 +1,18 @@
 """
-File: plotting.py v1.0.3
-VWV Professional Trading System v4.2.2
+File: plotting.py v1.4.0
+VWV Professional Trading System v4.3.0
 Advanced charting functionality with type-safe data handling
 Created: 2025-08-15
-Updated: 2025-10-07
-File Version: v1.0.3 - Added type-safe number extraction for options charts
-System Version: v4.2.2 - Advanced Options with Fibonacci Integration
+Updated: 2025-11-19
+File Version: v1.4.0 - Added risk/reward scatter plot and Phase 3 enhancements
+Changes in this version:
+    - v1.3.0: Improved color scheme with clear put/call differentiation
+    - v1.3.0: Added expected move zone visualization
+    - v1.3.0: Enhanced annotations with Greeks and probabilities
+    - v1.3.0: Added interactive filtering parameters
+    - v1.4.0: Added risk/reward scatter plot visualization
+    - v1.4.0: Added "sweet spot" analysis zone
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 import plotly.graph_objects as go
 import plotly.express as px
@@ -303,30 +310,110 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
         st.error(f"Failed to create chart: {str(e)}")
         return None
 
-def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, Any]) -> Optional[go.Figure]:
+def create_options_levels_chart(
+    data: pd.DataFrame,
+    analysis_results: Dict[str, Any],
+    show_puts: bool = True,
+    show_calls: bool = True,
+    show_expected_move: bool = True,
+    selected_dtes: list = None,
+    show_annotations: bool = True
+) -> Optional[go.Figure]:
     """
-    Create options levels overlay chart with TYPE-SAFE number extraction
-    
-    CRITICAL FIX: Handles both numeric and formatted string values to prevent
-    "unsupported operand type(s) for +: 'int' and 'str'" errors
-    
+    Create enhanced options levels overlay chart with improved visuals
+
+    VERSION 1.3.0 ENHANCEMENTS:
+    - Clear color differentiation (red gradient for puts, green gradient for calls)
+    - Expected move zone visualization (±1 standard deviation)
+    - Enhanced annotations with Greeks and probabilities
+    - Interactive filtering for puts/calls/DTEs
+
     Args:
         data: OHLC price data with DatetimeIndex
         analysis_results: Dictionary containing analysis results
-        
+        show_puts: Show put strike levels
+        show_calls: Show call strike levels
+        show_expected_move: Show expected move zone
+        selected_dtes: List of DTEs to display (None = all)
+        show_annotations: Show detailed annotations
+
     Returns:
         Plotly Figure object or None if creation fails
     """
     try:
         current_price = safe_extract_number(analysis_results.get('current_price', 0))
         options_levels = analysis_results.get('enhanced_indicators', {}).get('options_levels', [])
-        
+        volatility = safe_extract_number(analysis_results.get('enhanced_indicators', {}).get('comprehensive_technicals', {}).get('volatility', 25), 25)
+
         if not options_levels or current_price == 0:
             logger.warning("No options levels data available")
             return None
-            
+
         fig = go.Figure()
-        
+
+        # Enhanced color schemes
+        PUT_COLORS = {
+            7: 'rgba(255, 59, 48, 0.8)',    # Bright red - nearest expiration
+            14: 'rgba(255, 99, 71, 0.7)',   # Tomato red
+            30: 'rgba(255, 140, 105, 0.6)', # Lighter red
+            45: 'rgba(255, 160, 122, 0.5)', # Lightest red
+            60: 'rgba(255, 182, 142, 0.4)'  # Very light red
+        }
+
+        CALL_COLORS = {
+            7: 'rgba(52, 199, 89, 0.8)',    # Bright green - nearest expiration
+            14: 'rgba(52, 199, 120, 0.7)',  # Medium green
+            30: 'rgba(52, 199, 150, 0.6)',  # Lighter green
+            45: 'rgba(52, 199, 180, 0.5)',  # Lightest green
+            60: 'rgba(52, 199, 200, 0.4)'   # Very light green
+        }
+
+        # Line width based on DTE (nearer = thicker)
+        line_width_map = {7: 3, 14: 2.5, 30: 2, 45: 1.8, 60: 1.5}
+
+        # Add expected move zone if requested
+        if show_expected_move and len(options_levels) > 0:
+            # Get minimum DTE for expected move calculation
+            min_dte = min([safe_extract_number(level.get('DTE', 30), 30) for level in options_levels])
+
+            # Calculate expected move (±1 standard deviation)
+            vol_annual = volatility / 100.0
+            import math
+            expected_move_upper = current_price * (1 + vol_annual * math.sqrt(min_dte / 365.0))
+            expected_move_lower = current_price * (1 - vol_annual * math.sqrt(min_dte / 365.0))
+
+            # Add shaded expected move zone
+            fig.add_shape(
+                type="rect",
+                x0=data.index[0],
+                x1=data.index[-1],
+                y0=expected_move_lower,
+                y1=expected_move_upper,
+                fillcolor="rgba(100, 150, 255, 0.1)",
+                line=dict(width=1, color="rgba(100, 150, 255, 0.3)", dash="dot"),
+                layer="below",
+                name="Expected Move Zone"
+            )
+
+            # Add expected move annotations
+            if show_annotations:
+                fig.add_annotation(
+                    x=data.index[len(data)//2],
+                    y=expected_move_upper,
+                    text=f"Expected Move +1σ (${expected_move_upper:.2f})",
+                    showarrow=False,
+                    font=dict(size=9, color="blue"),
+                    yshift=10
+                )
+                fig.add_annotation(
+                    x=data.index[len(data)//2],
+                    y=expected_move_lower,
+                    text=f"Expected Move -1σ (${expected_move_lower:.2f})",
+                    showarrow=False,
+                    font=dict(size=9, color="blue"),
+                    yshift=-10
+                )
+
         # Price line
         fig.add_trace(
             go.Scatter(
@@ -334,66 +421,92 @@ def create_options_levels_chart(data: pd.DataFrame, analysis_results: Dict[str, 
                 y=data['Close'],
                 mode='lines',
                 name='Price',
-                line=dict(color='black', width=2)
+                line=dict(color='rgba(0, 0, 0, 0.7)', width=2.5)
             )
         )
-        
-        # Add option strike levels with type-safe extraction
-        colors = ['red', 'orange', 'yellow', 'lightblue']
-        
-        for i, level in enumerate(options_levels[:4]):  # Show first 4 DTEs
-            # CRITICAL: Use safe_extract_number for all numeric values
+
+        # Filter DTEs if specified
+        if selected_dtes:
+            options_levels = [level for level in options_levels
+                            if int(safe_extract_number(level.get('DTE', 0), 0)) in selected_dtes]
+
+        # Add option strike levels with enhanced visualization
+        for level in options_levels:
             dte = int(safe_extract_number(level.get('DTE', 0), 0))
             put_strike = safe_extract_number(level.get('Put Strike', 0), 0)
             call_strike = safe_extract_number(level.get('Call Strike', 0), 0)
-            
-            if dte == 0 or put_strike == 0 or call_strike == 0:
-                logger.warning(f"Skipping invalid options level {i}: DTE={dte}, Put={put_strike}, Call={call_strike}")
+
+            if dte == 0 or (put_strike == 0 and call_strike == 0):
                 continue
-            
-            color = colors[i % len(colors)]
-            
+
+            # Get colors and line width for this DTE
+            put_color = PUT_COLORS.get(dte, 'rgba(255, 100, 100, 0.5)')
+            call_color = CALL_COLORS.get(dte, 'rgba(100, 200, 100, 0.5)')
+            line_width = line_width_map.get(dte, 2.0)
+
             # Put strike line
-            fig.add_hline(
-                y=put_strike,
-                line_dash="dash",
-                line_color=color,
-                opacity=0.7,
-                annotation_text=f"{dte}D Put: ${put_strike:.2f}",
-                annotation_position="left"
-            )
-            
-            # Call strike line  
-            fig.add_hline(
-                y=call_strike,
-                line_dash="dash", 
-                line_color=color,
-                opacity=0.7,
-                annotation_text=f"{dte}D Call: ${call_strike:.2f}",
-                annotation_position="right"
-            )
-        
+            if show_puts and put_strike > 0:
+                # Extract Greeks for annotation
+                put_delta = level.get('Put Delta', 'N/A')
+                put_theta = level.get('Put Theta', 'N/A')
+                put_pot = level.get('Put PoT', 'N/A')
+
+                fig.add_hline(
+                    y=put_strike,
+                    line_dash="solid",
+                    line_color=put_color,
+                    line_width=line_width,
+                    annotation_text=(f"<b>{dte}D Put</b><br>${put_strike:.2f}<br>Δ:{put_delta} θ:{put_theta}<br>PoT:{put_pot}"
+                                   if show_annotations else f"{dte}D Put: ${put_strike:.2f}"),
+                    annotation_position="left",
+                    annotation_font=dict(size=9, color=put_color.replace('0.', '1.'))
+                )
+
+            # Call strike line
+            if show_calls and call_strike > 0:
+                # Extract Greeks for annotation
+                call_delta = level.get('Call Delta', 'N/A')
+                call_theta = level.get('Call Theta', 'N/A')
+                call_pot = level.get('Call PoT', 'N/A')
+
+                fig.add_hline(
+                    y=call_strike,
+                    line_dash="solid",
+                    line_color=call_color,
+                    line_width=line_width,
+                    annotation_text=(f"<b>{dte}D Call</b><br>${call_strike:.2f}<br>Δ:{call_delta} θ:{call_theta}<br>PoT:{call_pot}"
+                                   if show_annotations else f"{dte}D Call: ${call_strike:.2f}"),
+                    annotation_position="right",
+                    annotation_font=dict(size=9, color=call_color.replace('0.', '1.'))
+                )
+
         # Current price line
         fig.add_hline(
             y=current_price,
-            line_color="blue",
+            line_color="rgba(0, 100, 255, 0.9)",
             line_width=3,
-            annotation_text=f"Current: ${current_price:.2f}",
-            annotation_position="top left"
+            line_dash="dot",
+            annotation_text=f"<b>Current Price: ${current_price:.2f}</b>",
+            annotation_position="top right",
+            annotation_font=dict(size=11, color="blue")
         )
-        
+
         fig.update_layout(
-            title="Options Levels - Premium Selling Strikes",
-            height=400,
+            title="Options Levels - Premium Selling Strikes (Enhanced Visualization)",
+            height=500,
             yaxis_title="Price ($)",
             xaxis_title="Date",
-            template='plotly_white'
+            template='plotly_white',
+            hovermode='x unified',
+            showlegend=True
         )
-        
+
         return fig
-        
+
     except Exception as e:
         logger.error(f"Options chart creation error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         st.error(f"Failed to create options chart: {str(e)}")
         return None
 
@@ -442,9 +555,158 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         )
         
         return fig
-        
+
     except Exception as e:
         logger.error(f"Technical score chart error: {e}")
+        return None
+
+def create_risk_reward_scatter(options_data: list, current_price: float) -> go.Figure:
+    """
+    Create interactive scatter plot showing risk/reward profile of all strikes
+
+    VERSION 1.4.0 - Advanced risk/reward visualization
+
+    X-axis: Probability of Profit (PoP)
+    Y-axis: Premium collected
+    Size: Days to expiration (larger = longer DTE)
+    Color: Put (red) vs Call (green)
+
+    Parameters:
+    -----------
+    options_data : list - Options data with strikes, premiums, and probabilities
+    current_price : float - Current stock price
+
+    Returns:
+    --------
+    Plotly Figure object
+    """
+    try:
+        fig = go.Figure()
+
+        # Prepare data
+        puts_data = []
+        calls_data = []
+
+        for opt in options_data:
+            # Put data
+            try:
+                put_pop_str = opt.get('Put PoP', '0%')
+                put_premium_str = opt.get('Put Premium', '$0')
+                put_dte = opt['DTE']
+                put_strike = opt['Put Strike']
+
+                put_pop = float(safe_extract_number(put_pop_str, 0))
+                put_premium = float(safe_extract_number(put_premium_str, 0))
+
+                puts_data.append({
+                    'pop': put_pop,
+                    'premium': put_premium,
+                    'dte': put_dte,
+                    'strike': put_strike,
+                    'label': f"Put ${put_strike:.2f} - {put_dte}D"
+                })
+            except:
+                pass
+
+            # Call data
+            try:
+                call_pop_str = opt.get('Call PoP', '0%')
+                call_premium_str = opt.get('Call Premium', '$0')
+                call_dte = opt['DTE']
+                call_strike = opt['Call Strike']
+
+                call_pop = float(safe_extract_number(call_pop_str, 0))
+                call_premium = float(safe_extract_number(call_premium_str, 0))
+
+                calls_data.append({
+                    'pop': call_pop,
+                    'premium': call_premium,
+                    'dte': call_dte,
+                    'strike': call_strike,
+                    'label': f"Call ${call_strike:.2f} - {call_dte}D"
+                })
+            except:
+                pass
+
+        # Plot puts
+        if puts_data:
+            fig.add_trace(go.Scatter(
+                x=[p['pop'] for p in puts_data],
+                y=[p['premium'] for p in puts_data],
+                mode='markers',
+                name='Put Strikes',
+                marker=dict(
+                    size=[p['dte'] * 0.7 for p in puts_data],  # Scale bubble size
+                    sizemode='diameter',
+                    sizemin=8,
+                    color='rgba(255, 59, 48, 0.7)',
+                    line=dict(width=2, color='white')
+                ),
+                text=[p['label'] for p in puts_data],
+                hovertemplate='<b>%{text}</b><br>PoP: %{x:.1f}%<br>Premium: $%{y:.2f}<extra></extra>'
+            ))
+
+        # Plot calls
+        if calls_data:
+            fig.add_trace(go.Scatter(
+                x=[c['pop'] for c in calls_data],
+                y=[c['premium'] for c in calls_data],
+                mode='markers',
+                name='Call Strikes',
+                marker=dict(
+                    size=[c['dte'] * 0.7 for c in calls_data],  # Scale bubble size
+                    sizemode='diameter',
+                    sizemin=8,
+                    color='rgba(52, 199, 89, 0.7)',
+                    line=dict(width=2, color='white')
+                ),
+                text=[c['label'] for c in calls_data],
+                hovertemplate='<b>%{text}</b><br>PoP: %{x:.1f}%<br>Premium: $%{y:.2f}<extra></extra>'
+            ))
+
+        # Add "sweet spot" annotation
+        all_premiums = [p['premium'] for p in puts_data + calls_data]
+        if all_premiums:
+            max_premium = max(all_premiums)
+
+            # Sweet spot zone (PoP > 65%, good premium)
+            fig.add_shape(
+                type="rect",
+                x0=65, x1=95,
+                y0=0, y1=max_premium * 1.1,
+                fillcolor="rgba(52, 199, 89, 0.1)",
+                line=dict(width=0),
+                layer="below"
+            )
+
+            fig.add_annotation(
+                x=80, y=max_premium * 1.05,
+                text="Sweet Spot<br>(High PoP + Good Premium)",
+                showarrow=False,
+                font=dict(size=10, color="green", family="Arial Black"),
+                bgcolor="rgba(255,255,255,0.8)",
+                bordercolor="green",
+                borderwidth=1
+            )
+
+        fig.update_layout(
+            title="Risk/Reward Analysis - Strike Selection",
+            xaxis_title="Probability of Profit (%)",
+            yaxis_title="Premium Collected ($)",
+            height=500,
+            hovermode='closest',
+            template='plotly_white',
+            showlegend=True,
+            xaxis=dict(range=[0, 100]),
+            yaxis=dict(range=[0, max(all_premiums) * 1.15 if all_premiums else 10])
+        )
+
+        return fig
+
+    except Exception as e:
+        logger.error(f"Risk/reward scatter plot error: {e}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return None
 
 def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any]):
@@ -493,14 +755,54 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
                 st.line_chart(data['Close'])
         
         with tab2:
-            st.subheader("Options Premium Selling Levels")
+            st.subheader("💰 Options Premium Selling Levels")
             try:
-                options_chart = create_options_levels_chart(data, analysis_results)
+                # Add interactive chart controls (v1.3.0 enhancement)
+                from ui.components import create_options_chart_controls
+                chart_controls = create_options_chart_controls()
+
+                # Create chart with user-selected options
+                options_chart = create_options_levels_chart(
+                    data,
+                    analysis_results,
+                    show_puts=chart_controls['show_puts'],
+                    show_calls=chart_controls['show_calls'],
+                    show_expected_move=chart_controls['show_expected_move'],
+                    selected_dtes=chart_controls['selected_dtes'],
+                    show_annotations=chart_controls['show_annotations']
+                )
+
                 if options_chart:
                     st.plotly_chart(options_chart, use_container_width=True)
+
+                    # Add legend explanation
+                    with st.expander("📖 Chart Legend & Interpretation", expanded=False):
+                        col1, col2, col3 = st.columns(3)
+
+                        with col1:
+                            st.markdown("**🔴 Put Strikes (Red)**")
+                            st.write("• Darker = Sooner expiration")
+                            st.write("• Sell puts below current price")
+                            st.write("• Bullish to neutral strategy")
+                            st.write("• Collect premium if stock stays above strike")
+
+                        with col2:
+                            st.markdown("**🟢 Call Strikes (Green)**")
+                            st.write("• Darker = Sooner expiration")
+                            st.write("• Sell calls above current price")
+                            st.write("• Bearish to neutral strategy")
+                            st.write("• Collect premium if stock stays below strike")
+
+                        with col3:
+                            st.markdown("**💙 Expected Move Zone**")
+                            st.write("• Blue shaded area")
+                            st.write("• ±1 standard deviation range")
+                            st.write("• ~68% probability range")
+                            st.write("• Strikes outside zone = higher safety")
                 else:
                     st.info("Options levels chart not available")
             except Exception as e:
+                logger.error(f"Options chart error: {e}")
                 st.error(f"Options chart error: {str(e)}")
         
         with tab3:

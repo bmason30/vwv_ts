@@ -61,6 +61,7 @@ from analysis.options import (
     calculate_options_levels_enhanced,
     calculate_confidence_intervals
 )
+from analysis.scanner import display_scanner_module
 
 # Volume and Volatility imports with safe fallbacks
 try:
@@ -142,6 +143,8 @@ def create_sidebar_controls():
         st.session_state.show_backtest = True
     if 'show_patterns' not in st.session_state:
         st.session_state.show_patterns = True
+    if 'show_scanner' not in st.session_state:
+        st.session_state.show_scanner = True
 
     # Initialize pending symbol state for quick links
     if 'pending_symbol' not in st.session_state:
@@ -185,6 +188,7 @@ def create_sidebar_controls():
         st.session_state.show_options_analysis = st.checkbox("Show Options Analysis", value=st.session_state.show_options_analysis)
         st.session_state.show_confidence_intervals = st.checkbox("Show Confidence Intervals", value=st.session_state.show_confidence_intervals)
         st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
+        st.session_state.show_scanner = st.checkbox("Show Multi-Symbol Scanner", value=st.session_state.show_scanner)
     
     # Analyze button
     analyze_button = st.sidebar.button("🔍 Analyze Now", use_container_width=True, type="primary")
@@ -2157,6 +2161,9 @@ def main():
 
         # Phase 2A: Backtest Performance (moved to last position)
         show_backtest_analysis(analysis_results, controls['show_debug'])
+
+        # Multi-Symbol Master Score Scanner Module
+        display_scanner_module(controls['show_debug'])
 
         if controls['show_debug']:
             with st.expander("🐛 Debug Information", expanded=False):

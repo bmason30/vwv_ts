@@ -1,9 +1,10 @@
 """
 Multi-Symbol Master Score Scanner Module
-Version: 1.0.0
+Version: 1.1.0
 Purpose: Batch analysis of multiple symbols with Master Score ranking
 
-Scans all Quick Links symbols and calculates Master Scores for comparison.
+Scans Quick Links symbols OR custom manual symbol lists and calculates Master Scores for comparison.
+Supports manual comma-separated symbol input (2-20 symbols).
 """
 
 import streamlit as st
@@ -40,6 +41,60 @@ def get_quick_links_symbols() -> List[str]:
     except Exception as e:
         logger.error(f"Error getting Quick Links symbols: {e}")
         return ["SPY", "QQQ", "AAPL"]  # Minimal fallback
+
+
+def parse_manual_symbol_input(input_text: str) -> tuple[List[str], str]:
+    """
+    Parse and validate manual symbol input
+
+    Args:
+        input_text: Comma-separated symbol string (e.g., "AAPL, MSFT, GOOGL")
+
+    Returns:
+        Tuple of (valid_symbols_list, error_message)
+        If valid: (symbols, "")
+        If invalid: ([], error_message)
+    """
+    try:
+        if not input_text or not input_text.strip():
+            return [], "Please enter at least 2 symbols separated by commas"
+
+        # Split by commas and clean up
+        symbols = [s.strip().upper() for s in input_text.split(',')]
+
+        # Remove empty strings
+        symbols = [s for s in symbols if s]
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_symbols = []
+        for symbol in symbols:
+            if symbol not in seen:
+                seen.add(symbol)
+                unique_symbols.append(symbol)
+
+        # Validate count
+        if len(unique_symbols) < 2:
+            return [], "Minimum 2 symbols required. Please enter at least 2 different symbols."
+
+        if len(unique_symbols) > 20:
+            return [], f"Maximum 20 symbols allowed. You entered {len(unique_symbols)} symbols."
+
+        # Validate symbol format (1-5 alphanumeric characters)
+        invalid_symbols = []
+        for symbol in unique_symbols:
+            if not symbol.isalnum() or len(symbol) < 1 or len(symbol) > 5:
+                invalid_symbols.append(symbol)
+
+        if invalid_symbols:
+            return [], f"Invalid symbol format: {', '.join(invalid_symbols)}. Symbols must be 1-5 alphanumeric characters."
+
+        logger.info(f"Validated {len(unique_symbols)} manual symbols: {', '.join(unique_symbols)}")
+        return unique_symbols, ""
+
+    except Exception as e:
+        logger.error(f"Error parsing manual symbol input: {e}")
+        return [], f"Error parsing symbols: {str(e)}"
 
 
 def scan_single_symbol(
@@ -387,19 +442,74 @@ def display_scanner_module(show_debug: bool = False):
         st.session_state.scanner_results = None
     if 'scanner_timestamp' not in st.session_state:
         st.session_state.scanner_timestamp = None
+    if 'scanner_mode' not in st.session_state:
+        st.session_state.scanner_mode = "Quick Links"
+    if 'scanner_manual_input' not in st.session_state:
+        st.session_state.scanner_manual_input = ""
 
     with st.expander("🔍 Multi-Symbol Master Score Scanner", expanded=True):
-        st.write("Scan all Quick Links symbols to compare Master Scores and identify trading opportunities")
+        st.write("Scan Quick Links symbols or enter custom symbols to compare Master Scores and identify trading opportunities")
 
-        # Get symbols
-        symbols = get_quick_links_symbols()
+        # Mode selection
+        mode = st.radio(
+            "Symbol Source",
+            options=["Quick Links", "Manual Input"],
+            index=0 if st.session_state.scanner_mode == "Quick Links" else 1,
+            horizontal=True,
+            key="scanner_mode_select",
+            help="Choose between predefined Quick Links or manually entered symbols"
+        )
+
+        # Update session state
+        if mode != st.session_state.scanner_mode:
+            st.session_state.scanner_mode = mode
+            st.session_state.scanner_results = None  # Clear results when mode changes
+
+        # Get symbols based on mode
+        symbols = []
+        input_error = ""
+
+        if mode == "Quick Links":
+            symbols = get_quick_links_symbols()
+        else:
+            # Manual input mode
+            st.write("**Enter symbols separated by commas** (e.g., AAPL, MSFT, GOOGL, TSLA)")
+
+            manual_input = st.text_area(
+                "Symbol List",
+                value=st.session_state.scanner_manual_input,
+                height=80,
+                key="manual_symbol_input",
+                placeholder="Example: AAPL, MSFT, GOOGL, AMZN, TSLA, NVDA",
+                help="Enter 2-20 symbols separated by commas. Spaces are optional."
+            )
+
+            # Update session state
+            st.session_state.scanner_manual_input = manual_input
+
+            # Parse and validate
+            if manual_input and manual_input.strip():
+                symbols, input_error = parse_manual_symbol_input(manual_input)
+
+                if input_error:
+                    st.error(f"❌ {input_error}")
+                else:
+                    st.success(f"✅ Valid input: {len(symbols)} symbols ready to scan")
+            else:
+                input_error = "Please enter at least 2 symbols"
 
         # Scanner controls
         col1, col2, col3 = st.columns([2, 1, 1])
 
         with col1:
-            st.write(f"**Symbols to scan:** {len(symbols)} tickers")
-            st.caption(f"{', '.join(symbols[:5])}{'...' if len(symbols) > 5 else ''}")
+            if symbols:
+                st.write(f"**Symbols to scan:** {len(symbols)} tickers")
+                st.caption(f"{', '.join(symbols[:5])}{'...' if len(symbols) > 5 else ''}")
+            else:
+                if mode == "Manual Input":
+                    st.write("**No symbols ready** - Enter symbols above")
+                else:
+                    st.write("**No symbols available** - Quick Links empty")
 
         with col2:
             period_selection = st.selectbox(
@@ -424,13 +534,28 @@ def display_scanner_module(show_debug: bool = False):
             st.session_state.scanner_results = None
             st.session_state.scanner_timestamp = None
 
+        # Determine button state and label
+        button_disabled = (len(symbols) == 0 or input_error != "")
+
+        if mode == "Quick Links":
+            button_label = f"🚀 Scan {len(symbols)} Quick Links Symbols"
+            button_help = f"Run Master Score analysis on {len(symbols)} predefined symbols"
+        else:
+            if symbols:
+                button_label = f"🚀 Scan {len(symbols)} Custom Symbols"
+                button_help = f"Run Master Score analysis on {len(symbols)} manually entered symbols"
+            else:
+                button_label = "🚀 Scan Custom Symbols"
+                button_help = "Enter valid symbols above to enable scanning"
+
         # Scan button
         if st.button(
-            "🚀 Scan All Symbols",
+            button_label,
             type="primary",
-            on_click=on_scan_click,
+            on_click=on_scan_click if not button_disabled else None,
             use_container_width=True,
-            help=f"Run Master Score analysis on all {len(symbols)} Quick Links symbols"
+            disabled=button_disabled,
+            help=button_help
         ):
             pass  # Callback handles state change
 

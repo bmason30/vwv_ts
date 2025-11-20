@@ -166,25 +166,25 @@ def create_sidebar_controls():
         help="Select the historical data period for analysis. 3mo+ recommended for all modules."
     )
     
-    # Analysis sections toggle
+    # Analysis sections toggle - Ordered to match main pane display
     with st.sidebar.expander("📊 Analysis Sections", expanded=False):
         st.session_state.show_charts = st.checkbox("Show Charts", value=st.session_state.show_charts)
         st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
+        if BALDWIN_INDICATOR_AVAILABLE:
+            st.session_state.show_baldwin_indicator = st.checkbox("Show Baldwin Indicator", value=st.session_state.show_baldwin_indicator)
         st.session_state.show_confluence = st.checkbox("Show Signal Confluence", value=st.session_state.show_confluence)
-        st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
-        st.session_state.show_patterns = st.checkbox("Show Pattern Recognition", value=st.session_state.show_patterns)
         st.session_state.show_technical_analysis = st.checkbox("Show Technical Analysis", value=st.session_state.show_technical_analysis)
-        st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         if VOLUME_ANALYSIS_AVAILABLE:
             st.session_state.show_volume_analysis = st.checkbox("Show Volume Analysis", value=st.session_state.show_volume_analysis)
         if VOLATILITY_ANALYSIS_AVAILABLE:
             st.session_state.show_volatility_analysis = st.checkbox("Show Volatility Analysis", value=st.session_state.show_volatility_analysis)
+        st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         st.session_state.show_fundamental_analysis = st.checkbox("Show Fundamental Analysis", value=st.session_state.show_fundamental_analysis)
         st.session_state.show_market_correlation = st.checkbox("Show Market Correlation", value=st.session_state.show_market_correlation)
+        st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
+        st.session_state.show_patterns = st.checkbox("Show Pattern Recognition", value=st.session_state.show_patterns)
         st.session_state.show_options_analysis = st.checkbox("Show Options Analysis", value=st.session_state.show_options_analysis)
         st.session_state.show_confidence_intervals = st.checkbox("Show Confidence Intervals", value=st.session_state.show_confidence_intervals)
-        if BALDWIN_INDICATOR_AVAILABLE:
-            st.session_state.show_baldwin_indicator = st.checkbox("Show Baldwin Indicator", value=st.session_state.show_baldwin_indicator)
     
     # Analyze button
     analyze_button = st.sidebar.button("🔍 Analyze Now", use_container_width=True, type="primary")

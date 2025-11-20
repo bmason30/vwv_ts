@@ -38,56 +38,80 @@ def create_technical_score_bar(composite_score: float, score_details: Dict[str, 
         color = "#F44336"  # Red
         label = "Bearish"
     
-    # Create clean, professional HTML score bar (NO raw data dump)
+    # Create enhanced professional HTML score bar with modern aesthetics
     html = f"""
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         .score-container {{
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 12px 0;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }}
         .score-header {{
             color: #ffffff;
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 18px;
             text-align: center;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 14px;
+            opacity: 0.95;
         }}
         .score-bar-background {{
-            background: #2a2a3e;
-            border-radius: 8px;
-            height: 40px;
+            background: linear-gradient(180deg, #1f1f2e 0%, #2a2a3e 100%);
+            border-radius: 12px;
+            height: 48px;
             position: relative;
             overflow: hidden;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.3);
         }}
         .score-bar-fill {{
-            background: linear-gradient(90deg, {color} 0%, {color}dd 100%);
+            background: linear-gradient(135deg, {color} 0%, {color}ee 50%, {color} 100%);
             height: 100%;
             width: {composite_score}%;
-            border-radius: 8px;
+            border-radius: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: width 0.3s ease;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
+            box-shadow: 0 2px 8px rgba({color.replace('#', '')}, 0.3);
+        }}
+        .score-bar-fill::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+            border-radius: 11px 11px 0 0;
         }}
         .score-text {{
             color: #ffffff;
-            font-size: 20px;
+            font-size: 24px;
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.8);
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
+            letter-spacing: 0.5px;
+            z-index: 10;
         }}
         .score-label {{
-            color: #cccccc;
-            font-size: 14px;
+            color: #e0e0e0;
+            font-size: 15px;
+            font-weight: 600;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 14px;
+            letter-spacing: 0.3px;
         }}
     </style>
     <div class="score-container">
@@ -125,56 +149,80 @@ def create_fundamental_score_bar(composite_score: float, score_details: Dict[str
         color = "#F44336"  # Red
         label = "Weak"
 
-    # Create clean, professional HTML score bar
+    # Create enhanced professional HTML score bar with modern aesthetics
     html = f"""
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         .fund-score-container {{
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 12px 0;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }}
         .fund-score-header {{
             color: #ffffff;
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 18px;
             text-align: center;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 14px;
+            opacity: 0.95;
         }}
         .fund-score-bar-background {{
-            background: #2a2a3e;
-            border-radius: 8px;
-            height: 40px;
+            background: linear-gradient(180deg, #1f1f2e 0%, #2a2a3e 100%);
+            border-radius: 12px;
+            height: 48px;
             position: relative;
             overflow: hidden;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.3);
         }}
         .fund-score-bar-fill {{
-            background: linear-gradient(90deg, {color} 0%, {color}dd 100%);
+            background: linear-gradient(135deg, {color} 0%, {color}ee 50%, {color} 100%);
             height: 100%;
             width: {composite_score}%;
-            border-radius: 8px;
+            border-radius: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: width 0.3s ease;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
+            box-shadow: 0 2px 8px rgba({color.replace('#', '')}, 0.3);
+        }}
+        .fund-score-bar-fill::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+            border-radius: 11px 11px 0 0;
         }}
         .fund-score-text {{
             color: #ffffff;
-            font-size: 20px;
+            font-size: 24px;
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.8);
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
+            letter-spacing: 0.5px;
+            z-index: 10;
         }}
         .fund-score-label {{
-            color: #cccccc;
-            font-size: 14px;
+            color: #e0e0e0;
+            font-size: 15px;
+            font-weight: 600;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 14px;
+            letter-spacing: 0.3px;
         }}
     </style>
     <div class="fund-score-container">
@@ -222,56 +270,80 @@ def create_master_score_bar(composite_score: float, interpretation: str = None, 
     # Use interpretation if provided, otherwise use label
     display_label = interpretation if interpretation else label
 
-    # Create clean, professional HTML score bar matching technical/fundamental style
+    # Create enhanced professional HTML score bar with modern aesthetics
     html = f"""
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+
         .master-score-container {{
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 10px 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            border-radius: 16px;
+            padding: 24px;
+            margin: 12px 0;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         }}
         .master-score-header {{
             color: #ffffff;
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 15px;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 18px;
             text-align: center;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 14px;
+            opacity: 0.95;
         }}
         .master-score-bar-background {{
-            background: #2a2a3e;
-            border-radius: 8px;
-            height: 40px;
+            background: linear-gradient(180deg, #1f1f2e 0%, #2a2a3e 100%);
+            border-radius: 12px;
+            height: 48px;
             position: relative;
             overflow: hidden;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.4), inset 0 -1px 2px rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.3);
         }}
         .master-score-bar-fill {{
-            background: linear-gradient(90deg, {color} 0%, {color}dd 100%);
+            background: linear-gradient(135deg, {color} 0%, {color}ee 50%, {color} 100%);
             height: 100%;
             width: {composite_score}%;
-            border-radius: 8px;
+            border-radius: 11px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: width 0.3s ease;
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
+            box-shadow: 0 2px 8px rgba({color.replace('#', '')}, 0.3);
+        }}
+        .master-score-bar-fill::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 50%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, transparent 100%);
+            border-radius: 11px 11px 0 0;
         }}
         .master-score-text {{
             color: #ffffff;
-            font-size: 20px;
+            font-size: 24px;
             font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.8);
             position: absolute;
             left: 50%;
             transform: translateX(-50%);
+            letter-spacing: 0.5px;
+            z-index: 10;
         }}
         .master-score-label {{
-            color: #cccccc;
-            font-size: 14px;
+            color: #e0e0e0;
+            font-size: 15px;
+            font-weight: 600;
             text-align: center;
-            margin-top: 10px;
+            margin-top: 14px;
+            letter-spacing: 0.3px;
         }}
     </style>
     <div class="master-score-container">

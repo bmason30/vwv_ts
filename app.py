@@ -666,8 +666,9 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.error(f"Composite score error: {str(e)}")
             st.metric("Composite Fundamental Score", "Calculating...")
 
-        # Display scores with detailed criteria
-        col1, col2, col3 = st.columns(3)
+        # Display scores with detailed criteria - 2x2 BALANCED GRID
+        # ROW 1: Graham Score and Piotroski F-Score
+        col1, col2 = st.columns(2)
 
         with col1:
             st.subheader("Graham Score (Value Investing)")
@@ -719,6 +720,12 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.metric("Score", "0/9")
                 st.error(f"Error: {piotroski_data.get('error', 'Unknown error')}")
 
+        # Visual separator between rows
+        st.divider()
+
+        # ROW 2: Altman Z-Score and ROIC
+        col3, col4 = st.columns(2)
+
         with col3:
             st.subheader("Altman Z-Score (Bankruptcy Risk)")
             if 'error' not in altman_data:
@@ -748,13 +755,8 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 st.metric("Z-Score", "0.00")
                 st.error(f"Error: {altman_data.get('error', 'Unknown error')}")
 
-        # Add ROIC in a second row
-        st.divider()
-        roic_data = enhanced_indicators.get('roic', {})
-
-        col1, col2, col3 = st.columns([1, 2, 1])
-
-        with col2:
+        with col4:
+            roic_data = enhanced_indicators.get('roic', {})
             st.subheader("ROIC (Return on Invested Capital)")
             if 'error' not in roic_data:
                 roic_percent = roic_data.get('roic_percent', 0)

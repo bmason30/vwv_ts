@@ -1388,201 +1388,230 @@ def show_backtest_analysis(analysis_results, show_debug=False):
         Note: Past performance does not guarantee future results.
         """)
 
-        # Backtest configuration
-        col1, col2 = st.columns([2, 1])
+        # Backtest configuration and controls
+        col1, col2, col3 = st.columns([2, 1, 1])
 
         with col1:
             st.markdown("**Backtest Configuration:**")
+            st.caption("Click 'Run Backtest' to validate strategy performance on historical data")
 
         with col2:
-            if st.button("🔄 Run Backtest", key=f"backtest_{symbol}"):
+            run_button = st.button("🔄 Run Backtest", key=f"backtest_run_{symbol}",
+                                  type="primary", use_container_width=True)
+            if run_button:
                 st.session_state[f'run_backtest_{symbol}'] = True
+                st.session_state[f'backtest_results_{symbol}'] = None  # Clear old results
+
+        with col3:
+            if st.session_state.get(f'run_backtest_{symbol}', False):
+                clear_button = st.button("🗑️ Clear Results", key=f"backtest_clear_{symbol}",
+                                        use_container_width=True)
+                if clear_button:
+                    st.session_state[f'run_backtest_{symbol}'] = False
+                    st.session_state[f'backtest_results_{symbol}'] = None
+                    st.rerun()
 
         # Run backtest if button clicked
         if st.session_state.get(f'run_backtest_{symbol}', False):
-            with st.spinner("Running backtest... This may take a moment..."):
-                try:
-                    # Run Buy & Hold benchmark
-                    benchmark_result = backtest_buy_and_hold(hist_data)
+            # Check if we have cached results
+            cached_results = st.session_state.get(f'backtest_results_{symbol}')
 
-                    # Display benchmark results
-                    st.subheader("📊 Buy & Hold Strategy (Benchmark)")
+            if cached_results is None:
+                # Run backtest only if no cached results
+                with st.spinner("⏳ Running backtest... This may take a moment..."):
+                    try:
+                        # Run Buy & Hold benchmark
+                        benchmark_result = backtest_buy_and_hold(hist_data)
 
-                    metrics = benchmark_result['metrics']
+                        # Cache results in session state
+                        st.session_state[f'backtest_results_{symbol}'] = benchmark_result
 
-                    if 'error' not in metrics:
-                        # Main metrics row
-                        col1, col2, col3, col4 = st.columns(4)
+                        st.success("✅ Backtest completed successfully!")
 
-                        with col1:
-                            total_return = metrics.get('total_return', 0)
-                            st.metric("Total Return",
-                                     f"{total_return:+.2f}%",
-                                     help="Total profit/loss percentage")
+                    except Exception as e:
+                        st.error(f"❌ Error running backtest: {str(e)}")
+                        if show_debug:
+                            st.exception(e)
+                        benchmark_result = None
+            else:
+                # Use cached results
+                benchmark_result = cached_results
+                st.info("📊 Showing cached backtest results. Click 'Clear Results' and 'Run Backtest' to refresh.")
 
-                        with col2:
-                            win_rate = metrics.get('win_rate', 0)
-                            st.metric("Win Rate",
-                                     f"{win_rate:.1f}%",
-                                     help="Percentage of winning trades")
+            # Display benchmark results if available
+            if benchmark_result is not None:
+                st.subheader("📊 Buy & Hold Strategy (Benchmark)")
 
-                        with col3:
-                            max_dd = metrics.get('max_drawdown_pct', 0)
-                            st.metric("Max Drawdown",
-                                     f"{max_dd:.2f}%",
-                                     delta=f"{max_dd:.2f}%",
-                                     delta_color="inverse",
-                                     help="Largest peak-to-trough decline")
+                metrics = benchmark_result['metrics']
 
-                        with col4:
-                            sharpe = metrics.get('sharpe_ratio', 0)
-                            st.metric("Sharpe Ratio",
-                                     f"{sharpe:.2f}",
-                                     help="Risk-adjusted return (>1.0 is good)")
+                if 'error' not in metrics:
+                    # Main metrics row
+                    col1, col2, col3, col4 = st.columns(4)
 
-                        # Additional metrics row
-                        col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        total_return = metrics.get('total_return', 0)
+                        st.metric("Total Return",
+                                 f"{total_return:+.2f}%",
+                                 help="Total profit/loss percentage")
 
-                        with col1:
-                            annual_return = metrics.get('annualized_return', 0)
-                            st.metric("Annual Return",
-                                     f"{annual_return:+.2f}%",
-                                     help="Annualized return percentage")
+                    with col2:
+                        win_rate = metrics.get('win_rate', 0)
+                        st.metric("Win Rate",
+                                 f"{win_rate:.1f}%",
+                                 help="Percentage of winning trades")
 
-                        with col2:
-                            total_trades = metrics.get('total_trades', 0)
-                            st.metric("Total Trades",
-                                     f"{total_trades}",
-                                     help="Number of completed trades")
+                    with col3:
+                        max_dd = metrics.get('max_drawdown_pct', 0)
+                        st.metric("Max Drawdown",
+                                 f"{max_dd:.2f}%",
+                                 delta=f"{max_dd:.2f}%",
+                                 delta_color="inverse",
+                                 help="Largest peak-to-trough decline")
 
-                        with col3:
-                            profit_factor = metrics.get('profit_factor', 0)
-                            st.metric("Profit Factor",
-                                     f"{profit_factor:.2f}",
-                                     help="Gross profit / gross loss (>1.0 is profitable)")
+                    with col4:
+                        sharpe = metrics.get('sharpe_ratio', 0)
+                        st.metric("Sharpe Ratio",
+                                 f"{sharpe:.2f}",
+                                 help="Risk-adjusted return (>1.0 is good)")
 
-                        with col4:
-                            expectancy = metrics.get('expectancy', 0)
-                            st.metric("Expectancy/Trade",
-                                     f"{expectancy:+.2f}%",
-                                     help="Average expected return per trade")
+                    # Additional metrics row
+                    col1, col2, col3, col4 = st.columns(4)
 
-                        # Equity curve chart
-                        st.subheader("📈 Equity Curve")
+                    with col1:
+                        annual_return = metrics.get('annualized_return', 0)
+                        st.metric("Annual Return",
+                                 f"{annual_return:+.2f}%",
+                                 help="Annualized return percentage")
 
-                        equity_curve = benchmark_result.get('equity_curve', pd.DataFrame())
-                        if not equity_curve.empty:
-                            import plotly.graph_objects as go
+                    with col2:
+                        total_trades = metrics.get('total_trades', 0)
+                        st.metric("Total Trades",
+                                 f"{total_trades}",
+                                 help="Number of completed trades")
 
-                            fig = go.Figure()
+                    with col3:
+                        profit_factor = metrics.get('profit_factor', 0)
+                        st.metric("Profit Factor",
+                                 f"{profit_factor:.2f}",
+                                 help="Gross profit / gross loss (>1.0 is profitable)")
 
-                            fig.add_trace(go.Scatter(
-                                x=equity_curve['date'],
-                                y=equity_curve['equity'],
-                                mode='lines',
-                                name='Portfolio Value',
-                                line=dict(color='#1f77b4', width=2),
-                                fill='tozeroy',
-                                fillcolor='rgba(31, 119, 180, 0.1)'
-                            ))
+                    with col4:
+                        expectancy = metrics.get('expectancy', 0)
+                        st.metric("Expectancy/Trade",
+                                 f"{expectancy:+.2f}%",
+                                 help="Average expected return per trade")
 
-                            # Add initial capital line
-                            fig.add_hline(
-                                y=100000,  # Initial capital
-                                line_dash="dash",
-                                line_color="gray",
-                                annotation_text="Initial Capital",
-                                annotation_position="right"
-                            )
+                    # Equity curve chart
+                    st.subheader("📈 Equity Curve")
 
-                            fig.update_layout(
-                                title="Portfolio Equity Over Time",
-                                xaxis_title="Date",
-                                yaxis_title="Portfolio Value ($)",
-                                hovermode='x unified',
-                                height=400,
-                                showlegend=True
-                            )
+                    equity_curve = benchmark_result.get('equity_curve', pd.DataFrame())
+                    if not equity_curve.empty:
+                        import plotly.graph_objects as go
 
-                            st.plotly_chart(fig, use_container_width=True)
+                        fig = go.Figure()
 
-                        # Trades table
-                        st.subheader("📋 Trade History")
+                        fig.add_trace(go.Scatter(
+                            x=equity_curve['date'],
+                            y=equity_curve['equity'],
+                            mode='lines',
+                            name='Portfolio Value',
+                            line=dict(color='#1f77b4', width=2),
+                            fill='tozeroy',
+                            fillcolor='rgba(31, 119, 180, 0.1)'
+                        ))
 
-                        trades_df = benchmark_result.get('trades', pd.DataFrame())
-                        if not trades_df.empty:
-                            # Format for display
-                            display_df = trades_df.copy()
-                            display_df['entry_date'] = pd.to_datetime(display_df['entry_date']).dt.strftime('%Y-%m-%d')
-                            display_df['exit_date'] = pd.to_datetime(display_df['exit_date']).dt.strftime('%Y-%m-%d')
-                            display_df['entry_price'] = display_df['entry_price'].apply(lambda x: f"${x:.2f}")
-                            display_df['exit_price'] = display_df['exit_price'].apply(lambda x: f"${x:.2f}")
-                            display_df['pnl'] = display_df['pnl'].apply(lambda x: f"${x:+.2f}")
-                            display_df['pnl_pct'] = display_df['pnl_pct'].apply(lambda x: f"{x:+.2f}%")
+                        # Add initial capital line
+                        fig.add_hline(
+                            y=100000,  # Initial capital
+                            line_dash="dash",
+                            line_color="gray",
+                            annotation_text="Initial Capital",
+                            annotation_position="right"
+                        )
 
-                            # Rename columns for display
-                            display_df = display_df.rename(columns={
-                                'entry_date': 'Entry Date',
-                                'entry_price': 'Entry Price',
-                                'exit_date': 'Exit Date',
-                                'exit_price': 'Exit Price',
-                                'direction': 'Direction',
-                                'holding_days': 'Days Held',
-                                'pnl': 'P&L ($)',
-                                'pnl_pct': 'Return %',
-                                'exit_reason': 'Exit Reason'
-                            })
+                        fig.update_layout(
+                            title="Portfolio Equity Over Time",
+                            xaxis_title="Date",
+                            yaxis_title="Portfolio Value ($)",
+                            hovermode='x unified',
+                            height=400,
+                            showlegend=True
+                        )
 
-                            st.dataframe(display_df, use_container_width=True, hide_index=True)
+                        st.plotly_chart(fig, use_container_width=True)
 
-                        # Performance summary
-                        st.subheader("📝 Performance Summary")
+                    # Trades table
+                    st.subheader("📋 Trade History")
 
-                        col1, col2 = st.columns(2)
+                    trades_df = benchmark_result.get('trades', pd.DataFrame())
+                    if not trades_df.empty:
+                        # Format for display
+                        display_df = trades_df.copy()
+                        display_df['entry_date'] = pd.to_datetime(display_df['entry_date']).dt.strftime('%Y-%m-%d')
+                        display_df['exit_date'] = pd.to_datetime(display_df['exit_date']).dt.strftime('%Y-%m-%d')
+                        display_df['entry_price'] = display_df['entry_price'].apply(lambda x: f"${x:.2f}")
+                        display_df['exit_price'] = display_df['exit_price'].apply(lambda x: f"${x:.2f}")
+                        display_df['pnl'] = display_df['pnl'].apply(lambda x: f"${x:+.2f}")
+                        display_df['pnl_pct'] = display_df['pnl_pct'].apply(lambda x: f"{x:+.2f}%")
 
-                        with col1:
-                            st.markdown("**Strengths:**")
-                            strengths = []
-                            if total_return > 0:
-                                strengths.append(f"✅ Positive total return (+{total_return:.2f}%)")
-                            if sharpe > 1.0:
-                                strengths.append(f"✅ Good risk-adjusted returns (Sharpe: {sharpe:.2f})")
-                            if win_rate > 50:
-                                strengths.append(f"✅ Above 50% win rate ({win_rate:.1f}%)")
-                            if profit_factor > 1.5:
-                                strengths.append(f"✅ Strong profit factor ({profit_factor:.2f})")
+                        # Rename columns for display
+                        display_df = display_df.rename(columns={
+                            'entry_date': 'Entry Date',
+                            'entry_price': 'Entry Price',
+                            'exit_date': 'Exit Date',
+                            'exit_price': 'Exit Price',
+                            'direction': 'Direction',
+                            'holding_days': 'Days Held',
+                            'pnl': 'P&L ($)',
+                            'pnl_pct': 'Return %',
+                            'exit_reason': 'Exit Reason'
+                        })
 
-                            if strengths:
-                                for s in strengths:
-                                    st.write(s)
-                            else:
-                                st.write("No significant strengths detected")
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
-                        with col2:
-                            st.markdown("**Areas for Improvement:**")
-                            weaknesses = []
-                            if total_return < 0:
-                                weaknesses.append(f"⚠️ Negative total return ({total_return:.2f}%)")
-                            if sharpe < 1.0:
-                                weaknesses.append(f"⚠️ Low risk-adjusted returns (Sharpe: {sharpe:.2f})")
-                            if win_rate < 50:
-                                weaknesses.append(f"⚠️ Below 50% win rate ({win_rate:.1f}%)")
-                            if max_dd > 20:
-                                weaknesses.append(f"⚠️ Large drawdown ({max_dd:.1f}%)")
+                    # Performance summary
+                    st.subheader("📝 Performance Summary")
 
-                            if weaknesses:
-                                for w in weaknesses:
-                                    st.write(w)
-                            else:
-                                st.write("No significant weaknesses detected")
+                    col1, col2 = st.columns(2)
 
-                    else:
-                        st.error(f"Backtest error: {metrics['error']}")
+                    with col1:
+                        st.markdown("**Strengths:**")
+                        strengths = []
+                        if total_return > 0:
+                            strengths.append(f"✅ Positive total return (+{total_return:.2f}%)")
+                        if sharpe > 1.0:
+                            strengths.append(f"✅ Good risk-adjusted returns (Sharpe: {sharpe:.2f})")
+                        if win_rate > 50:
+                            strengths.append(f"✅ Above 50% win rate ({win_rate:.1f}%)")
+                        if profit_factor > 1.5:
+                            strengths.append(f"✅ Strong profit factor ({profit_factor:.2f})")
 
-                except Exception as e:
-                    st.error(f"Error running backtest: {str(e)}")
-                    if show_debug:
-                        st.exception(e)
+                        if strengths:
+                            for s in strengths:
+                                st.write(s)
+                        else:
+                            st.write("No significant strengths detected")
+
+                    with col2:
+                        st.markdown("**Areas for Improvement:**")
+                        weaknesses = []
+                        if total_return < 0:
+                            weaknesses.append(f"⚠️ Negative total return ({total_return:.2f}%)")
+                        if sharpe < 1.0:
+                            weaknesses.append(f"⚠️ Low risk-adjusted returns (Sharpe: {sharpe:.2f})")
+                        if win_rate < 50:
+                            weaknesses.append(f"⚠️ Below 50% win rate ({win_rate:.1f}%)")
+                        if max_dd > 20:
+                            weaknesses.append(f"⚠️ Large drawdown ({max_dd:.1f}%)")
+
+                        if weaknesses:
+                            for w in weaknesses:
+                                st.write(w)
+                        else:
+                            st.write("No significant weaknesses detected")
+
+                else:
+                    st.error(f"Backtest error: {metrics['error']}")
 
         # Information box
         with st.container():

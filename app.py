@@ -247,6 +247,74 @@ def show_interactive_charts(data, analysis_results, show_debug=False):
             else:
                 st.warning("⚠️ Charts temporarily unavailable")
 
+def format_technical_signal(value, indicator_type="macd"):
+    """
+    Format technical indicator with correct color/arrow/label alignment
+
+    Args:
+        value: Indicator value
+        indicator_type: Type of indicator ('macd', 'directional', etc.)
+
+    Returns:
+        Formatted HTML string with correct visual signal
+    """
+    if indicator_type == "macd":
+        if value > 0.5:
+            return '<span style="color: green; font-weight: bold;">↑ 🟢 Bullish</span>'
+        elif value < -0.5:
+            return '<span style="color: red; font-weight: bold;">↓ 🔴 Bearish</span>'
+        else:
+            return '<span style="color: gold; font-weight: bold;">→ 🟡 Neutral</span>'
+
+    return '<span style="color: gray;">Unknown</span>'
+
+def format_grade_signal(score, max_score):
+    """
+    Format grade with correct color/arrow/letter based on percentage
+
+    Args:
+        score: Achieved score
+        max_score: Maximum possible score
+
+    Returns:
+        Formatted HTML string with grade and visual signal
+    """
+    percentage = (score / max_score) * 100
+
+    if percentage >= 80:
+        grade = "A"
+        return f'<span style="color: darkgreen; font-weight: bold;">↑ 🟢 Grade: {grade}</span>'
+    elif percentage >= 70:
+        grade = "B"
+        return f'<span style="color: green; font-weight: bold;">↑ 🟢 Grade: {grade}</span>'
+    elif percentage >= 60:
+        grade = "C"
+        return f'<span style="color: gold; font-weight: bold;">→ 🟡 Grade: {grade}</span>'
+    elif percentage >= 50:
+        grade = "D"
+        return f'<span style="color: orange; font-weight: bold;">↓ 🟠 Grade: {grade}</span>'
+    else:
+        grade = "F"
+        return f'<span style="color: red; font-weight: bold;">↓ 🔴 Grade: {grade}</span>'
+
+def format_directional_signal(plus_di, minus_di):
+    """
+    Format directional indicator signal based on +DI vs -DI comparison
+
+    Args:
+        plus_di: Plus Directional Indicator value
+        minus_di: Minus Directional Indicator value
+
+    Returns:
+        Formatted HTML string with directional signal
+    """
+    if plus_di > minus_di:
+        return '<span style="color: green; font-weight: bold;">↑ 🟢 Bullish</span>'
+    elif minus_di > plus_di:
+        return '<span style="color: red; font-weight: bold;">↓ 🔴 Bearish</span>'
+    else:
+        return '<span style="color: gold; font-weight: bold;">→ 🟡 Neutral</span>'
+
 def show_individual_technical_analysis(analysis_results, show_debug=False):
     """
     Display individual technical analysis section - PRIORITY 2 (SECOND)
@@ -352,8 +420,9 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         with col1:
             macd_data = comprehensive_technicals.get('macd', {})
             macd_hist = macd_data.get('histogram', 0) if isinstance(macd_data, dict) else 0
-            macd_delta = "Bullish" if macd_hist > 0 else "Bearish"
-            st.metric("MACD Histogram", f"{macd_hist:.4f}", macd_delta)
+            st.write("**MACD Histogram**")
+            st.write(f"{macd_hist:.4f}")
+            st.markdown(format_technical_signal(macd_hist, "macd"), unsafe_allow_html=True)
 
         with col2:
             adx_data = comprehensive_technicals.get('adx', {})
@@ -372,10 +441,11 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         with col4:
             if isinstance(adx_data, dict):
                 minus_di = adx_data.get('minus_di', 0)
-                trend_dir = adx_data.get('trend_direction', 'Unknown')
-                st.metric("-DI", f"{minus_di:.2f}",
-                         delta=trend_dir if trend_dir != 'Unknown' else None,
-                         help="Minus Directional Indicator (bearish movement)")
+                plus_di = adx_data.get('plus_di', 0)
+                st.write("**-DI**")
+                st.write(f"{minus_di:.2f}")
+                st.markdown(format_directional_signal(plus_di, minus_di), unsafe_allow_html=True)
+                st.caption("Minus Directional Indicator (bearish movement)")
         
         # --- 4. PRICE-BASED INDICATORS & KEY LEVELS TABLE ---
         st.subheader("Price-Based Indicators & Key Levels")
@@ -600,7 +670,8 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 grade = graham_data.get('grade', 'F')
                 interpretation = graham_data.get('interpretation', 'Unknown')
 
-                st.metric("Score", f"{score}/{total}", delta=f"Grade: {grade}")
+                st.write(f"**Score:** {score}/{total}")
+                st.markdown(format_grade_signal(score, total), unsafe_allow_html=True)
                 st.caption(interpretation)
 
                 # Show criteria details
@@ -624,7 +695,8 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 grade = piotroski_data.get('grade', 'F')
                 interpretation = piotroski_data.get('interpretation', 'Unknown')
 
-                st.metric("Score", f"{score}/{total}", delta=f"Grade: {grade}")
+                st.write(f"**Score:** {score}/{total}")
+                st.markdown(format_grade_signal(score, total), unsafe_allow_html=True)
                 st.caption(interpretation)
 
                 # Show criteria details

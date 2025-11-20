@@ -2079,7 +2079,13 @@ def main():
     """Main application function"""
     create_header()
     controls = create_sidebar_controls()
-    
+
+    # Initialize session state for analysis results persistence
+    if 'cached_analysis_results' not in st.session_state:
+        st.session_state.cached_analysis_results = None
+    if 'cached_chart_data' not in st.session_state:
+        st.session_state.cached_chart_data = None
+
     # Trigger analysis on button click OR when Enter is pressed (symbol changes)
     symbol_changed = (controls['symbol'] and
                      controls['symbol'] != st.session_state.last_analyzed_symbol)
@@ -2088,53 +2094,64 @@ def main():
     if should_analyze:
         st.session_state.last_analyzed_symbol = controls['symbol']
         add_to_recently_viewed(controls['symbol'])
-        
+
         st.write(f"## 📊 VWV Trading Analysis v4.2.2 - {controls['symbol']}")
-        
+
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(
                 controls['symbol'],
                 controls['period'],
                 controls['show_debug']
             )
-            
+
+            # Cache results in session state for persistence across reruns
             if analysis_results and chart_data is not None:
-                # MANDATORY DISPLAY ORDER
-                show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
-                show_master_score(analysis_results, controls['show_debug'])
+                st.session_state.cached_analysis_results = analysis_results
+                st.session_state.cached_chart_data = chart_data
 
-                # Baldwin indicator immediately after Master Score
-                if BALDWIN_INDICATOR_AVAILABLE:
-                    show_baldwin_indicator(controls['show_debug'])
+    # Display results from cache if available (persists across button clicks)
+    if st.session_state.cached_analysis_results and st.session_state.cached_chart_data:
+        analysis_results = st.session_state.cached_analysis_results
+        chart_data = st.session_state.cached_chart_data
 
-                show_signal_confluence(analysis_results, controls['show_debug'])
-                show_individual_technical_analysis(analysis_results, controls['show_debug'])
+        # Show symbol header if not already shown by should_analyze block
+        if not should_analyze:
+            st.write(f"## 📊 VWV Trading Analysis v4.2.2 - {analysis_results.get('symbol', 'Unknown')}")
 
-                if VOLUME_ANALYSIS_AVAILABLE:
-                    show_volume_analysis(analysis_results, controls['show_debug'])
+        # MANDATORY DISPLAY ORDER
+        show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+        show_master_score(analysis_results, controls['show_debug'])
 
-                if VOLATILITY_ANALYSIS_AVAILABLE:
-                    show_volatility_analysis(analysis_results, controls['show_debug'])
+        # Baldwin indicator immediately after Master Score
+        if BALDWIN_INDICATOR_AVAILABLE:
+            show_baldwin_indicator(controls['show_debug'])
 
-                show_divergence_analysis(analysis_results, controls['show_debug'])
-                show_fundamental_analysis(analysis_results, controls['show_debug'])
-                show_market_correlation_analysis(analysis_results, controls['show_debug'])
+        show_signal_confluence(analysis_results, controls['show_debug'])
+        show_individual_technical_analysis(analysis_results, controls['show_debug'])
 
-                # Phase 2A: Backtest Performance
-                show_backtest_analysis(analysis_results, controls['show_debug'])
+        if VOLUME_ANALYSIS_AVAILABLE:
+            show_volume_analysis(analysis_results, controls['show_debug'])
 
-                # Phase 2B: Pattern Recognition
-                show_pattern_recognition(analysis_results, controls['show_debug'])
+        if VOLATILITY_ANALYSIS_AVAILABLE:
+            show_volatility_analysis(analysis_results, controls['show_debug'])
 
-                show_options_analysis(analysis_results, controls['show_debug'])
-                show_confidence_intervals(analysis_results, controls['show_debug'])
-                
-                if controls['show_debug']:
-                    with st.expander("🐛 Debug Information", expanded=False):
-                        st.write("### Analysis Results Structure")
-                        st.json(analysis_results)
-            else:
-                st.error("❌ No results to display")
+        show_divergence_analysis(analysis_results, controls['show_debug'])
+        show_fundamental_analysis(analysis_results, controls['show_debug'])
+        show_market_correlation_analysis(analysis_results, controls['show_debug'])
+
+        # Phase 2A: Backtest Performance
+        show_backtest_analysis(analysis_results, controls['show_debug'])
+
+        # Phase 2B: Pattern Recognition
+        show_pattern_recognition(analysis_results, controls['show_debug'])
+
+        show_options_analysis(analysis_results, controls['show_debug'])
+        show_confidence_intervals(analysis_results, controls['show_debug'])
+
+        if controls['show_debug']:
+            with st.expander("🐛 Debug Information", expanded=False):
+                st.write("### Analysis Results Structure")
+                st.json(analysis_results)
     else:
         st.write("## VWV Professional Trading System v4.2.2")
         st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Trading Signals**")

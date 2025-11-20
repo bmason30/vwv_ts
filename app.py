@@ -2110,7 +2110,8 @@ def main():
                 st.session_state.cached_chart_data = chart_data
 
     # Display results from cache if available (persists across button clicks)
-    if st.session_state.cached_analysis_results and st.session_state.cached_chart_data:
+    if (st.session_state.cached_analysis_results is not None and
+        st.session_state.cached_chart_data is not None):
         analysis_results = st.session_state.cached_analysis_results
         chart_data = st.session_state.cached_chart_data
 

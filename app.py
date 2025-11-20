@@ -2001,12 +2001,17 @@ def main():
                 # MANDATORY DISPLAY ORDER
                 show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
                 show_master_score(analysis_results, controls['show_debug'])
+
+                # Baldwin indicator immediately after Master Score
+                if BALDWIN_INDICATOR_AVAILABLE:
+                    show_baldwin_indicator(controls['show_debug'])
+
                 show_signal_confluence(analysis_results, controls['show_debug'])
                 show_individual_technical_analysis(analysis_results, controls['show_debug'])
-                
+
                 if VOLUME_ANALYSIS_AVAILABLE:
                     show_volume_analysis(analysis_results, controls['show_debug'])
-                
+
                 if VOLATILITY_ANALYSIS_AVAILABLE:
                     show_volatility_analysis(analysis_results, controls['show_debug'])
 
@@ -2019,9 +2024,6 @@ def main():
 
                 # Phase 2B: Pattern Recognition
                 show_pattern_recognition(analysis_results, controls['show_debug'])
-
-                if BALDWIN_INDICATOR_AVAILABLE:
-                    show_baldwin_indicator(controls['show_debug'])
 
                 show_options_analysis(analysis_results, controls['show_debug'])
                 show_confidence_intervals(analysis_results, controls['show_debug'])

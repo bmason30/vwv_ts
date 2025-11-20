@@ -181,10 +181,10 @@ def create_sidebar_controls():
         st.session_state.show_divergence = st.checkbox("Show Divergence Detection", value=st.session_state.show_divergence)
         st.session_state.show_fundamental_analysis = st.checkbox("Show Fundamental Analysis", value=st.session_state.show_fundamental_analysis)
         st.session_state.show_market_correlation = st.checkbox("Show Market Correlation", value=st.session_state.show_market_correlation)
-        st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
         st.session_state.show_patterns = st.checkbox("Show Pattern Recognition", value=st.session_state.show_patterns)
         st.session_state.show_options_analysis = st.checkbox("Show Options Analysis", value=st.session_state.show_options_analysis)
         st.session_state.show_confidence_intervals = st.checkbox("Show Confidence Intervals", value=st.session_state.show_confidence_intervals)
+        st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
     
     # Analyze button
     analyze_button = st.sidebar.button("🔍 Analyze Now", use_container_width=True, type="primary")
@@ -2149,14 +2149,14 @@ def main():
         show_fundamental_analysis(analysis_results, controls['show_debug'])
         show_market_correlation_analysis(analysis_results, controls['show_debug'])
 
-        # Phase 2A: Backtest Performance
-        show_backtest_analysis(analysis_results, controls['show_debug'])
-
         # Phase 2B: Pattern Recognition
         show_pattern_recognition(analysis_results, controls['show_debug'])
 
         show_options_analysis(analysis_results, controls['show_debug'])
         show_confidence_intervals(analysis_results, controls['show_debug'])
+
+        # Phase 2A: Backtest Performance (moved to last position)
+        show_backtest_analysis(analysis_results, controls['show_debug'])
 
         if controls['show_debug']:
             with st.expander("🐛 Debug Information", expanded=False):

@@ -143,14 +143,21 @@ def create_sidebar_controls():
     if 'show_patterns' not in st.session_state:
         st.session_state.show_patterns = True
 
+    # Initialize pending symbol state for quick links
+    if 'pending_symbol' not in st.session_state:
+        st.session_state.pending_symbol = "TSLA"
+
     # Symbol input with Enter key support
     symbol_input = st.sidebar.text_input(
         "Symbol",
-        value="TSLA",
-        key="symbol_input",
+        value=st.session_state.pending_symbol,
         help="Enter a stock symbol (e.g., AAPL, TSLA, SPY)"
     ).upper()
-    
+
+    # Update pending_symbol if user typed a new value
+    if symbol_input and symbol_input != st.session_state.pending_symbol:
+        st.session_state.pending_symbol = symbol_input
+
     # Data period selection with 3mo as default (optimal for all modules)
     period = st.sidebar.selectbox(
         "Data Period",
@@ -201,7 +208,7 @@ def create_sidebar_controls():
             for idx, symbol in enumerate(symbols):
                 with cols[idx % 2]:
                     if st.button(symbol, key=f"quick_{symbol}", use_container_width=True):
-                        st.session_state.symbol_input = symbol
+                        st.session_state.pending_symbol = symbol
                         st.session_state.last_analyzed_symbol = None  # Force re-analysis
                         st.rerun()
     

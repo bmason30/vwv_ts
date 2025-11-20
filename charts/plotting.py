@@ -414,14 +414,14 @@ def create_options_levels_chart(
                     yshift=-10
                 )
 
-        # Price line
+        # Price line - bright cyan for visibility on dark backgrounds
         fig.add_trace(
             go.Scatter(
                 x=data.index,
                 y=data['Close'],
                 mode='lines',
                 name='Price',
-                line=dict(color='rgba(0, 0, 0, 0.7)', width=2.5)
+                line=dict(color='rgba(0, 255, 255, 0.9)', width=2.5)  # Bright cyan
             )
         )
 

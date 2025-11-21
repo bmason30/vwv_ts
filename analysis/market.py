@@ -1,6 +1,6 @@
 """
 File: market.py v1.0.3
-VWV Professional Trading System v4.2.2
+VWV Research And Analysis System v4.2.2
 Market correlation and comparison analysis
 Created: 2025-08-15
 Updated: 2025-10-08

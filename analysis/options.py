@@ -1,6 +1,6 @@
 """
 File: options.py v2.1.0
-VWV Professional Trading System v4.3.0
+VWV Research And Analysis System v4.3.0
 Options analysis module with Black-Scholes pricing and accurate Greeks
 Created: 2025-08-15
 Updated: 2025-11-19

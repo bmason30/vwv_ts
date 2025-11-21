@@ -1,6 +1,6 @@
-# VWV Professional Trading System
+# VWV Research And Analysis System v1.0.0
 
-Advanced market analysis and intelligent options strategy platform with 32+ years of proven logic.
+Professional market research and analysis platform combining 32+ years of proven VWV methodology with modern technical analysis, fundamental scoring, and advanced options strategies.
 
 ## 🎯 Features
 
@@ -44,4 +44,4 @@ This system is for educational and informational purposes only. Past performance
 
 ---
 
-**Built with Streamlit** | **Data by Yahoo Finance** | **Professional Trading System**
+**Built with Streamlit** | **Data by Yahoo Finance** | **VWV Research And Analysis System v1.0.0**

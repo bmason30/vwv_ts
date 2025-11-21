@@ -1,6 +1,6 @@
 """
 Filename: analysis/fundamental.py
-VWV Trading System v4.2.1
+VWV Research And Analysis System v4.2.1
 Created/Updated: 2025-09-04 14:55:10 EDT
 Version: 1.1.1 - Restored missing financial data fetching calls
 Purpose: Provides fundamental analysis using Graham and Piotroski F-Score.

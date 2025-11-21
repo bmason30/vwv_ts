@@ -1,6 +1,6 @@
 """
 File: ui/components.py v1.3.0
-VWV Professional Trading System v4.3.0
+VWV Research And Analysis System v4.3.0
 UI Components Module - Professional score bars and headers
 Created: 2025-10-02
 Updated: 2025-11-19
@@ -366,10 +366,10 @@ def create_header() -> None:
     st.markdown("""
         <div style='text-align: center; padding: 20px 0;'>
             <h1 style='color: #4CAF50; margin: 0;'>
-                VWV Professional Trading System v4.2.2
+                VWV Research And Analysis System v4.2.2
             </h1>
             <p style='color: #888; margin: 5px 0;'>
-                Advanced Technical Analysis • Volatility Analysis • Professional Trading Signals
+                Advanced Technical Analysis • Volatility Analysis • Professional Market Analysis
             </p>
         </div>
         <hr style='border: 1px solid #333; margin: 20px 0;'>

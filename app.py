@@ -1,11 +1,11 @@
 """
-File: app.py v1.0.9
-VWV Professional Trading System v4.2.2
-Main Streamlit application - Technical analysis display fix (calculations preserved)
+File: app.py
+Version: 1.0.0
+VWV Research And Analysis System
 Created: 2025-07-15
-Updated: 2025-10-08
-File Version: v1.0.9 - Fixed display only, preserved working calculation pipeline
-System Version: v4.2.2 - Technical Analysis Display Error Resolution
+Updated: 2025-11-20
+Purpose: Main Streamlit application for market research and analysis
+System Version: v1.0.0 - Initial Release of Research And Analysis System
 """
 
 import streamlit as st
@@ -100,7 +100,7 @@ warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 
 # Page configuration
 st.set_page_config(
-    page_title="VWV Professional Trading System v4.2.2",
+    page_title="VWV Research And Analysis System v1.0.0",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -108,7 +108,7 @@ st.set_page_config(
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters"""
-    st.sidebar.title("📊 Trading Analysis v4.2.2")
+    st.sidebar.title("📊 Research And Analysis v1.0.0")
     
     # Initialize session state for toggles
     if 'recently_viewed' not in st.session_state:
@@ -530,7 +530,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
                 st.json(enhanced_indicators)
 
 def show_volume_analysis(analysis_results, show_debug=False):
-    """Display volume analysis section - PRIORITY 3 (Optional)"""
+    """Display volume analysis with composite score"""
     if not st.session_state.show_volume_analysis or not VOLUME_ANALYSIS_AVAILABLE:
         return
 
@@ -550,8 +550,36 @@ def show_volume_analysis(analysis_results, show_debug=False):
 
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volume_analysis = enhanced_indicators.get('volume_analysis', {})
-        
+
         if volume_analysis and 'error' not in volume_analysis:
+            # COMPOSITE SCORE BAR (NEW)
+            composite_score = volume_analysis.get('composite_score', volume_analysis.get('volume_score', 50))
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                create_technical_score_bar(
+                    composite_score,
+                    label="Volume Composite Score",
+                    description="Weighted aggregate of volume indicators"
+                )
+
+            with col2:
+                # Classification
+                classification = volume_analysis.get('classification', volume_analysis.get('volume_regime', 'NEUTRAL'))
+                if 'STRONG' in str(classification).upper() and 'ACCUM' in str(classification).upper():
+                    st.success(f"**{classification}**")
+                elif 'ACCUM' in str(classification).upper():
+                    st.info(f"**{classification}**")
+                elif 'DISTRIB' in str(classification).upper() and 'STRONG' not in str(classification).upper():
+                    st.warning(f"**{classification}**")
+                elif 'DISTRIB' in str(classification).upper():
+                    st.error(f"**{classification}**")
+                else:
+                    st.info(f"**{classification}**")
+
+            st.markdown("---")
+
+            # Rest of existing volume analysis display
             col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 current_vol = volume_analysis.get('current_volume', 0)
@@ -589,7 +617,7 @@ def show_volume_analysis(analysis_results, show_debug=False):
             st.warning(f"⚠️ Volume analysis not available - {error_msg}")
 
 def show_volatility_analysis(analysis_results, show_debug=False):
-    """Display volatility analysis section - PRIORITY 4 (Optional)"""
+    """Display volatility analysis with composite score"""
     if not st.session_state.show_volatility_analysis or not VOLATILITY_ANALYSIS_AVAILABLE:
         return
 
@@ -609,8 +637,36 @@ def show_volatility_analysis(analysis_results, show_debug=False):
 
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
-        
+
         if volatility_analysis and 'error' not in volatility_analysis:
+            # COMPOSITE SCORE BAR (NEW)
+            composite_score = volatility_analysis.get('composite_score', volatility_analysis.get('volatility_score', 50))
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                create_technical_score_bar(
+                    composite_score,
+                    label="Volatility Composite Score",
+                    description="Weighted assessment of volatility conditions"
+                )
+
+            with col2:
+                # Regime classification
+                regime = volatility_analysis.get('regime', volatility_analysis.get('volatility_regime', 'NORMAL'))
+                if 'LOW' in str(regime).upper():
+                    st.success(f"**{regime}**")
+                elif 'NORMAL' in str(regime).upper():
+                    st.info(f"**{regime}**")
+                elif 'ELEVATED' in str(regime).upper():
+                    st.warning(f"**{regime}**")
+                elif 'HIGH' in str(regime).upper():
+                    st.error(f"**{regime}**")
+                else:
+                    st.info(f"**{regime}**")
+
+            st.markdown("---")
+
+            # Rest of existing volatility analysis display
             col1, col2, col3, col4, col5 = st.columns(5)
             with col1:
                 vol_20d = volatility_analysis.get('volatility_20d', 0)
@@ -895,7 +951,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             st.warning("⚠️ Market correlation data not available")
 
 def show_baldwin_indicator(show_debug=False):
-    """Display Baldwin Market Regime Indicator - PRIORITY 6"""
+    """Display Baldwin Market Regime Indicator - Positioned FIRST"""
     if not st.session_state.show_baldwin_indicator or not BALDWIN_INDICATOR_AVAILABLE:
         return
 
@@ -907,40 +963,70 @@ def show_baldwin_indicator(show_debug=False):
                 st.error(f"❌ Baldwin Indicator Error: {baldwin_results.get('error', 'Unknown error')}")
                 return
 
-            # Display overall score and regime
-            col1, col2, col3 = st.columns(3)
+            # Main Display Area
+            col1, col2, col3 = st.columns([2, 2, 2])
 
             with col1:
-                score = baldwin_results.get('baldwin_score', 0)
-                st.metric("Baldwin Score", f"{score:.1f}/100")
+                # Baldwin Score with gradient bar
+                baldwin_score = baldwin_results.get('baldwin_score', 50)
+                create_technical_score_bar(
+                    baldwin_score,
+                    label="Baldwin Market Score",
+                    description="Composite market regime assessment"
+                )
 
             with col2:
+                # Regime indicator
                 regime = baldwin_results.get('market_regime', 'UNKNOWN')
                 regime_color = {"GREEN": "🟢", "YELLOW": "🟡", "RED": "🔴"}.get(regime, "⚪")
-                st.metric("Market Regime", f"{regime_color} {regime}")
+
+                st.metric(
+                    label="Market Regime",
+                    value=f"{regime_color} {regime}",
+                    help="Current market environment classification"
+                )
+
+                # Strategy recommendation
+                strategy = baldwin_results.get('strategy', '')
+                if strategy:
+                    if regime == 'GREEN':
+                        st.success(f"🟢 {strategy}")
+                    elif regime == 'RED':
+                        st.error(f"🔴 {strategy}")
+                    else:
+                        st.warning(f"🟡 {strategy}")
 
             with col3:
-                timestamp = baldwin_results.get('timestamp', 'N/A')
-                st.metric("Updated", timestamp.split(' ')[1] if ' ' in timestamp else timestamp)
+                # Quick component summary (high-level only)
+                st.write("**Component Overview:**")
+                components = baldwin_results.get('components', {})
+                if components:
+                    for name, data in components.items():
+                        component_score = data.get('component_score', 50)
+                        component_name = name.replace('_', ' & ').title()
+                        st.write(f"• {component_name}: {component_score:.1f}/100")
+                else:
+                    st.write("• No component data available")
 
-            # Display strategy
-            st.info(f"**Strategy:** {baldwin_results.get('strategy', 'N/A')}")
+            # NESTED EXPANDER FOR COMPONENT BREAKDOWN (collapsed by default)
+            with st.expander("📊 Component Breakdown", expanded=False):
+                st.write("### Detailed Component Analysis")
 
-            # Display component breakdown
-            components = baldwin_results.get('components', {})
-            if components:
-                st.subheader("Component Breakdown")
+                components = baldwin_results.get('components', {})
+                if components:
+                    # Create detailed breakdown for each component
+                    for name, data in components.items():
+                        component_name = name.replace('_', ' & ').title()
+                        component_score = data.get('component_score', 50)
 
-                component_data = []
-                for name, data in components.items():
-                    component_data.append({
-                        'Component': name.replace('_', ' & '),
-                        'Score': f"{data.get('component_score', 0):.1f}/100"
-                    })
-
-                if component_data:
-                    df_components = pd.DataFrame(component_data)
-                    st.dataframe(df_components, use_container_width=True, hide_index=True)
+                        with st.expander(f"📈 {component_name} ({component_score:.1f}/100)", expanded=False):
+                            # Display sub-components if available
+                            if isinstance(data, dict):
+                                for key, value in data.items():
+                                    if key != 'component_score':
+                                        st.write(f"**{key.replace('_', ' ').title()}:** {value}")
+                else:
+                    st.info("No detailed component data available")
 
         except Exception as e:
             st.error(f"❌ Baldwin Indicator Error: {str(e)}")
@@ -1391,7 +1477,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
     if hist_data is None or len(hist_data) < 60:
         return  # Need sufficient data for backtesting
 
-    with st.expander(f"📈 Strategy Performance (Backtest) - {symbol}", expanded=True):
+    with st.expander(f"📈 Strategy Performance (Backtest) - {symbol}", expanded=False):
         st.subheader("Historical Performance Validation")
 
         # Info message
@@ -1662,7 +1748,7 @@ def show_pattern_recognition(analysis_results, show_debug=False):
     if hist_data is None or len(hist_data) < 20:
         return  # Need sufficient data for pattern detection
 
-    with st.expander(f"📐 Pattern Recognition - {symbol}", expanded=True):
+    with st.expander(f"📐 Pattern Recognition - {symbol}", expanded=False):
         st.subheader("Chart Patterns & Candlestick Analysis")
 
         # Info message
@@ -2108,7 +2194,7 @@ def main():
         st.session_state.last_analyzed_symbol = controls['symbol']
         add_to_recently_viewed(controls['symbol'])
 
-        st.write(f"## 📊 VWV Trading Analysis v4.2.2 - {controls['symbol']}")
+        st.write(f"## 📊 VWV Research And Analysis v1.0.0 - {controls['symbol']}")
 
         with st.spinner(f"Analyzing {controls['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(
@@ -2130,48 +2216,63 @@ def main():
 
         # Show symbol header if not already shown by should_analyze block
         if not should_analyze:
-            st.write(f"## 📊 VWV Trading Analysis v4.2.2 - {analysis_results.get('symbol', 'Unknown')}")
+            st.write(f"## 📊 VWV Research And Analysis v1.0.0 - {analysis_results.get('symbol', 'Unknown')}")
 
-        # MANDATORY DISPLAY ORDER
-        show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
-        show_master_score(analysis_results, controls['show_debug'])
+        # VWV RESEARCH AND ANALYSIS SYSTEM v1.0.0 - DISPLAY ORDER
 
-        # Baldwin indicator immediately after Master Score
+        # 1. BALDWIN MARKET REGIME (NEW POSITION - FIRST)
         if BALDWIN_INDICATOR_AVAILABLE:
             show_baldwin_indicator(controls['show_debug'])
 
-        show_signal_confluence(analysis_results, controls['show_debug'])
+        # 2. INTERACTIVE CHARTS
+        show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
+
+        # 3. TECHNICAL ANALYSIS
         show_individual_technical_analysis(analysis_results, controls['show_debug'])
 
+        # 4. VOLUME ANALYSIS (with composite score)
         if VOLUME_ANALYSIS_AVAILABLE:
             show_volume_analysis(analysis_results, controls['show_debug'])
 
+        # 5. VOLATILITY ANALYSIS (with composite score)
         if VOLATILITY_ANALYSIS_AVAILABLE:
             show_volatility_analysis(analysis_results, controls['show_debug'])
 
-        show_divergence_analysis(analysis_results, controls['show_debug'])
+        # 6. FUNDAMENTAL ANALYSIS
         show_fundamental_analysis(analysis_results, controls['show_debug'])
+
+        # 7. MARKET CORRELATION
         show_market_correlation_analysis(analysis_results, controls['show_debug'])
 
-        # Phase 2B: Pattern Recognition
-        show_pattern_recognition(analysis_results, controls['show_debug'])
-
+        # 8. OPTIONS ANALYSIS
         show_options_analysis(analysis_results, controls['show_debug'])
+
+        # 9. CONFIDENCE INTERVALS
         show_confidence_intervals(analysis_results, controls['show_debug'])
 
-        # Phase 2A: Backtest Performance (moved to last position)
+        # 10. DIVERGENCE DETECTION (collapsed by default)
+        show_divergence_analysis(analysis_results, controls['show_debug'])
+
+        # 11. MULTI-SYMBOL SCANNER (collapsed by default)
+        display_scanner_module(controls['show_debug'])
+
+        # 12. PATTERN RECOGNITION (collapsed by default)
+        show_pattern_recognition(analysis_results, controls['show_debug'])
+
+        # 13. BACKTEST (collapsed by default)
         show_backtest_analysis(analysis_results, controls['show_debug'])
 
-        # Multi-Symbol Master Score Scanner Module
-        display_scanner_module(controls['show_debug'])
+        # Additional modules (optional)
+        show_master_score(analysis_results, controls['show_debug'])
+        show_signal_confluence(analysis_results, controls['show_debug'])
 
         if controls['show_debug']:
             with st.expander("🐛 Debug Information", expanded=False):
                 st.write("### Analysis Results Structure")
                 st.json(analysis_results)
     else:
-        st.write("## VWV Professional Trading System v4.2.2")
-        st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Trading Signals**")
+        st.write("## VWV Research And Analysis System v1.0.0")
+        st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Market Analysis**")
         
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
@@ -2186,18 +2287,18 @@ def main():
     
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information v4.2.2")
+    st.write("### 📊 System Information v1.0.0")
     col1, col2, col3 = st.columns(3)
-    
+
     with col1:
-        st.write(f"**Version:** VWV Professional v4.2.2")
-        st.write(f"**Status:** ✅ Calculations Preserved")
+        st.write(f"**Version:** VWV Research And Analysis v1.0.0")
+        st.write(f"**Status:** ✅ Fully Operational")
     with col2:
-        st.write(f"**Display Order:** Charts → Technical → Analysis")
-        st.write(f"**Default Period:** 1 month (1mo)")
+        st.write(f"**Display Order:** Baldwin → Charts → Technical → Analysis")
+        st.write(f"**Default Period:** 3 months (3mo)")
     with col3:
-        st.write(f"**File Version:** app.py v1.0.9")
-        st.write(f"**Fix:** Display only, calculations intact")
+        st.write(f"**File Version:** app.py v1.0.0")
+        st.write(f"**System:** Research And Analysis Platform")
 
 if __name__ == "__main__":
     try:

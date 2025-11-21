@@ -1,6 +1,6 @@
 """
 File: analysis/candlestick.py
-VWV Trading System - Candlestick Pattern Recognition
+VWV Research And Analysis System - Candlestick Pattern Recognition
 Created: 2025-11-18
 Phase 2B: Pattern Recognition & Enhanced Signal Detection
 

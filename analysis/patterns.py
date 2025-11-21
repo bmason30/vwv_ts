@@ -1,6 +1,6 @@
 """
 File: analysis/patterns.py
-VWV Trading System - Chart Pattern Detection
+VWV Research And Analysis System - Chart Pattern Detection
 Created: 2025-11-18
 Phase 2B: Pattern Recognition & Enhanced Signal Detection
 

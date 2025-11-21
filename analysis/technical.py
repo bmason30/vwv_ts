@@ -1,6 +1,6 @@
 """
 FILENAME: technical.py
-VWV Professional Trading System v4.2.2
+VWV Research And Analysis System v4.2.2
 File Revision: r9
 Date: October 6, 2025
 Revision Type: Critical Error Fixes
@@ -409,7 +409,7 @@ def calculate_composite_technical_score(analysis_results: Dict[str, Any]) -> tup
 
 @safe_calculation_wrapper
 def generate_technical_signals(data: pd.DataFrame) -> Dict[str, Any]:
-    """Generate trading signals based on technical indicators."""
+    """Generate market analysis based on technical indicators."""
     signals = {
         'buy_signals': [],
         'sell_signals': [],

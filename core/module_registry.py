@@ -1,6 +1,6 @@
 """
 File: core/module_registry.py
-Robust Module Registry System for VWV Trading System
+Robust Module Registry System for VWV Research And Analysis System
 Version: v4.2.2-ARCHITECTURE-REFACTOR-2025-08-27-19-30-00-EST
 PURPOSE: Prevent cross-module contamination and enable safe module independence
 Last Updated: August 27, 2025 - 7:30 PM EST

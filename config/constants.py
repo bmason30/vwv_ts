@@ -1,5 +1,5 @@
 """
-Constants and static data for the VWV Trading System
+Constants and static data for the VWV Research And Analysis System
 """
 
 # Symbol descriptions for quick links

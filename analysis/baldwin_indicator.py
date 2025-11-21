@@ -1,6 +1,6 @@
 """
 Filename: analysis/baldwin_indicator.py
-VWV Trading System v4.2.1
+VWV Research And Analysis System v4.2.1
 Created/Updated: 2025-09-04 10:06:51 EDT
 Version: 4.2.2 - Removed erroneous call to non-existent yfinance function
 Purpose: Baldwin Market Regime Indicator - Multi-factor traffic light system (GREEN/YELLOW/RED)

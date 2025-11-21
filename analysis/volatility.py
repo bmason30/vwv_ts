@@ -1,6 +1,6 @@
 """
 Filename: analysis/volatility.py
-VWV Trading System v4.2.1
+VWV Research And Analysis System v4.2.1
 Created/Updated: 2025-09-04 16:10:25 EDT
 Version: 1.1.1 - Full restoration of advanced volatility logic
 Purpose: Provides advanced, multi-factor volatility analysis.

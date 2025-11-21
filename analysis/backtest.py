@@ -1,6 +1,6 @@
 """
 File: analysis/backtest.py
-VWV Trading System - Integrated Backtesting Engine
+VWV Research And Analysis System - Integrated Backtesting Engine
 Created: 2025-11-18
 Phase 2A: Performance Validation & Strategy Testing
 

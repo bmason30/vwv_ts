@@ -26,6 +26,50 @@ import re
 
 logger = logging.getLogger(__name__)
 
+def get_command_center_layout():
+    """
+    Get command center dark theme layout settings for all charts
+    Consistent with institutional terminal design
+    """
+    return {
+        'template': 'plotly_dark',
+        'paper_bgcolor': '#0f0f0f',
+        'plot_bgcolor': '#0f0f0f',
+        'font': dict(
+            family='JetBrains Mono, monospace',
+            size=11,
+            color='#9ca3af'
+        ),
+        'title': dict(
+            font=dict(
+                family='Inter, sans-serif',
+                size=14,
+                color='#ffffff'
+            ),
+            x=0.02,
+            xanchor='left'
+        ),
+        'xaxis': dict(
+            gridcolor='rgba(255, 255, 255, 0.05)',
+            linecolor='rgba(255, 255, 255, 0.1)',
+            zerolinecolor='rgba(255, 255, 255, 0.1)'
+        ),
+        'yaxis': dict(
+            gridcolor='rgba(255, 255, 255, 0.05)',
+            linecolor='rgba(255, 255, 255, 0.1)',
+            zerolinecolor='rgba(255, 255, 255, 0.1)'
+        ),
+        'hovermode': 'x unified',
+        'hoverlabel': dict(
+            bgcolor='#151515',
+            font=dict(
+                family='JetBrains Mono, monospace',
+                color='#ffffff'
+            ),
+            bordercolor='#3b82f6'
+        )
+    }
+
 def safe_extract_number(value, default=0):
     """
     Safely extract a numeric value from various formats
@@ -285,14 +329,15 @@ def create_comprehensive_trading_chart(data: pd.DataFrame, analysis_results: Dic
             )
         
         # Update layout
-        fig.update_layout(
-            title=f"{analysis_results.get('symbol', 'Stock')} - Comprehensive Trading Analysis",
-            height=height,
-            showlegend=True,
-            xaxis_rangeslider_visible=False,
-            template='plotly_white',
-            hovermode='x unified'
-        )
+        # Apply command center theme
+        layout = get_command_center_layout()
+        layout.update({
+            'title': f"{analysis_results.get('symbol', 'Stock')} - Comprehensive Trading Analysis",
+            'height': height,
+            'showlegend': True,
+            'xaxis_rangeslider_visible': False
+        })
+        fig.update_layout(**layout)
         
         # Update y-axes
         fig.update_yaxes(title_text="Price ($)", row=1, col=1)
@@ -491,15 +536,16 @@ def create_options_levels_chart(
             annotation_font=dict(size=11, color="blue")
         )
 
-        fig.update_layout(
-            title="Options Levels - Premium Selling Strikes (Enhanced Visualization)",
-            height=500,
-            yaxis_title="Price ($)",
-            xaxis_title="Date",
-            template='plotly_white',
-            hovermode='x unified',
-            showlegend=True
-        )
+        # Apply command center theme
+        layout = get_command_center_layout()
+        layout.update({
+            'title': "Options Levels - Premium Selling Strikes (Enhanced Visualization)",
+            'height': 500,
+            'yaxis_title': "Price ($)",
+            'xaxis_title': "Date",
+            'showlegend': True
+        })
+        fig.update_layout(**layout)
 
         return fig
 
@@ -546,13 +592,15 @@ def create_technical_score_chart(analysis_results: Dict[str, Any]) -> Optional[g
         
         fig.add_hline(y=50, line_dash="dash", line_color="gray", opacity=0.5)
         
-        fig.update_layout(
-            title=f"Technical Score Breakdown - Composite: {score:.1f}",
-            yaxis_title="Score",
-            yaxis_range=[0, 100],
-            height=300,
-            template='plotly_white'
-        )
+        # Apply command center theme
+        layout = get_command_center_layout()
+        layout.update({
+            'title': f"Technical Score Breakdown - Composite: {score:.1f}",
+            'yaxis_title': "Score",
+            'yaxis_range': [0, 100],
+            'height': 300
+        })
+        fig.update_layout(**layout)
         
         return fig
 
@@ -689,17 +737,19 @@ def create_risk_reward_scatter(options_data: list, current_price: float) -> go.F
                 borderwidth=1
             )
 
-        fig.update_layout(
-            title="Risk/Reward Analysis - Strike Selection",
-            xaxis_title="Probability of Profit (%)",
-            yaxis_title="Premium Collected ($)",
-            height=500,
-            hovermode='closest',
-            template='plotly_white',
-            showlegend=True,
-            xaxis=dict(range=[0, 100]),
-            yaxis=dict(range=[0, max(all_premiums) * 1.15 if all_premiums else 10])
-        )
+        # Apply command center theme
+        layout = get_command_center_layout()
+        layout.update({
+            'title': "Risk/Reward Analysis - Strike Selection",
+            'xaxis_title': "Probability of Profit (%)",
+            'yaxis_title': "Premium Collected ($)",
+            'height': 500,
+            'hovermode': 'closest',
+            'showlegend': True,
+            'xaxis': dict(range=[0, 100], gridcolor='rgba(255, 255, 255, 0.05)'),
+            'yaxis': dict(range=[0, max(all_premiums) * 1.15 if all_premiums else 10], gridcolor='rgba(255, 255, 255, 0.05)')
+        })
+        fig.update_layout(**layout)
 
         return fig
 

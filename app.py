@@ -91,7 +91,14 @@ except ImportError:
     calculate_baldwin_indicator_complete = None
     format_baldwin_for_display = None
 
-from ui.components import create_technical_score_bar, create_fundamental_score_bar, create_master_score_bar, create_header
+from ui.components import (
+    create_technical_score_bar,
+    create_fundamental_score_bar,
+    create_master_score_bar,
+    create_header,
+    inject_custom_css,
+    create_command_center_header
+)
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
@@ -107,8 +114,17 @@ st.set_page_config(
 )
 
 def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters"""
-    st.sidebar.title("📊 Research And Analysis v1.0.0")
+    """Create sidebar controls and return analysis parameters - Command Center Design"""
+
+    # COMPACT BRANDING (replaces emoji-heavy title)
+    st.sidebar.markdown("""
+    <div style="padding: 1rem 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+        <div class="terminal-badge">
+            <div class="terminal-badge-dot"></div>
+            <span style="color: white; font-size: 0.875rem;">CONTROLS</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Initialize session state for toggles
     if 'recently_viewed' not in st.session_state:
@@ -170,7 +186,7 @@ def create_sidebar_controls():
     )
     
     # Analysis sections toggle - Ordered to match main pane display
-    with st.sidebar.expander("📊 Analysis Sections", expanded=False):
+    with st.sidebar.expander("ANALYSIS SECTIONS", expanded=False):
         st.session_state.show_charts = st.checkbox("Show Charts", value=st.session_state.show_charts)
         st.session_state.show_master_score = st.checkbox("Show Master Score", value=st.session_state.show_master_score)
         if BALDWIN_INDICATOR_AVAILABLE:
@@ -190,11 +206,11 @@ def create_sidebar_controls():
         st.session_state.show_backtest = st.checkbox("Show Backtest Performance", value=st.session_state.show_backtest)
         st.session_state.show_scanner = st.checkbox("Show Multi-Symbol Scanner", value=st.session_state.show_scanner)
     
-    # Analyze button
-    analyze_button = st.sidebar.button("🔍 Analyze Now", use_container_width=True, type="primary")
+    # Analyze button - Professional command center style
+    analyze_button = st.sidebar.button("RUN ANALYSIS", use_container_width=True, type="primary")
     
     # Recently viewed
-    with st.sidebar.expander("🕒 Recently Viewed", expanded=False):
+    with st.sidebar.expander("RECENTLY VIEWED", expanded=False):
         if st.session_state.recently_viewed:
             for viewed_symbol in st.session_state.recently_viewed[-5:]:
                 if st.button(viewed_symbol, key=f"recent_{viewed_symbol}", use_container_width=True):
@@ -205,7 +221,7 @@ def create_sidebar_controls():
             st.write("No recent symbols")
 
     # Quick Links
-    with st.sidebar.expander("🔗 Quick Links", expanded=False):
+    with st.sidebar.expander("QUICK LINKS", expanded=False):
         for category, symbols in QUICK_LINK_CATEGORIES.items():
             st.write(f"**{category}**")
             cols = st.columns(2)
@@ -216,9 +232,21 @@ def create_sidebar_controls():
                         st.session_state.last_analyzed_symbol = None  # Force re-analysis
                         st.rerun()
     
-    # Debug mode
-    show_debug = st.sidebar.checkbox("🐛 Debug Mode", value=False)
-    
+    # FOOTER SECTION (at bottom of sidebar)
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    <div style="padding: 1rem 0; display: flex; justify-content: space-between;
+                align-items: center; font-size: 0.75rem; color: #6b7280;">
+        <span>v1.0.0</span>
+        <div style="width: 8px; height: 8px; background-color: #10b981;
+                    border-radius: 50%; animation: pulse 2s infinite;"></div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Debug mode in collapsible settings
+    with st.sidebar.expander("SETTINGS"):
+        show_debug = st.checkbox("Debug Mode", value=False, key="debug_mode")
+
     return {
         'symbol': symbol_input,
         'period': period,
@@ -239,7 +267,7 @@ def show_interactive_charts(data, analysis_results, show_debug=False):
     if not st.session_state.show_charts:
         return
         
-    with st.expander("📊 Interactive Trading Charts", expanded=True):
+    with st.expander("INTERACTIVE TRADING CHARTS", expanded=True):
         try:
             from charts.plotting import display_trading_charts
             display_trading_charts(data, analysis_results)
@@ -338,7 +366,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
     period = analysis_results.get('period', 'Unknown')
     data_points = analysis_results.get('data_points', 0)
 
-    with st.expander(f"📊 Technical Analysis - {symbol}", expanded=True):
+    with st.expander(f"TECHNICAL ANALYSIS - {symbol}", expanded=True):
 
         # Timeframe warning for insufficient data
         if data_points < 50:
@@ -523,7 +551,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         
         # Debug info
         if show_debug:
-            with st.expander("🐛 Technical Analysis Debug Info", expanded=True):
+            with st.expander("TECHNICAL ANALYSIS DEBUG INFO", expanded=True):
                 st.write("**Comprehensive Technicals:**")
                 st.json(comprehensive_technicals)
                 st.write("**All Indicators:**")
@@ -538,7 +566,7 @@ def show_volume_analysis(analysis_results, show_debug=False):
     period = analysis_results.get('period', 'Unknown')
     data_points = analysis_results.get('data_points', 0)
 
-    with st.expander(f"📊 Volume Analysis - {symbol}", expanded=True):
+    with st.expander(f"VOLUME ANALYSIS - {symbol}", expanded=True):
 
         # Timeframe warning for insufficient data
         if data_points < 30:
@@ -619,7 +647,7 @@ def show_volatility_analysis(analysis_results, show_debug=False):
     period = analysis_results.get('period', 'Unknown')
     data_points = analysis_results.get('data_points', 0)
 
-    with st.expander(f"📊 Volatility Analysis - {symbol}", expanded=True):
+    with st.expander(f"VOLATILITY ANALYSIS - {symbol}", expanded=True):
 
         # Timeframe warning for insufficient data
         if data_points < 30:
@@ -690,7 +718,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
     if not st.session_state.show_fundamental_analysis:
         return
 
-    with st.expander("📊 Fundamental Analysis - Value Investment Scores", expanded=True):
+    with st.expander("FUNDAMENTAL ANALYSIS - VALUE INVESTMENT SCORES", expanded=True):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         graham_data = enhanced_indicators.get('graham_score', {})
         piotroski_data = enhanced_indicators.get('piotroski_score', {})
@@ -733,7 +761,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 # Show criteria details
                 criteria = graham_data.get('criteria', [])
                 if criteria:
-                    with st.expander("📋 Detailed Criteria", expanded=False):
+                    with st.expander("DETAILED CRITERIA", expanded=False):
                         for criterion in criteria:
                             if '✓' in criterion:
                                 st.success(criterion)
@@ -758,7 +786,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 # Show criteria details
                 criteria = piotroski_data.get('criteria', [])
                 if criteria:
-                    with st.expander("📋 Detailed Criteria", expanded=False):
+                    with st.expander("DETAILED CRITERIA", expanded=False):
                         for criterion in criteria:
                             if '✓' in criterion:
                                 st.success(criterion)
@@ -796,7 +824,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 components = altman_data.get('components', {})
                 criteria = altman_data.get('criteria', [])
                 if criteria:
-                    with st.expander("📋 Component Details", expanded=False):
+                    with st.expander("COMPONENT DETAILS", expanded=False):
                         for criterion in criteria:
                             st.text(criterion)
             else:
@@ -827,7 +855,7 @@ def show_fundamental_analysis(analysis_results, show_debug=False):
                 # Show component details
                 criteria = roic_data.get('criteria', [])
                 if criteria:
-                    with st.expander("📋 Calculation Details", expanded=False):
+                    with st.expander("CALCULATION DETAILS", expanded=False):
                         for criterion in criteria:
                             st.text(criterion)
             else:
@@ -916,7 +944,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
     if not st.session_state.show_market_correlation:
         return
         
-    with st.expander("🌐 Market Correlation & Comparison Analysis", expanded=True):
+    with st.expander("MARKET CORRELATION & COMPARISON ANALYSIS", expanded=True):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         market_correlations = enhanced_indicators.get('market_correlations', {})
         
@@ -943,7 +971,7 @@ def show_baldwin_indicator(show_debug=False):
     if not st.session_state.show_baldwin_indicator or not BALDWIN_INDICATOR_AVAILABLE:
         return
 
-    with st.expander("🚦 Baldwin Market Regime Indicator", expanded=True):
+    with st.expander("BALDWIN MARKET REGIME INDICATOR", expanded=True):
         try:
             baldwin_results = calculate_baldwin_indicator_complete(show_debug=show_debug)
 
@@ -994,7 +1022,7 @@ def show_baldwin_indicator(show_debug=False):
                     st.write("• No component data available")
 
             # NESTED EXPANDER FOR COMPONENT BREAKDOWN (collapsed by default)
-            with st.expander("📊 Component Breakdown", expanded=False):
+            with st.expander("COMPONENT BREAKDOWN", expanded=False):
                 st.write("### Detailed Component Analysis")
 
                 components = baldwin_results.get('components', {})
@@ -1004,7 +1032,7 @@ def show_baldwin_indicator(show_debug=False):
                         component_name = name.replace('_', ' & ').title()
                         component_score = data.get('component_score', 50)
 
-                        with st.expander(f"📈 {component_name} ({component_score:.1f}/100)", expanded=False):
+                        with st.expander(f"{component_name.upper()} ({component_score:.1f}/100)", expanded=False):
                             # Display sub-components if available
                             if isinstance(data, dict):
                                 for key, value in data.items():
@@ -1024,7 +1052,7 @@ def show_options_analysis(analysis_results, show_debug=False):
     if not st.session_state.show_options_analysis:
         return
 
-    with st.expander("🎯 Options Analysis - Black-Scholes Pricing & Strike Quality", expanded=True):
+    with st.expander("OPTIONS ANALYSIS - BLACK-SCHOLES PRICING & STRIKE QUALITY", expanded=True):
         enhanced_indicators = analysis_results.get('enhanced_indicators', {})
         options_levels = enhanced_indicators.get('options_levels', [])
         current_price = analysis_results.get('current_price', 0)
@@ -1059,7 +1087,7 @@ def show_options_analysis(analysis_results, show_debug=False):
                 if risk_reward_chart:
                     st.plotly_chart(risk_reward_chart, use_container_width=True)
 
-                    with st.expander("📖 How to Read This Chart"):
+                    with st.expander("HOW TO READ THIS CHART"):
                         st.write("""
                         **Ideal strikes are in the upper right:**
                         - **High PoP (right)**: Greater probability of profit
@@ -1091,7 +1119,7 @@ def show_confidence_intervals(analysis_results, show_debug=False):
     confidence_analysis = analysis_results.get('confidence_analysis')
 
     if confidence_analysis:
-        with st.expander("📊 Statistical Confidence Intervals", expanded=True):
+        with st.expander("STATISTICAL CONFIDENCE INTERVALS", expanded=True):
 
             # Timeframe warning for insufficient data
             if data_points < 100:
@@ -1136,7 +1164,7 @@ def show_master_score(analysis_results, show_debug=False):
     if not master_score_data or 'error' in master_score_data:
         return
 
-    with st.expander(f"🎯 Master Score - {symbol}", expanded=True):
+    with st.expander(f"MASTER SCORE - {symbol}", expanded=True):
         # Main score display
         master_score = master_score_data.get('master_score', 0)
         interpretation = master_score_data.get('interpretation', 'Unknown')
@@ -1203,7 +1231,7 @@ def show_divergence_analysis(analysis_results, show_debug=False):
     if not divergence_data or 'error' in divergence_data:
         return
 
-    with st.expander(f"🔄 Divergence Detection - {symbol}", expanded=False):
+    with st.expander(f"DIVERGENCE DETECTION - {symbol}", expanded=False):
         st.subheader("Price/Oscillator Divergence Analysis")
 
         # Main metrics
@@ -1329,7 +1357,7 @@ def show_signal_confluence(analysis_results, show_debug=False):
     if not confluence_data or 'error' in confluence_data:
         return
 
-    with st.expander(f"📊 Signal Confluence Dashboard - {symbol}", expanded=True):
+    with st.expander(f"SIGNAL CONFLUENCE DASHBOARD - {symbol}", expanded=True):
         st.subheader("Cross-Module Signal Agreement")
 
         # Main metrics
@@ -1462,7 +1490,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
     if hist_data is None or len(hist_data) < 60:
         return  # Need sufficient data for backtesting
 
-    with st.expander(f"📈 Strategy Performance (Backtest) - {symbol}", expanded=False):
+    with st.expander(f"STRATEGY PERFORMANCE (BACKTEST) - {symbol}", expanded=False):
         st.subheader("Historical Performance Validation")
 
         # Info message
@@ -1733,7 +1761,7 @@ def show_pattern_recognition(analysis_results, show_debug=False):
     if hist_data is None or len(hist_data) < 20:
         return  # Need sufficient data for pattern detection
 
-    with st.expander(f"📐 Pattern Recognition - {symbol}", expanded=False):
+    with st.expander(f"PATTERN RECOGNITION - {symbol}", expanded=False):
         st.subheader("Chart Patterns & Candlestick Analysis")
 
         # Info message
@@ -1810,7 +1838,7 @@ def show_pattern_recognition(analysis_results, show_debug=False):
 
                     # Show pattern details
                     if show_debug and 'target_price' in pattern:
-                        with st.expander("Pattern Details"):
+                        with st.expander("PATTERN DETAILS"):
                             st.json(pattern)
 
             else:
@@ -2160,8 +2188,14 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
         return None, None
 
 def main():
-    """Main application function"""
-    create_header()
+    """Main application function - Command Center Design"""
+
+    # CRITICAL: Inject custom CSS first
+    inject_custom_css()
+
+    # Create command center header (replaces old green header)
+    create_command_center_header()
+
     controls = create_sidebar_controls()
 
     # Initialize session state for analysis results persistence
@@ -2254,7 +2288,7 @@ def main():
         show_signal_confluence(analysis_results, controls['show_debug'])
 
         if controls['show_debug']:
-            with st.expander("🐛 Debug Information", expanded=False):
+            with st.expander("DEBUG INFORMATION", expanded=False):
                 st.write("### Analysis Results Structure")
                 st.json(analysis_results)
     else:
@@ -2264,7 +2298,7 @@ def main():
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
         
-        with st.expander("📖 Quick Start Guide", expanded=True):
+        with st.expander("QUICK START GUIDE", expanded=True):
             st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, TSLA, SPY)")
             st.write("2. **Default period is 3 months** - optimal for all analysis modules")
             st.write("3. **⚠️ Use 3mo+ for best results** - 1mo period has limited data")

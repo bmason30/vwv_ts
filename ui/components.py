@@ -16,6 +16,456 @@ import streamlit as st
 import pandas as pd
 from typing import Dict, Any, List
 
+def inject_custom_css():
+    """
+    Inject custom CSS for institutional command center design
+    This is the maximum customization achievable in Streamlit
+    """
+    st.markdown("""
+    <style>
+    /* ========================================
+       PHASE 1: GLOBAL RESETS & BASE THEME
+       ======================================== */
+
+    /* Import Professional Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    /* Root Variables - Command Center Theme */
+    :root {
+        --bg-primary: #050505;
+        --bg-secondary: #0a0a0a;
+        --bg-tertiary: #0f0f0f;
+        --bg-input: #151515;
+        --bg-hover: #1a1a1a;
+
+        --border-subtle: rgba(255, 255, 255, 0.1);
+        --border-focus: rgba(59, 130, 246, 0.5);
+
+        --text-primary: #ffffff;
+        --text-secondary: #9ca3af;
+        --text-tertiary: #6b7280;
+
+        --accent-blue: #3b82f6;
+        --accent-blue-glow: rgba(59, 130, 246, 0.3);
+        --accent-green: #10b981;
+        --accent-red: #ef4444;
+
+        --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    /* Global Background - Deep Black */
+    .stApp {
+        background: linear-gradient(to bottom right, var(--bg-primary), var(--bg-secondary)) !important;
+        font-family: var(--font-ui) !important;
+        color: var(--text-secondary) !important;
+    }
+
+    /* Main Content Area */
+    .main .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 100% !important;
+    }
+
+    /* Remove Default Streamlit Padding */
+    .main {
+        padding: 0 !important;
+    }
+
+    /* ========================================
+       PHASE 2: REMOVE VISUAL CLUTTER
+       ======================================== */
+
+    /* Hide Streamlit Branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* ========================================
+       PHASE 3: SIDEBAR - THE CONTROL DECK
+       ======================================== */
+
+    /* Sidebar Base Styling */
+    [data-testid="stSidebar"] {
+        background-color: var(--bg-secondary) !important;
+        border-right: 1px solid var(--border-subtle) !important;
+        padding-top: 0 !important;
+    }
+
+    /* Sidebar Content */
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+        color: var(--text-secondary) !important;
+    }
+
+    /* Sidebar Title - Compact Brand */
+    [data-testid="stSidebar"] h1 {
+        font-size: 0.875rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.05em !important;
+        color: var(--text-primary) !important;
+        padding: 1rem 0 0.5rem 0 !important;
+        margin: 0 !important;
+        border-bottom: 1px solid var(--border-subtle) !important;
+    }
+
+    /* Sidebar Inputs - Compact Style */
+    [data-testid="stSidebar"] input {
+        background-color: var(--bg-input) !important;
+        border: 1px solid var(--border-subtle) !important;
+        color: var(--text-primary) !important;
+        font-family: var(--font-mono) !important;
+        font-size: 0.875rem !important;
+        padding: 0.5rem !important;
+        border-radius: 0.375rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    [data-testid="stSidebar"] input:focus {
+        border-color: var(--accent-blue) !important;
+        box-shadow: 0 0 0 1px var(--border-focus) !important;
+        background-color: var(--bg-hover) !important;
+    }
+
+    /* Sidebar Select Boxes */
+    [data-testid="stSidebar"] [data-baseweb="select"] {
+        background-color: var(--bg-input) !important;
+        border: 1px solid var(--border-subtle) !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Analyze Button - Electric Blue with Glow */
+    [data-testid="stSidebar"] button[kind="primary"] {
+        background: var(--accent-blue) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: 600 !important;
+        font-size: 0.875rem !important;
+        padding: 0.625rem 1.25rem !important;
+        border-radius: 0.375rem !important;
+        box-shadow: 0 0 15px var(--accent-blue-glow) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        transition: all 0.2s ease !important;
+    }
+
+    [data-testid="stSidebar"] button[kind="primary"]:hover {
+        background: #2563eb !important;
+        box-shadow: 0 0 20px var(--accent-blue-glow) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    /* Sidebar Checkboxes - Minimal Design */
+    [data-testid="stSidebar"] [data-testid="stCheckbox"] {
+        font-size: 0.813rem !important;
+        color: var(--text-secondary) !important;
+    }
+
+    /* Sidebar Expanders - Flat Design */
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
+        background-color: transparent !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 0.375rem !important;
+        margin: 0.5rem 0 !important;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary {
+        font-size: 0.813rem !important;
+        font-weight: 600 !important;
+        color: var(--text-secondary) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    /* ========================================
+       PHASE 4: MAIN CONTENT - PRECISION LAYOUT
+       ======================================== */
+
+    /* Section Headers - Subtle, Professional */
+    h2, h3 {
+        font-family: var(--font-ui) !important;
+        font-weight: 600 !important;
+        color: var(--text-primary) !important;
+        font-size: 1.25rem !important;
+        margin-top: 2rem !important;
+        margin-bottom: 0.75rem !important;
+        letter-spacing: -0.025em !important;
+    }
+
+    h3 {
+        font-size: 0.875rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        color: var(--text-tertiary) !important;
+        font-weight: 500 !important;
+    }
+
+    /* Expanders - Border-Based Design */
+    [data-testid="stExpander"] {
+        background-color: transparent !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 0.75rem !important;
+        margin: 1rem 0 !important;
+        overflow: hidden !important;
+    }
+
+    [data-testid="stExpander"] summary {
+        background-color: var(--bg-tertiary) !important;
+        border-bottom: 1px solid var(--border-subtle) !important;
+        padding: 1rem 1.5rem !important;
+        font-size: 0.875rem !important;
+        font-weight: 600 !important;
+        color: var(--text-primary) !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+    }
+
+    [data-testid="stExpander"] summary:hover {
+        background-color: var(--bg-hover) !important;
+    }
+
+    /* Expander Content */
+    [data-testid="stExpander"] > div:last-child {
+        background-color: var(--bg-tertiary) !important;
+        padding: 1.5rem !important;
+    }
+
+    /* ========================================
+       PHASE 5: DATA DISPLAY - MONOSPACE PRECISION
+       ======================================== */
+
+    /* All Numbers and Financial Data */
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricDelta"],
+    .stMetric {
+        font-family: var(--font-mono) !important;
+    }
+
+    /* Metric Values */
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem !important;
+        font-weight: 500 !important;
+        color: var(--text-primary) !important;
+    }
+
+    /* Metric Labels */
+    [data-testid="stMetricLabel"] {
+        font-size: 0.75rem !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        color: var(--text-tertiary) !important;
+        font-weight: 500 !important;
+    }
+
+    /* DataFrames - Clean Grid */
+    [data-testid="stDataFrame"] {
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 0.5rem !important;
+        overflow: hidden !important;
+    }
+
+    [data-testid="stDataFrame"] table {
+        background-color: var(--bg-tertiary) !important;
+        font-family: var(--font-mono) !important;
+        font-size: 0.813rem !important;
+    }
+
+    [data-testid="stDataFrame"] thead {
+        background-color: var(--bg-secondary) !important;
+        border-bottom: 1px solid var(--border-subtle) !important;
+    }
+
+    [data-testid="stDataFrame"] th {
+        color: var(--text-tertiary) !important;
+        font-weight: 600 !important;
+        text-transform: uppercase !important;
+        font-size: 0.75rem !important;
+        letter-spacing: 0.05em !important;
+        padding: 0.75rem !important;
+    }
+
+    [data-testid="stDataFrame"] td {
+        color: var(--text-secondary) !important;
+        padding: 0.625rem 0.75rem !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+
+    /* ========================================
+       PHASE 6: CHARTS - MAXIMUM CONTRAST
+       ======================================== */
+
+    /* Plotly Charts */
+    .js-plotly-plot {
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 0.75rem !important;
+        overflow: hidden !important;
+        background-color: var(--bg-tertiary) !important;
+    }
+
+    /* Chart Modebar (Plotly controls) */
+    .modebar {
+        background-color: var(--bg-secondary) !important;
+        border-radius: 0.375rem !important;
+        padding: 0.25rem !important;
+    }
+
+    /* ========================================
+       PHASE 7: ALERTS & NOTIFICATIONS
+       ======================================== */
+
+    /* Success Messages */
+    .stSuccess {
+        background-color: rgba(16, 185, 129, 0.1) !important;
+        border: 1px solid rgba(16, 185, 129, 0.3) !important;
+        border-radius: 0.5rem !important;
+        color: var(--accent-green) !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Error Messages */
+    .stError {
+        background-color: rgba(239, 68, 68, 0.1) !important;
+        border: 1px solid rgba(239, 68, 68, 0.3) !important;
+        border-radius: 0.5rem !important;
+        color: var(--accent-red) !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Info Messages */
+    .stInfo {
+        background-color: rgba(59, 130, 246, 0.1) !important;
+        border: 1px solid rgba(59, 130, 246, 0.3) !important;
+        border-radius: 0.5rem !important;
+        color: var(--accent-blue) !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* Warning Messages */
+    .stWarning {
+        background-color: rgba(245, 158, 11, 0.1) !important;
+        border: 1px solid rgba(245, 158, 11, 0.3) !important;
+        border-radius: 0.5rem !important;
+        color: #f59e0b !important;
+        font-size: 0.875rem !important;
+    }
+
+    /* ========================================
+       PHASE 8: RESPONSIVE ADJUSTMENTS
+       ======================================== */
+
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+    }
+
+    /* ========================================
+       PHASE 9: ANIMATION & INTERACTIONS
+       ======================================== */
+
+    /* Smooth Transitions */
+    * {
+        transition: background-color 0.2s ease, border-color 0.2s ease !important;
+    }
+
+    /* Hover States for Interactive Elements */
+    button:hover,
+    [data-testid="stExpander"] summary:hover {
+        cursor: pointer !important;
+    }
+
+    /* Focus States */
+    input:focus,
+    select:focus,
+    textarea:focus {
+        outline: none !important;
+    }
+
+    /* Loading Indicator */
+    .stSpinner > div {
+        border-color: var(--accent-blue) transparent transparent transparent !important;
+    }
+
+    /* ========================================
+       PHASE 10: CUSTOM UTILITY CLASSES
+       ======================================== */
+
+    /* For custom HTML injections */
+    .terminal-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .terminal-badge-dot {
+        width: 0.75rem;
+        height: 0.75rem;
+        background-color: var(--accent-blue);
+        border-radius: 0.125rem;
+        box-shadow: 0 0 10px var(--accent-blue-glow);
+    }
+
+    .section-divider {
+        height: 1px;
+        background: linear-gradient(to right, transparent, var(--border-subtle), transparent);
+        margin: 2rem 0;
+    }
+
+    /* Accent Border Top for Cards */
+    .accent-border-top {
+        border-top: 2px solid transparent;
+        border-image: linear-gradient(to right, var(--accent-blue), #8b5cf6) 1;
+    }
+
+    /* Pulse animation for live indicators */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+
+def create_command_center_header():
+    """
+    Create institutional command center header
+    Replaces the large green centered title
+    """
+    st.markdown("""
+    <div style="display: flex; align-items: center; justify-content: space-between;
+                padding: 1rem 0; margin-bottom: 2rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+
+        <!-- Left: Compact Branding -->
+        <div class="terminal-badge">
+            <div class="terminal-badge-dot"></div>
+            <span style="color: white;">VWV</span>
+            <span style="color: #6b7280; font-weight: 400;">TERMINAL</span>
+        </div>
+
+        <!-- Center: Could add quick stats or breadcrumb -->
+        <div style="font-size: 0.75rem; color: #6b7280; font-family: 'JetBrains Mono', monospace;">
+            RESEARCH & ANALYSIS SYSTEM
+        </div>
+
+        <!-- Right: Status Indicators -->
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <div style="width: 8px; height: 8px; background-color: #10b981;
+                            border-radius: 50%; animation: pulse 2s infinite;"></div>
+                <span style="font-size: 0.75rem; color: #10b981; font-weight: 500;">LIVE</span>
+            </div>
+            <span style="font-size: 0.75rem; color: #6b7280;">v1.0.0</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
 def create_technical_score_bar(composite_score: float, score_details: Dict[str, Any] = None) -> str:
     """
     Create professional HTML score bar for technical analysis

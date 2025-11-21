@@ -13,6 +13,36 @@ SYSTEM_NAME = "VWV Research And Analysis System"
 SYSTEM_VERSION = "1.0.0"
 SYSTEM_DESCRIPTION = "Professional market research and analysis platform"
 
+# COMMAND CENTER COLOR PALETTE
+# Professional institutional color scheme for terminal-style UI
+COLORS = {
+    'bg_primary': '#050505',
+    'bg_secondary': '#0a0a0a',
+    'bg_tertiary': '#0f0f0f',
+    'bg_input': '#151515',
+    'bg_hover': '#1a1a1a',
+
+    'border_subtle': 'rgba(255, 255, 255, 0.1)',
+    'border_focus': 'rgba(59, 130, 246, 0.5)',
+
+    'text_primary': '#ffffff',
+    'text_secondary': '#9ca3af',
+    'text_tertiary': '#6b7280',
+
+    'accent_blue': '#3b82f6',
+    'accent_blue_glow': 'rgba(59, 130, 246, 0.3)',
+    'accent_green': '#10b981',
+    'accent_red': '#ef4444',
+    'accent_yellow': '#f59e0b',
+
+    # Score gradient (red to green)
+    'score_0': '#ef4444',
+    'score_25': '#f59e0b',
+    'score_50': '#eab308',
+    'score_75': '#84cc16',
+    'score_100': '#10b981'
+}
+
 # Default VWV System Configuration - Enhanced
 DEFAULT_VWV_CONFIG = {
     'wvf_period': 22,

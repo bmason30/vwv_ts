@@ -132,19 +132,21 @@ def scan_single_symbol(
                 'timestamp': datetime.now()
             }
 
-        # Extract master score data
-        master_score_data = analysis_results.get('master_score', {})
+        # Extract master score data (stored in enhanced_indicators)
+        enhanced_indicators = analysis_results.get('enhanced_indicators', {})
+        master_score_data = enhanced_indicators.get('master_score', {})
 
         if isinstance(master_score_data, dict):
-            master_score = master_score_data.get('score', 0)
+            master_score = master_score_data.get('master_score', 0)
         else:
             master_score = 0
 
-        # Extract technical score
-        tech_score_data = analysis_results.get('enhanced_indicators', {}).get('composite_technical_score', {})
-        if isinstance(tech_score_data, dict):
-            technical_score = tech_score_data.get('score', 0)
-        else:
+        # Extract technical score - recalculate from analysis results
+        try:
+            from analysis.technical import calculate_composite_technical_score
+            technical_score, _ = calculate_composite_technical_score(analysis_results)
+        except Exception as e:
+            logger.warning(f"Could not calculate technical score for {ticker}: {e}")
             technical_score = 0
 
         # Extract current price

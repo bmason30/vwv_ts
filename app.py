@@ -1,11 +1,11 @@
 """
 File: app.py
-Version: 1.0.0
+Version: 4.3.0
 VWV Research And Analysis System
 Created: 2025-07-15
-Updated: 2025-11-20
+Updated: 2025-11-21
 Purpose: Main Streamlit application for market research and analysis
-System Version: v1.0.0 - Initial Release of Research And Analysis System
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 
 import streamlit as st
@@ -557,11 +557,8 @@ def show_volume_analysis(analysis_results, show_debug=False):
 
             col1, col2 = st.columns([3, 1])
             with col1:
-                create_technical_score_bar(
-                    composite_score,
-                    label="Volume Composite Score",
-                    description="Weighted aggregate of volume indicators"
-                )
+                score_bar_html = create_technical_score_bar(composite_score)
+                st.components.v1.html(score_bar_html, height=160)
 
             with col2:
                 # Classification
@@ -644,11 +641,8 @@ def show_volatility_analysis(analysis_results, show_debug=False):
 
             col1, col2 = st.columns([3, 1])
             with col1:
-                create_technical_score_bar(
-                    composite_score,
-                    label="Volatility Composite Score",
-                    description="Weighted assessment of volatility conditions"
-                )
+                score_bar_html = create_technical_score_bar(composite_score)
+                st.components.v1.html(score_bar_html, height=160)
 
             with col2:
                 # Regime classification
@@ -969,11 +963,8 @@ def show_baldwin_indicator(show_debug=False):
             with col1:
                 # Baldwin Score with gradient bar
                 baldwin_score = baldwin_results.get('baldwin_score', 50)
-                create_technical_score_bar(
-                    baldwin_score,
-                    label="Baldwin Market Score",
-                    description="Composite market regime assessment"
-                )
+                score_bar_html = create_technical_score_bar(baldwin_score)
+                st.components.v1.html(score_bar_html, height=160)
 
             with col2:
                 # Regime indicator

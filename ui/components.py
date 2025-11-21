@@ -366,7 +366,7 @@ def create_header() -> None:
     st.markdown("""
         <div style='text-align: center; padding: 20px 0;'>
             <h1 style='color: #4CAF50; margin: 0;'>
-                VWV Research And Analysis System v4.2.2
+                VWV Research And Analysis System v1.0.0
             </h1>
             <p style='color: #888; margin: 5px 0;'>
                 Advanced Technical Analysis • Volatility Analysis • Professional Market Analysis

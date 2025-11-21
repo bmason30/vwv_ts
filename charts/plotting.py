@@ -1,6 +1,6 @@
 """
 File: plotting.py v1.4.0
-VWV Professional Trading System v4.3.0
+VWV Research And Analysis System v4.3.0
 Advanced charting functionality with type-safe data handling
 Created: 2025-08-15
 Updated: 2025-11-19

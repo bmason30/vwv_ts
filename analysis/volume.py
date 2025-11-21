@@ -1,6 +1,6 @@
 """
 Filename: analysis/volume.py
-VWV Trading System v4.2.1
+VWV Research And Analysis System v4.2.1
 Created/Updated: 2025-09-04 11:03:05 EDT
 Version: 1.0.0 - Initial integration of the module
 Purpose: Provides detailed volume analysis for a given security.

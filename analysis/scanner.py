@@ -449,7 +449,7 @@ def display_scanner_module(show_debug: bool = False):
     if 'scanner_manual_input' not in st.session_state:
         st.session_state.scanner_manual_input = ""
 
-    with st.expander("🔍 Multi-Symbol Master Score Scanner", expanded=True):
+    with st.expander("🔍 Multi-Symbol Master Score Scanner", expanded=False):
         st.write("Scan Quick Links symbols or enter custom symbols to compare Master Scores and identify trading opportunities")
 
         # Mode selection

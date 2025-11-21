@@ -1,6 +1,6 @@
 """
 Filename: analysis/__init__.py
-VWV Trading System v4.2.1
+VWV Research And Analysis System v4.2.1
 Created/Updated: 2025-09-04 12:22:09 EDT
 Version: 1.1.0 - Corrected imports to match v7.0.0 of technical module
 Purpose: Makes analysis functions available for easy import.

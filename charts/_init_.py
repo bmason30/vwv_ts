@@ -1,5 +1,5 @@
 """
-Charts module for VWV Trading System
+Charts module for VWV Research And Analysis System
 """
 
 from .plotting import (

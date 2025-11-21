@@ -1,6 +1,6 @@
 """
 File: core/module_loader.py
-Module Integration System for VWV Trading System  
+Module Integration System for VWV Research And Analysis System  
 Version: v4.2.2-MODULE-LOADER-2025-08-27-19-35-00-EST
 PURPOSE: Safe module loading and registration with isolation guarantees
 Last Updated: August 27, 2025 - 7:35 PM EST

@@ -1,7 +1,17 @@
 """
-Configuration settings for the VWV Trading System v5.0
-Enhanced with Williams VIX Fix, Insider Analysis, Market Divergence, and Tech Sentiment
+File: settings.py
+Version: 1.0.0
+VWV Research And Analysis System
+Created: 2025-07-15
+Updated: 2025-11-20
+Purpose: Configuration settings for the VWV Research And Analysis System
+System Version: v1.0.0 - Initial Release of Research And Analysis System
 """
+
+# System identification
+SYSTEM_NAME = "VWV Research And Analysis System"
+SYSTEM_VERSION = "1.0.0"
+SYSTEM_DESCRIPTION = "Professional market research and analysis platform"
 
 # Default VWV System Configuration - Enhanced
 DEFAULT_VWV_CONFIG = {
@@ -294,7 +304,9 @@ UI_SETTINGS = {
     'default_symbol': 'SPY',
     'default_period': '3mo',  # CHANGED FROM 1y TO 3mo
     'max_recent_symbols': 9,
-    'periods': ['1mo', '3mo', '6mo', '1y', '2y']
+    'periods': ['1mo', '3mo', '6mo', '1y', '2y'],
+    'system_name': 'VWV Research And Analysis System',
+    'version': '1.0.0'
 }
 
 # Requirements update

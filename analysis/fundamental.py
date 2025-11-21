@@ -7,10 +7,12 @@ Purpose: Provides fundamental analysis using Graham and Piotroski F-Score.
 """
 import yfinance as yf
 import logging
+import streamlit as st
 from utils.decorators import safe_calculation_wrapper
 
 logger = logging.getLogger(__name__)
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent rate limiting
 @safe_calculation_wrapper
 def calculate_graham_score(symbol, show_debug=False):
     """Calculate Benjamin Graham Score based on value investing criteria"""
@@ -137,6 +139,7 @@ def calculate_graham_score(symbol, show_debug=False):
         logger.error(f"Graham score calculation error for {symbol}: {e}")
         return {'score': 0, 'total_possible': 10, 'criteria': [], 'error': str(e)}
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent rate limiting
 @safe_calculation_wrapper
 def calculate_piotroski_score(symbol, show_debug=False):
     """Calculate Piotroski F-Score (0-9 points)"""
@@ -372,6 +375,7 @@ def calculate_piotroski_score(symbol, show_debug=False):
         logger.error(f"Piotroski score calculation error for {symbol}: {e}")
         return {'score': 0, 'total_possible': 9, 'criteria': [], 'error': str(e)}
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent rate limiting
 @safe_calculation_wrapper
 def calculate_altman_z_score(symbol, show_debug=False):
     """
@@ -545,6 +549,7 @@ def calculate_altman_z_score(symbol, show_debug=False):
         logger.error(f"Altman Z-Score calculation error for {symbol}: {e}")
         return {'z_score': 0, 'components': {}, 'zone': 'Unknown', 'criteria': [], 'error': str(e)}
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent rate limiting
 @safe_calculation_wrapper
 def calculate_roic(symbol, show_debug=False):
     """
@@ -709,6 +714,7 @@ def calculate_roic(symbol, show_debug=False):
         logger.error(f"ROIC calculation error for {symbol}: {e}")
         return {'roic': 0, 'roic_percent': 0, 'components': {}, 'grade': 'F', 'error': str(e)}
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour to prevent rate limiting
 @safe_calculation_wrapper
 def calculate_key_value_metrics(symbol, show_debug=False):
     """

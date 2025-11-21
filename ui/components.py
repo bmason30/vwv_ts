@@ -441,20 +441,14 @@ def create_command_center_header():
     <div style="display: flex; align-items: center; justify-content: space-between;
                 padding: 1rem 0; margin-bottom: 2rem;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-
-        <!-- Left: Compact Branding -->
         <div class="terminal-badge">
             <div class="terminal-badge-dot"></div>
             <span style="color: white;">VWV</span>
             <span style="color: #6b7280; font-weight: 400;">TERMINAL</span>
         </div>
-
-        <!-- Center: Could add quick stats or breadcrumb -->
         <div style="font-size: 0.75rem; color: #6b7280; font-family: 'JetBrains Mono', monospace;">
-            RESEARCH & ANALYSIS SYSTEM
+            RESEARCH &amp; ANALYSIS SYSTEM
         </div>
-
-        <!-- Right: Status Indicators -->
         <div style="display: flex; align-items: center; gap: 1rem;">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
                 <div style="width: 8px; height: 8px; background-color: #10b981;

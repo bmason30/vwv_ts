@@ -128,6 +128,8 @@ def scan_single_symbol(
                 'technical_score': None,
                 'current_price': None,
                 'sentiment': 'No Data',
+                'divergence_status': 'No Data',
+                'divergence_score': None,
                 'error': 'Analysis returned no results',
                 'timestamp': datetime.now()
             }
@@ -149,6 +151,11 @@ def scan_single_symbol(
             logger.warning(f"Could not calculate technical score for {ticker}: {e}")
             technical_score = 0
 
+        # Extract divergence data
+        divergence_data = enhanced_indicators.get('divergence', {})
+        divergence_status = divergence_data.get('status', 'No Data')
+        divergence_score = divergence_data.get('score', 0)
+
         # Extract current price
         current_price = analysis_results.get('current_price', 0)
 
@@ -168,11 +175,13 @@ def scan_single_symbol(
             'technical_score': round(technical_score, 1) if technical_score else 0,
             'current_price': round(current_price, 2) if current_price else 0,
             'sentiment': sentiment,
+            'divergence_status': divergence_status,
+            'divergence_score': round(divergence_score, 1) if divergence_score else 0,
             'error': None,
             'timestamp': datetime.now()
         }
 
-        logger.info(f"✅ {ticker}: Master Score = {master_score:.1f}")
+        logger.info(f"✅ {ticker}: Master Score = {master_score:.1f}, Divergence = {divergence_status}")
         return result
 
     except Exception as e:
@@ -183,6 +192,8 @@ def scan_single_symbol(
             'technical_score': None,
             'current_price': None,
             'sentiment': 'Error',
+            'divergence_status': 'Error',
+            'divergence_score': None,
             'error': str(e),
             'timestamp': datetime.now()
         }
@@ -334,6 +345,7 @@ def display_scanner_results(results_df: pd.DataFrame, sort_by: str = "Master Sco
         'master_score': 'Master Score',
         'technical_score': 'Technical',
         'current_price': 'Price',
+        'divergence_status': 'Divergence',
         'sentiment': 'Sentiment'
     }
 

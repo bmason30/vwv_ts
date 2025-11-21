@@ -552,27 +552,24 @@ def show_volume_analysis(analysis_results, show_debug=False):
         volume_analysis = enhanced_indicators.get('volume_analysis', {})
 
         if volume_analysis and 'error' not in volume_analysis:
-            # COMPOSITE SCORE BAR (NEW)
+            # COMPOSITE SCORE BAR (NEW) - Full width for consistency
             composite_score = volume_analysis.get('composite_score', volume_analysis.get('volume_score', 50))
+            score_bar_html = create_technical_score_bar(composite_score)
+            st.components.v1.html(score_bar_html, height=160)
 
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                score_bar_html = create_technical_score_bar(composite_score)
-                st.components.v1.html(score_bar_html, height=160)
-
-            with col2:
-                # Classification
-                classification = volume_analysis.get('classification', volume_analysis.get('volume_regime', 'NEUTRAL'))
-                if 'STRONG' in str(classification).upper() and 'ACCUM' in str(classification).upper():
-                    st.success(f"**{classification}**")
-                elif 'ACCUM' in str(classification).upper():
-                    st.info(f"**{classification}**")
-                elif 'DISTRIB' in str(classification).upper() and 'STRONG' not in str(classification).upper():
-                    st.warning(f"**{classification}**")
-                elif 'DISTRIB' in str(classification).upper():
-                    st.error(f"**{classification}**")
-                else:
-                    st.info(f"**{classification}**")
+            # Classification below the score bar
+            classification = volume_analysis.get('classification', volume_analysis.get('volume_regime', 'NEUTRAL'))
+            st.markdown(f"**Volume Classification:** ", unsafe_allow_html=True)
+            if 'STRONG' in str(classification).upper() and 'ACCUM' in str(classification).upper():
+                st.success(f"**{classification}**")
+            elif 'ACCUM' in str(classification).upper():
+                st.info(f"**{classification}**")
+            elif 'DISTRIB' in str(classification).upper() and 'STRONG' not in str(classification).upper():
+                st.warning(f"**{classification}**")
+            elif 'DISTRIB' in str(classification).upper():
+                st.error(f"**{classification}**")
+            else:
+                st.info(f"**{classification}**")
 
             st.markdown("---")
 
@@ -636,27 +633,24 @@ def show_volatility_analysis(analysis_results, show_debug=False):
         volatility_analysis = enhanced_indicators.get('volatility_analysis', {})
 
         if volatility_analysis and 'error' not in volatility_analysis:
-            # COMPOSITE SCORE BAR (NEW)
+            # COMPOSITE SCORE BAR (NEW) - Full width for consistency
             composite_score = volatility_analysis.get('composite_score', volatility_analysis.get('volatility_score', 50))
+            score_bar_html = create_technical_score_bar(composite_score)
+            st.components.v1.html(score_bar_html, height=160)
 
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                score_bar_html = create_technical_score_bar(composite_score)
-                st.components.v1.html(score_bar_html, height=160)
-
-            with col2:
-                # Regime classification
-                regime = volatility_analysis.get('regime', volatility_analysis.get('volatility_regime', 'NORMAL'))
-                if 'LOW' in str(regime).upper():
-                    st.success(f"**{regime}**")
-                elif 'NORMAL' in str(regime).upper():
-                    st.info(f"**{regime}**")
-                elif 'ELEVATED' in str(regime).upper():
-                    st.warning(f"**{regime}**")
-                elif 'HIGH' in str(regime).upper():
-                    st.error(f"**{regime}**")
-                else:
-                    st.info(f"**{regime}**")
+            # Regime classification below the score bar
+            regime = volatility_analysis.get('regime', volatility_analysis.get('volatility_regime', 'NORMAL'))
+            st.markdown(f"**Volatility Regime:** ", unsafe_allow_html=True)
+            if 'LOW' in str(regime).upper():
+                st.success(f"**{regime}**")
+            elif 'NORMAL' in str(regime).upper():
+                st.info(f"**{regime}**")
+            elif 'ELEVATED' in str(regime).upper():
+                st.warning(f"**{regime}**")
+            elif 'HIGH' in str(regime).upper():
+                st.error(f"**{regime}**")
+            else:
+                st.info(f"**{regime}**")
 
             st.markdown("---")
 
@@ -2218,43 +2212,45 @@ def main():
         # 2. INTERACTIVE CHARTS
         show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
 
-        # 3. TECHNICAL ANALYSIS
+        # 3. MASTER SCORE (unified scoring)
+        show_master_score(analysis_results, controls['show_debug'])
+
+        # 4. TECHNICAL ANALYSIS
         show_individual_technical_analysis(analysis_results, controls['show_debug'])
 
-        # 4. VOLUME ANALYSIS (with composite score)
+        # 5. VOLUME ANALYSIS (with composite score)
         if VOLUME_ANALYSIS_AVAILABLE:
             show_volume_analysis(analysis_results, controls['show_debug'])
 
-        # 5. VOLATILITY ANALYSIS (with composite score)
+        # 6. VOLATILITY ANALYSIS (with composite score)
         if VOLATILITY_ANALYSIS_AVAILABLE:
             show_volatility_analysis(analysis_results, controls['show_debug'])
 
-        # 6. FUNDAMENTAL ANALYSIS
+        # 7. FUNDAMENTAL ANALYSIS
         show_fundamental_analysis(analysis_results, controls['show_debug'])
 
-        # 7. MARKET CORRELATION
+        # 8. MARKET CORRELATION
         show_market_correlation_analysis(analysis_results, controls['show_debug'])
 
-        # 8. OPTIONS ANALYSIS
+        # 9. OPTIONS ANALYSIS
         show_options_analysis(analysis_results, controls['show_debug'])
 
-        # 9. CONFIDENCE INTERVALS
+        # 10. CONFIDENCE INTERVALS
         show_confidence_intervals(analysis_results, controls['show_debug'])
 
-        # 10. DIVERGENCE DETECTION (collapsed by default)
+        # 11. DIVERGENCE DETECTION (collapsed by default)
         show_divergence_analysis(analysis_results, controls['show_debug'])
 
-        # 11. MULTI-SYMBOL SCANNER (collapsed by default)
+        # 12. MULTI-SYMBOL SCANNER (collapsed by default)
         display_scanner_module(controls['show_debug'])
 
-        # 12. PATTERN RECOGNITION (collapsed by default)
+        # 13. PATTERN RECOGNITION (collapsed by default)
         show_pattern_recognition(analysis_results, controls['show_debug'])
 
-        # 13. BACKTEST (collapsed by default)
+        # 14. BACKTEST (collapsed by default)
         show_backtest_analysis(analysis_results, controls['show_debug'])
 
-        # Additional modules (optional)
-        show_master_score(analysis_results, controls['show_debug'])
+        # 15. SIGNAL CONFLUENCE
         show_signal_confluence(analysis_results, controls['show_debug'])
 
         if controls['show_debug']:

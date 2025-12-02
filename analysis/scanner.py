@@ -165,7 +165,7 @@ def scan_single_symbol(
         volatility_score = 50.0  # Default fallback
         try:
             # Try to get volatility from existing analysis first
-            volatility_data = enhanced_indicators.get('volatility', {})
+            volatility_data = enhanced_indicators.get('volatility_analysis', {})
             if volatility_data and 'volatility_score' in volatility_data:
                 volatility_score = volatility_data['volatility_score']
             else:

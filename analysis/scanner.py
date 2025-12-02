@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Import configuration
 from config.constants import QUICK_LINK_CATEGORIES
+from analysis.volatility import calculate_complete_volatility_analysis
 
 
 def get_quick_links_symbols() -> List[str]:
@@ -126,6 +127,7 @@ def scan_single_symbol(
                 'ticker': ticker,
                 'master_score': None,
                 'technical_score': None,
+                'volatility_score': None,
                 'current_price': None,
                 'sentiment': 'No Data',
                 'divergence_status': 'No Data',
@@ -159,6 +161,24 @@ def scan_single_symbol(
         # Extract current price
         current_price = analysis_results.get('current_price', 0)
 
+        # Calculate volatility score
+        volatility_score = 50.0  # Default fallback
+        try:
+            # Try to get volatility from existing analysis first
+            volatility_data = enhanced_indicators.get('volatility', {})
+            if volatility_data and 'volatility_score' in volatility_data:
+                volatility_score = volatility_data['volatility_score']
+            else:
+                # Calculate from raw data if available
+                data = analysis_results.get('data')
+                if data is not None and len(data) > 30:
+                    volatility_analysis = calculate_complete_volatility_analysis(data)
+                    if volatility_analysis and 'volatility_score' in volatility_analysis:
+                        volatility_score = volatility_analysis['volatility_score']
+        except Exception as e:
+            logger.warning(f"Volatility calculation failed for {ticker}: {e}")
+            volatility_score = 50.0
+
         # Determine sentiment based on Master Score
         if master_score >= 70:
             sentiment = "🟢 Bullish"
@@ -173,6 +193,7 @@ def scan_single_symbol(
             'ticker': ticker,
             'master_score': round(master_score, 1) if master_score else 0,
             'technical_score': round(technical_score, 1) if technical_score else 0,
+            'volatility_score': round(volatility_score, 1) if volatility_score else 50.0,
             'current_price': round(current_price, 2) if current_price else 0,
             'sentiment': sentiment,
             'divergence_status': divergence_status,
@@ -190,6 +211,7 @@ def scan_single_symbol(
             'ticker': ticker,
             'master_score': None,
             'technical_score': None,
+            'volatility_score': None,
             'current_price': None,
             'sentiment': 'Error',
             'divergence_status': 'Error',
@@ -278,7 +300,7 @@ def display_scanner_results(results_df: pd.DataFrame, sort_by: str = "Master Sco
     successful = results_df['master_score'].notna().sum()
     failed = total_symbols - successful
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric("Total Scanned", total_symbols)
@@ -296,10 +318,18 @@ def display_scanner_results(results_df: pd.DataFrame, sort_by: str = "Master Sco
         else:
             st.metric("Avg Master Score", "N/A")
 
+    with col5:
+        if successful > 0 and 'volatility_score' in results_df.columns:
+            avg_volatility = results_df['volatility_score'].mean()
+            st.metric("Avg Volatility", f"{avg_volatility:.1f}")
+        else:
+            st.metric("Avg Volatility", "N/A")
+
     # Sort results based on user selection
     sort_column_map = {
         "Master Score": "master_score",
         "Technical": "technical_score",
+        "Volatility": "volatility_score",
         "Ticker": "ticker"
     }
 
@@ -344,6 +374,7 @@ def display_scanner_results(results_df: pd.DataFrame, sort_by: str = "Master Sco
         'ticker': 'Ticker',
         'master_score': 'Master Score',
         'technical_score': 'Technical',
+        'volatility_score': 'Volatility',
         'current_price': 'Price',
         'divergence_status': 'Divergence',
         'sentiment': 'Sentiment'
@@ -355,7 +386,7 @@ def display_scanner_results(results_df: pd.DataFrame, sort_by: str = "Master Sco
     # Format for display
     if not display_data.empty:
         # Format numbers
-        for col in ['Master Score', 'Technical']:
+        for col in ['Master Score', 'Technical', 'Volatility']:
             if col in display_data.columns:
                 display_data[col] = display_data[col].apply(
                     lambda x: f"{x:.1f}" if pd.notna(x) else "N/A"
@@ -536,7 +567,7 @@ def display_scanner_module(show_debug: bool = False):
         with col3:
             sort_by = st.selectbox(
                 "Sort By",
-                options=["Master Score", "Technical", "Ticker"],
+                options=["Master Score", "Technical", "Volatility", "Ticker"],
                 index=0,
                 key="scanner_sort"
             )

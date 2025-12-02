@@ -72,7 +72,9 @@ def calculate_graham_score(symbol, show_debug=False):
         # Criterion 5: Dividend Yield > 0
         if dividend_yield and dividend_yield > 0:
             score += 1
-            criteria.append(f"✓ Pays Dividends ({dividend_yield*100:.2f}%)")
+            # Handle both decimal (0.016) and percentage (1.6) formats from yfinance
+            div_display = dividend_yield if dividend_yield > 1 else dividend_yield * 100
+            criteria.append(f"✓ Pays Dividends ({div_display:.2f}%)")
         else:
             criteria.append("✗ No Dividends")
 
@@ -813,9 +815,19 @@ def calculate_key_value_metrics(symbol, show_debug=False):
         try:
             dividend_yield = info.get('dividendYield')
             if dividend_yield:
-                dividend_percent = dividend_yield * 100
+                # Handle both decimal (0.016) and percentage (1.6) formats from yfinance
+                # If value > 1, it's already a percentage; otherwise it's a decimal
+                if dividend_yield > 1:
+                    # Already in percentage format
+                    dividend_percent = dividend_yield
+                    dividend_value = dividend_yield / 100  # Store as decimal
+                else:
+                    # In decimal format (expected)
+                    dividend_percent = dividend_yield * 100
+                    dividend_value = dividend_yield
+
                 metrics['dividend_yield'] = {
-                    'value': dividend_yield,
+                    'value': dividend_value,
                     'display': f"{dividend_percent:.2f}%",
                     'interpretation': get_dividend_interpretation(dividend_percent)
                 }

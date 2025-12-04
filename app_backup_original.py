@@ -1,11 +1,11 @@
 """
-File: app_redesigned.py
-Version: 2.0.0 - Navigation Redesign
+File: app.py
+Version: 4.3.0
 VWV Research And Analysis System
 Created: 2025-07-15
-Updated: 2025-12-04
-Purpose: Main Streamlit application with multi-page navigation
-System Version: v2.0.0 - Multi-Page Navigation Architecture
+Updated: 2025-11-21
+Purpose: Main Streamlit application for market research and analysis
+System Version: v4.3.0 - Black-Scholes Options Pricing
 """
 
 import streamlit as st
@@ -107,56 +107,11 @@ warnings.filterwarnings('ignore', category=FutureWarning, module='yfinance')
 
 # Page configuration
 st.set_page_config(
-    page_title="VWV Research And Analysis System v2.0.0",
+    page_title="VWV Research And Analysis System v1.0.0",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ============================================================================
-# NAVIGATION SYSTEM
-# ============================================================================
-
-def create_navigation():
-    """Create navigation menu in sidebar"""
-    if 'current_page' not in st.session_state:
-        st.session_state.current_page = "📊 Overview"
-
-    st.sidebar.markdown("""
-    <div style="padding: 1.5rem 0 1rem 0; border-bottom: 2px solid rgba(255, 255, 255, 0.15);">
-        <div style="text-align: center; font-size: 1.25rem; font-weight: 600; color: white; margin-bottom: 0.5rem;">
-            VWV RESEARCH
-        </div>
-        <div style="text-align: center; font-size: 0.75rem; color: #9ca3af;">
-            Multi-Page Analysis Platform
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.sidebar.markdown("### 📍 Navigation")
-
-    pages = [
-        "📊 Overview",
-        "📈 Technical",
-        "💼 Fundamental",
-        "🎯 Options",
-        "🔬 Advanced"
-    ]
-
-    page = st.sidebar.radio(
-        "Select Page",
-        pages,
-        index=pages.index(st.session_state.current_page),
-        label_visibility="collapsed"
-    )
-
-    if page != st.session_state.current_page:
-        st.session_state.current_page = page
-        st.rerun()
-
-    st.sidebar.markdown("---")
-
-    return page
 
 def create_sidebar_controls():
     """Create sidebar controls and return analysis parameters - Command Center Design"""
@@ -2232,132 +2187,8 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
             st.code(traceback.format_exc())
         return None, None
 
-# ============================================================================
-# PAGE RENDER FUNCTIONS
-# ============================================================================
-
-def render_overview_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 1: Overview & Scoring
-    - Baldwin Indicator (market context)
-    - Interactive Charts
-    - Master Score
-    - Signal Confluence
-    """
-    st.write("## 📊 Overview & Market Scoring")
-    st.write("**Market context, charts, and unified scoring metrics**")
-    st.markdown("---")
-
-    # Baldwin Market Regime Indicator
-    if BALDWIN_INDICATOR_AVAILABLE:
-        show_baldwin_indicator(show_debug)
-
-    # Interactive Charts
-    if st.session_state.get('show_charts', True):
-        show_interactive_charts(chart_data, analysis_results, show_debug)
-
-    # Master Score
-    if st.session_state.get('show_master_score', True):
-        show_master_score(analysis_results, show_debug)
-
-    # Signal Confluence
-    if st.session_state.get('show_confluence', True):
-        show_signal_confluence(analysis_results, show_debug)
-
-
-def render_technical_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 2: Technical Analysis
-    - Technical Indicators
-    - Volume Analysis
-    - Volatility Analysis
-    - Pattern Recognition
-    """
-    st.write("## 📈 Technical Analysis")
-    st.write("**Comprehensive technical indicators, volume, volatility, and pattern detection**")
-    st.markdown("---")
-
-    # Technical Analysis
-    if st.session_state.get('show_technical_analysis', True):
-        show_individual_technical_analysis(analysis_results, show_debug)
-
-    # Volume Analysis
-    if VOLUME_ANALYSIS_AVAILABLE and st.session_state.get('show_volume_analysis', True):
-        show_volume_analysis(analysis_results, show_debug)
-
-    # Volatility Analysis
-    if VOLATILITY_ANALYSIS_AVAILABLE and st.session_state.get('show_volatility_analysis', True):
-        show_volatility_analysis(analysis_results, show_debug)
-
-    # Pattern Recognition
-    if st.session_state.get('show_patterns', True):
-        show_pattern_recognition(analysis_results, show_debug)
-
-
-def render_fundamental_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 3: Fundamental Analysis
-    - Fundamental Metrics
-    - Market Correlation
-    """
-    st.write("## 💼 Fundamental Analysis")
-    st.write("**Company fundamentals, valuation metrics, and market correlations**")
-    st.markdown("---")
-
-    # Fundamental Analysis
-    if st.session_state.get('show_fundamental_analysis', True):
-        show_fundamental_analysis(analysis_results, show_debug)
-
-    # Market Correlation
-    if st.session_state.get('show_market_correlation', True):
-        show_market_correlation_analysis(analysis_results, show_debug)
-
-
-def render_options_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 4: Options Analysis
-    - Options Levels
-    - Confidence Intervals
-    """
-    st.write("## 🎯 Options Analysis")
-    st.write("**Options pricing, key levels, and statistical confidence intervals**")
-    st.markdown("---")
-
-    # Options Analysis
-    if st.session_state.get('show_options_analysis', True):
-        show_options_analysis(analysis_results, show_debug)
-
-    # Confidence Intervals
-    if st.session_state.get('show_confidence_intervals', True):
-        show_confidence_intervals(analysis_results, show_debug)
-
-
-def render_advanced_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 5: Advanced Tools
-    - Divergence Detection
-    - Multi-Symbol Scanner
-    - Backtest Analysis
-    """
-    st.write("## 🔬 Advanced Analysis Tools")
-    st.write("**Divergence detection, multi-symbol scanning, and strategy backtesting**")
-    st.markdown("---")
-
-    # Divergence Detection
-    if st.session_state.get('show_divergence', True):
-        show_divergence_analysis(analysis_results, show_debug)
-
-    # Multi-Symbol Scanner
-    if st.session_state.get('show_scanner', True):
-        display_scanner_module(show_debug)
-
-    # Backtest Analysis
-    if st.session_state.get('show_backtest', True):
-        show_backtest_analysis(analysis_results, show_debug)
-
-
 def main():
-    """Main application function - Multi-Page Navigation Design"""
+    """Main application function - Command Center Design"""
 
     # CRITICAL: Inject custom CSS first
     inject_custom_css()
@@ -2365,10 +2196,6 @@ def main():
     # Create command center header (replaces old green header)
     create_command_center_header()
 
-    # Create navigation (returns selected page)
-    current_page = create_navigation()
-
-    # Create sidebar controls
     controls = create_sidebar_controls()
 
     # Initialize session state for analysis results persistence
@@ -2406,84 +2233,93 @@ def main():
         analysis_results = st.session_state.cached_analysis_results
         chart_data = st.session_state.cached_chart_data
 
-        # Show symbol info in header
-        symbol = analysis_results.get('symbol', 'Unknown')
-        current_price = analysis_results.get('current_price', 0)
-        change = analysis_results.get('change_pct', 0)
+        # Show symbol header if not already shown by should_analyze block
+        if not should_analyze:
+            st.write(f"## 📊 VWV Research And Analysis v1.0.0 - {analysis_results.get('symbol', 'Unknown')}")
 
-        col1, col2, col3 = st.columns([2, 1, 1])
-        with col1:
-            st.write(f"### {symbol}")
-        with col2:
-            st.metric("Price", f"${current_price:.2f}")
-        with col3:
-            st.metric("Change", f"{change:+.2f}%")
+        # VWV RESEARCH AND ANALYSIS SYSTEM v1.0.0 - DISPLAY ORDER
 
-        st.markdown("---")
+        # 1. BALDWIN MARKET REGIME (NEW POSITION - FIRST)
+        if BALDWIN_INDICATOR_AVAILABLE:
+            show_baldwin_indicator(controls['show_debug'])
 
-        # Route to appropriate page based on navigation
-        if current_page == "📊 Overview":
-            render_overview_page(analysis_results, chart_data, controls['show_debug'])
+        # 2. INTERACTIVE CHARTS
+        show_interactive_charts(chart_data, analysis_results, controls['show_debug'])
 
-        elif current_page == "📈 Technical":
-            render_technical_page(analysis_results, chart_data, controls['show_debug'])
+        # 3. MASTER SCORE (unified scoring)
+        show_master_score(analysis_results, controls['show_debug'])
 
-        elif current_page == "💼 Fundamental":
-            render_fundamental_page(analysis_results, chart_data, controls['show_debug'])
+        # 4. TECHNICAL ANALYSIS
+        show_individual_technical_analysis(analysis_results, controls['show_debug'])
 
-        elif current_page == "🎯 Options":
-            render_options_page(analysis_results, chart_data, controls['show_debug'])
+        # 5. VOLUME ANALYSIS (with composite score)
+        if VOLUME_ANALYSIS_AVAILABLE:
+            show_volume_analysis(analysis_results, controls['show_debug'])
 
-        elif current_page == "🔬 Advanced":
-            render_advanced_page(analysis_results, chart_data, controls['show_debug'])
+        # 6. VOLATILITY ANALYSIS (with composite score)
+        if VOLATILITY_ANALYSIS_AVAILABLE:
+            show_volatility_analysis(analysis_results, controls['show_debug'])
 
-        # Debug information (available on all pages)
+        # 7. FUNDAMENTAL ANALYSIS
+        show_fundamental_analysis(analysis_results, controls['show_debug'])
+
+        # 8. MARKET CORRELATION
+        show_market_correlation_analysis(analysis_results, controls['show_debug'])
+
+        # 9. OPTIONS ANALYSIS
+        show_options_analysis(analysis_results, controls['show_debug'])
+
+        # 10. CONFIDENCE INTERVALS
+        show_confidence_intervals(analysis_results, controls['show_debug'])
+
+        # 11. DIVERGENCE DETECTION (collapsed by default)
+        show_divergence_analysis(analysis_results, controls['show_debug'])
+
+        # 12. MULTI-SYMBOL SCANNER (collapsed by default)
+        display_scanner_module(controls['show_debug'])
+
+        # 13. PATTERN RECOGNITION (collapsed by default)
+        show_pattern_recognition(analysis_results, controls['show_debug'])
+
+        # 14. BACKTEST (collapsed by default)
+        show_backtest_analysis(analysis_results, controls['show_debug'])
+
+        # 15. SIGNAL CONFLUENCE
+        show_signal_confluence(analysis_results, controls['show_debug'])
+
         if controls['show_debug']:
             with st.expander("DEBUG INFORMATION", expanded=False):
                 st.write("### Analysis Results Structure")
                 st.json(analysis_results)
     else:
-        # Welcome screen (no symbol analyzed yet)
-        st.write("## VWV Research And Analysis System v2.0.0")
-        st.write("**Multi-Page Navigation • Advanced Technical Analysis • Professional Market Research**")
-
+        st.write("## VWV Research And Analysis System v1.0.0")
+        st.write("**Advanced Technical Analysis • Volatility Analysis • Professional Market Analysis**")
+        
         market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
-
-        with st.expander("🚀 QUICK START GUIDE", expanded=True):
-            st.write("### Getting Started")
+        
+        with st.expander("QUICK START GUIDE", expanded=True):
             st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, TSLA, SPY)")
-            st.write("2. **Select period** - 3 months default (optimal for all modules)")
-            st.write("3. **Click 'RUN ANALYSIS'** or press Enter")
-            st.write("4. **Navigate pages** using the sidebar menu")
-            st.markdown("---")
-            st.write("### 📍 Page Navigation")
-            st.write("- **📊 Overview** - Charts, Master Score, Signal Confluence")
-            st.write("- **📈 Technical** - Indicators, Volume, Volatility, Patterns")
-            st.write("- **💼 Fundamental** - Company Metrics, Correlations")
-            st.write("- **🎯 Options** - Options Levels, Confidence Intervals")
-            st.write("- **🔬 Advanced** - Divergence, Scanner, Backtesting")
-            st.markdown("---")
-            st.write("### 💡 Tips")
-            st.write("- Use **Quick Links** for instant analysis of popular symbols")
-            st.write("- **3mo+ period recommended** for accurate technical analysis")
-            st.write("- Each page focuses on specific analysis categories")
-            st.write("- Analysis results persist when switching pages")
-
+            st.write("2. **Default period is 3 months** - optimal for all analysis modules")
+            st.write("3. **⚠️ Use 3mo+ for best results** - 1mo period has limited data")
+            st.write("4. **Charts display FIRST** - immediate visual analysis")
+            st.write("5. **Technical analysis SECOND** - professional scoring")
+            st.write("6. **Use Quick Links** for instant analysis")
+    
     # Footer
     st.markdown("---")
-    st.write("### 📊 System Information")
+    st.write("### 📊 System Information v1.0.0")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.write(f"**Version:** v2.0.0 - Multi-Page Navigation")
+        st.write(f"**Version:** VWV Research And Analysis v1.0.0")
         st.write(f"**Status:** ✅ Fully Operational")
     with col2:
-        st.write(f"**Architecture:** 5-Page Navigation System")
+        st.write(f"**Display Order:** Baldwin → Charts → Technical → Analysis")
         st.write(f"**Default Period:** 3 months (3mo)")
     with col3:
-        st.write(f"**File:** app_redesigned.py v2.0.0")
-        st.write(f"**Platform:** Research And Analysis System")
+        st.write(f"**File Version:** app.py v1.0.0")
+        st.write(f"**System:** Research And Analysis Platform")
 
 if __name__ == "__main__":
     try:

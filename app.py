@@ -120,7 +120,7 @@ st.set_page_config(
 def create_navigation():
     """Create navigation menu in sidebar"""
     if 'current_page' not in st.session_state:
-        st.session_state.current_page = "📊 Overview"
+        st.session_state.current_page = "📊 Market Sentiment"
 
     st.sidebar.markdown("""
     <div style="padding: 1.5rem 0 1rem 0; border-bottom: 2px solid rgba(255, 255, 255, 0.15);">
@@ -136,11 +136,11 @@ def create_navigation():
     st.sidebar.markdown("### 📍 Navigation")
 
     pages = [
-        "📊 Overview",
-        "📈 Technical",
-        "💼 Fundamental",
-        "🎯 Options",
-        "🔬 Advanced"
+        "📊 Market Sentiment",
+        "📈 Equity Research",
+        "💎 Derivative Research",
+        "🔍 Scanner",
+        "📉 Strategy Backtest"
     ]
 
     page = st.sidebar.radio(
@@ -2236,46 +2236,81 @@ def perform_enhanced_analysis(symbol, period, show_debug=False):
 # PAGE RENDER FUNCTIONS
 # ============================================================================
 
-def render_overview_page(analysis_results, chart_data, show_debug=False):
+def render_market_sentiment_page(show_debug=False):
     """
-    Page 1: Overview & Scoring
-    - Baldwin Indicator (market context)
-    - Interactive Charts
-    - Master Score
-    - Signal Confluence
+    Page 1: Market Sentiment (Landing Page)
+    - Baldwin Market Regime Indicator
+    - SPY Chart with Volume + Volatility
+    - QQQ Chart with Volume + Volatility
+    - IWM Chart with Volume + Volatility
+
+    This page auto-loads these 3 ETFs without requiring symbol search
     """
-    st.write("## 📊 Overview & Market Scoring")
-    st.write("**Market context, charts, and unified scoring metrics**")
+    st.write("## 📊 Market Sentiment")
+    st.write("**Overall market analysis across major indices**")
     st.markdown("---")
 
-    # Baldwin Market Regime Indicator
+    # Baldwin Market Regime Indicator (shows overall market regime)
     if BALDWIN_INDICATOR_AVAILABLE:
         show_baldwin_indicator(show_debug)
+        st.markdown("---")
 
-    # Interactive Charts
+    # Analyze each major ETF: SPY, QQQ, IWM
+    market_etfs = ['SPY', 'QQQ', 'IWM']
+
+    for etf_symbol in market_etfs:
+        st.write(f"### {etf_symbol} Analysis")
+
+        # Analyze this ETF
+        with st.spinner(f"Analyzing {etf_symbol}..."):
+            etf_results, etf_chart_data = perform_enhanced_analysis(
+                etf_symbol,
+                '3mo',  # Use 3 month period for market sentiment
+                show_debug
+            )
+
+        if etf_results and etf_chart_data is not None:
+            # Show chart
+            show_interactive_charts(etf_chart_data, etf_results, show_debug)
+
+            # Show Volume Analysis below chart
+            if VOLUME_ANALYSIS_AVAILABLE:
+                show_volume_analysis(etf_results, show_debug)
+
+            # Show Volatility Analysis below volume
+            if VOLATILITY_ANALYSIS_AVAILABLE:
+                show_volatility_analysis(etf_results, show_debug)
+        else:
+            st.error(f"Failed to analyze {etf_symbol}")
+
+        st.markdown("---")
+
+
+def render_equity_research_page(analysis_results, chart_data, show_debug=False):
+    """
+    Page 2: Equity Research
+    - Chart (for searched symbol)
+    - Master Score
+    - Technical Analysis
+    - Volume Analysis
+    - Volatility Analysis
+    - Fundamental Analysis
+    - Market Correlation and Comparison Analysis
+    - Divergence Detection
+    - Pattern Detection
+    - Signal Confluence Dashboard
+    """
+    st.write("## 📈 Equity Research")
+    st.write("**Comprehensive equity analysis for searched symbol**")
+    st.markdown("---")
+
+    # Chart for searched symbol
     if st.session_state.get('show_charts', True):
         show_interactive_charts(chart_data, analysis_results, show_debug)
 
     # Master Score
     if st.session_state.get('show_master_score', True):
         show_master_score(analysis_results, show_debug)
-
-    # Signal Confluence
-    if st.session_state.get('show_confluence', True):
-        show_signal_confluence(analysis_results, show_debug)
-
-
-def render_technical_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 2: Technical Analysis
-    - Technical Indicators
-    - Volume Analysis
-    - Volatility Analysis
-    - Pattern Recognition
-    """
-    st.write("## 📈 Technical Analysis")
-    st.write("**Comprehensive technical indicators, volume, volatility, and pattern detection**")
-    st.markdown("---")
 
     # Technical Analysis
     if st.session_state.get('show_technical_analysis', True):
@@ -2289,67 +2324,68 @@ def render_technical_page(analysis_results, chart_data, show_debug=False):
     if VOLATILITY_ANALYSIS_AVAILABLE and st.session_state.get('show_volatility_analysis', True):
         show_volatility_analysis(analysis_results, show_debug)
 
-    # Pattern Recognition
-    if st.session_state.get('show_patterns', True):
-        show_pattern_recognition(analysis_results, show_debug)
-
-
-def render_fundamental_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 3: Fundamental Analysis
-    - Fundamental Metrics
-    - Market Correlation
-    """
-    st.write("## 💼 Fundamental Analysis")
-    st.write("**Company fundamentals, valuation metrics, and market correlations**")
-    st.markdown("---")
-
     # Fundamental Analysis
     if st.session_state.get('show_fundamental_analysis', True):
         show_fundamental_analysis(analysis_results, show_debug)
 
-    # Market Correlation
+    # Market Correlation and Comparison Analysis
     if st.session_state.get('show_market_correlation', True):
         show_market_correlation_analysis(analysis_results, show_debug)
-
-
-def render_options_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 4: Options Analysis
-    - Options Levels
-    - Confidence Intervals
-    """
-    st.write("## 🎯 Options Analysis")
-    st.write("**Options pricing, key levels, and statistical confidence intervals**")
-    st.markdown("---")
-
-    # Options Analysis
-    if st.session_state.get('show_options_analysis', True):
-        show_options_analysis(analysis_results, show_debug)
-
-    # Confidence Intervals
-    if st.session_state.get('show_confidence_intervals', True):
-        show_confidence_intervals(analysis_results, show_debug)
-
-
-def render_advanced_page(analysis_results, chart_data, show_debug=False):
-    """
-    Page 5: Advanced Tools
-    - Divergence Detection
-    - Multi-Symbol Scanner
-    - Backtest Analysis
-    """
-    st.write("## 🔬 Advanced Analysis Tools")
-    st.write("**Divergence detection, multi-symbol scanning, and strategy backtesting**")
-    st.markdown("---")
 
     # Divergence Detection
     if st.session_state.get('show_divergence', True):
         show_divergence_analysis(analysis_results, show_debug)
 
+    # Pattern Detection
+    if st.session_state.get('show_patterns', True):
+        show_pattern_recognition(analysis_results, show_debug)
+
+    # Signal Confluence Dashboard
+    if st.session_state.get('show_confluence', True):
+        show_signal_confluence(analysis_results, show_debug)
+
+
+def render_derivative_research_page(analysis_results, chart_data, show_debug=False):
+    """
+    Page 3: Derivative Research
+    - Chart (defaulted to Options Levels tab)
+    - Options Analysis
+    """
+    st.write("## 💎 Derivative Research")
+    st.write("**Options analysis and pricing for searched symbol**")
+    st.markdown("---")
+
+    # Chart (will show with Options Levels tab available)
+    if st.session_state.get('show_charts', True):
+        show_interactive_charts(chart_data, analysis_results, show_debug)
+
+    # Options Analysis
+    if st.session_state.get('show_options_analysis', True):
+        show_options_analysis(analysis_results, show_debug)
+
+
+def render_scanner_page(show_debug=False):
+    """
+    Page 4: Scanner
+    - Multi Symbol Master Score Scanner only
+    """
+    st.write("## 🔍 Scanner")
+    st.write("**Multi-symbol master score scanner**")
+    st.markdown("---")
+
     # Multi-Symbol Scanner
     if st.session_state.get('show_scanner', True):
         display_scanner_module(show_debug)
+
+
+def render_strategy_backtest_page(analysis_results, chart_data, show_debug=False):
+    """
+    Page 5: Strategy Backtest
+    - Strategy Performance Backtest only
+    """
+    st.write("## 📉 Strategy Backtest")
+    st.write("**Strategy performance backtesting for searched symbol**")
+    st.markdown("---")
 
     # Backtest Analysis
     if st.session_state.get('show_backtest', True):
@@ -2400,9 +2436,18 @@ def main():
                 st.session_state.cached_analysis_results = analysis_results
                 st.session_state.cached_chart_data = chart_data
 
-    # Display results from cache if available (persists across button clicks)
-    if (st.session_state.cached_analysis_results is not None and
-        st.session_state.cached_chart_data is not None):
+    # Route to appropriate page based on navigation
+    # Market Sentiment page doesn't need symbol search - always shows SPY/QQQ/IWM
+    if current_page == "📊 Market Sentiment":
+        render_market_sentiment_page(controls['show_debug'])
+
+    # Scanner page doesn't need specific symbol
+    elif current_page == "🔍 Scanner":
+        render_scanner_page(controls['show_debug'])
+
+    # Other pages require analysis results for searched symbol
+    elif (st.session_state.cached_analysis_results is not None and
+          st.session_state.cached_chart_data is not None):
         analysis_results = st.session_state.cached_analysis_results
         chart_data = st.session_state.cached_chart_data
 
@@ -2421,27 +2466,25 @@ def main():
 
         st.markdown("---")
 
-        # Route to appropriate page based on navigation
-        if current_page == "📊 Overview":
-            render_overview_page(analysis_results, chart_data, controls['show_debug'])
+        # Route to pages that need analysis results
+        if current_page == "📈 Equity Research":
+            render_equity_research_page(analysis_results, chart_data, controls['show_debug'])
 
-        elif current_page == "📈 Technical":
-            render_technical_page(analysis_results, chart_data, controls['show_debug'])
+        elif current_page == "💎 Derivative Research":
+            render_derivative_research_page(analysis_results, chart_data, controls['show_debug'])
 
-        elif current_page == "💼 Fundamental":
-            render_fundamental_page(analysis_results, chart_data, controls['show_debug'])
-
-        elif current_page == "🎯 Options":
-            render_options_page(analysis_results, chart_data, controls['show_debug'])
-
-        elif current_page == "🔬 Advanced":
-            render_advanced_page(analysis_results, chart_data, controls['show_debug'])
+        elif current_page == "📉 Strategy Backtest":
+            render_strategy_backtest_page(analysis_results, chart_data, controls['show_debug'])
 
         # Debug information (available on all pages)
         if controls['show_debug']:
             with st.expander("DEBUG INFORMATION", expanded=False):
                 st.write("### Analysis Results Structure")
                 st.json(analysis_results)
+
+    # Show prompt to run analysis for pages that need it
+    elif current_page in ["📈 Equity Research", "💎 Derivative Research", "📉 Strategy Backtest"]:
+        st.info(f"ℹ️ Please enter a symbol and click 'RUN ANALYSIS' to view {current_page} data.")
     else:
         # Welcome screen (no symbol analyzed yet)
         st.write("## VWV Research And Analysis System v2.0.0")
@@ -2452,22 +2495,22 @@ def main():
 
         with st.expander("🚀 QUICK START GUIDE", expanded=True):
             st.write("### Getting Started")
-            st.write("1. **Enter a symbol** in the sidebar (e.g., AAPL, TSLA, SPY)")
-            st.write("2. **Select period** - 3 months default (optimal for all modules)")
-            st.write("3. **Click 'RUN ANALYSIS'** or press Enter")
-            st.write("4. **Navigate pages** using the sidebar menu")
+            st.write("1. **Click 'Market Sentiment'** to see SPY/QQQ/IWM market overview (no symbol needed)")
+            st.write("2. **For individual stocks:** Enter symbol → Click 'RUN ANALYSIS'")
+            st.write("3. **Navigate pages** using the sidebar menu")
+            st.write("4. **Period:** 3 months default (optimal for all modules)")
             st.markdown("---")
             st.write("### 📍 Page Navigation")
-            st.write("- **📊 Overview** - Charts, Master Score, Signal Confluence")
-            st.write("- **📈 Technical** - Indicators, Volume, Volatility, Patterns")
-            st.write("- **💼 Fundamental** - Company Metrics, Correlations")
-            st.write("- **🎯 Options** - Options Levels, Confidence Intervals")
-            st.write("- **🔬 Advanced** - Divergence, Scanner, Backtesting")
+            st.write("- **📊 Market Sentiment** (Landing) - Baldwin + SPY/QQQ/IWM with Volume/Volatility")
+            st.write("- **📈 Equity Research** - Complete analysis for searched symbol")
+            st.write("- **💎 Derivative Research** - Options analysis for searched symbol")
+            st.write("- **🔍 Scanner** - Multi-symbol master score scanner")
+            st.write("- **📉 Strategy Backtest** - Strategy performance testing")
             st.markdown("---")
             st.write("### 💡 Tips")
-            st.write("- Use **Quick Links** for instant analysis of popular symbols")
-            st.write("- **3mo+ period recommended** for accurate technical analysis")
-            st.write("- Each page focuses on specific analysis categories")
+            st.write("- **Market Sentiment** always visible - no symbol search needed")
+            st.write("- Use **Quick Links** for instant symbol analysis")
+            st.write("- **Equity Research** has most analysis modules")
             st.write("- Analysis results persist when switching pages")
 
     # Footer

@@ -97,7 +97,8 @@ from ui.components import (
     create_master_score_bar,
     create_header,
     inject_custom_css,
-    create_command_center_header
+    create_command_center_header,
+    display_vwv_logo
 )
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
@@ -122,16 +123,8 @@ def create_navigation():
     if 'current_page' not in st.session_state:
         st.session_state.current_page = "Market Sentiment"
 
-    st.sidebar.markdown("""
-    <div style="padding: 1.5rem 0 1rem 0; border-bottom: 2px solid rgba(255, 255, 255, 0.15);">
-        <div style="text-align: center; font-size: 1.25rem; font-weight: 600; color: white; margin-bottom: 0.5rem;">
-            VWV RESEARCH
-        </div>
-        <div style="text-align: center; font-size: 0.75rem; color: #9ca3af;">
-            Multi-Page Analysis Platform
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Display VWV logo at top of sidebar
+    display_vwv_logo()
 
     st.sidebar.markdown("### Navigation")
 

@@ -31,25 +31,34 @@ def inject_custom_css():
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-    /* Root Variables - Command Center Theme */
+    /* Root Variables - Dark Card-Based Theme */
     :root {
-        --bg-primary: #050505;
-        --bg-secondary: #0a0a0a;
-        --bg-tertiary: #0f0f0f;
-        --bg-input: #151515;
-        --bg-hover: #1a1a1a;
+        /* Updated Background Colors - Darker Theme */
+        --bg-primary: #0a0a0a;
+        --bg-secondary: #0d0d0d;
+        --bg-tertiary: #151515;
+        --bg-card: #1a1a1a;
+        --bg-input: #1a1a1a;
+        --bg-hover: #202020;
 
-        --border-subtle: rgba(255, 255, 255, 0.1);
-        --border-focus: rgba(59, 130, 246, 0.5);
+        /* Updated Borders */
+        --border-subtle: #2a2a2a;
+        --border-card: #303030;
+        --border-focus: rgba(0, 212, 255, 0.5);
 
-        --text-primary: #ffffff;
-        --text-secondary: #9ca3af;
-        --text-tertiary: #6b7280;
+        /* Text Colors */
+        --text-primary: #e0e0e0;
+        --text-secondary: #a0a0a0;
+        --text-tertiary: #707070;
+        --text-label: #888888;
 
-        --accent-blue: #3b82f6;
-        --accent-blue-glow: rgba(59, 130, 246, 0.3);
-        --accent-green: #10b981;
-        --accent-red: #ef4444;
+        /* Accent Colors - Cyan Blue Theme */
+        --accent-cyan: #00d4ff;
+        --accent-cyan-hover: #20c5e8;
+        --accent-cyan-glow: rgba(0, 212, 255, 0.3);
+        --accent-green: #32CD32;
+        --accent-yellow: #FFD700;
+        --accent-red: #DC143C;
 
         --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         --font-mono: 'JetBrains Mono', 'Courier New', monospace;
@@ -124,7 +133,7 @@ def inject_custom_css():
     }
 
     [data-testid="stSidebar"] input:focus {
-        border-color: var(--accent-blue) !important;
+        border-color: var(--accent-cyan) !important;
         box-shadow: 0 0 0 1px var(--border-focus) !important;
         background-color: var(--bg-hover) !important;
     }
@@ -136,24 +145,24 @@ def inject_custom_css():
         font-size: 0.875rem !important;
     }
 
-    /* Analyze Button - Electric Blue with Glow */
+    /* Analyze Button - Cyan Blue with Glow */
     [data-testid="stSidebar"] button[kind="primary"] {
-        background: var(--accent-blue) !important;
+        background: var(--accent-cyan) !important;
         border: none !important;
-        color: white !important;
+        color: #0a0a0a !important;
         font-weight: 600 !important;
         font-size: 0.875rem !important;
         padding: 0.625rem 1.25rem !important;
         border-radius: 0.375rem !important;
-        box-shadow: 0 0 15px var(--accent-blue-glow) !important;
+        box-shadow: 0 0 15px var(--accent-cyan-glow) !important;
         text-transform: uppercase !important;
         letter-spacing: 0.05em !important;
         transition: all 0.2s ease !important;
     }
 
     [data-testid="stSidebar"] button[kind="primary"]:hover {
-        background: #2563eb !important;
-        box-shadow: 0 0 20px var(--accent-blue-glow) !important;
+        background: var(--accent-cyan-hover) !important;
+        box-shadow: 0 0 20px var(--accent-cyan-glow) !important;
         transform: translateY(-1px) !important;
     }
 
@@ -202,19 +211,20 @@ def inject_custom_css():
         font-weight: 500 !important;
     }
 
-    /* Expanders - Border-Based Design */
+    /* Expanders - Card-Based Design with Shadow */
     [data-testid="stExpander"] {
-        background-color: transparent !important;
-        border: 1px solid var(--border-subtle) !important;
-        border-radius: 0.75rem !important;
-        margin: 1rem 0 !important;
+        background-color: var(--bg-card) !important;
+        border: 1px solid var(--border-card) !important;
+        border-radius: 10px !important;
+        margin: 16px 0 !important;
         overflow: hidden !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
     }
 
     [data-testid="stExpander"] summary {
         background-color: var(--bg-tertiary) !important;
-        border-bottom: 1px solid var(--border-subtle) !important;
-        padding: 1rem 1.5rem !important;
+        border-bottom: 1px solid var(--border-card) !important;
+        padding: 16px 20px !important;
         font-size: 0.875rem !important;
         font-weight: 600 !important;
         color: var(--text-primary) !important;
@@ -228,8 +238,8 @@ def inject_custom_css():
 
     /* Expander Content */
     [data-testid="stExpander"] > div:last-child {
-        background-color: var(--bg-tertiary) !important;
-        padding: 1.5rem !important;
+        background-color: var(--bg-card) !important;
+        padding: 20px !important;
     }
 
     /* ========================================
@@ -335,10 +345,10 @@ def inject_custom_css():
 
     /* Info Messages */
     .stInfo {
-        background-color: rgba(59, 130, 246, 0.1) !important;
-        border: 1px solid rgba(59, 130, 246, 0.3) !important;
+        background-color: rgba(0, 212, 255, 0.1) !important;
+        border: 1px solid rgba(0, 212, 255, 0.3) !important;
         border-radius: 0.5rem !important;
-        color: var(--accent-blue) !important;
+        color: var(--accent-cyan) !important;
         font-size: 0.875rem !important;
     }
 
@@ -386,7 +396,7 @@ def inject_custom_css():
 
     /* Loading Indicator */
     .stSpinner > div {
-        border-color: var(--accent-blue) transparent transparent transparent !important;
+        border-color: var(--accent-cyan) transparent transparent transparent !important;
     }
 
     /* ========================================
@@ -406,9 +416,9 @@ def inject_custom_css():
     .terminal-badge-dot {
         width: 0.75rem;
         height: 0.75rem;
-        background-color: var(--accent-blue);
+        background-color: var(--accent-cyan);
         border-radius: 0.125rem;
-        box-shadow: 0 0 10px var(--accent-blue-glow);
+        box-shadow: 0 0 10px var(--accent-cyan-glow);
     }
 
     .section-divider {
@@ -420,7 +430,29 @@ def inject_custom_css():
     /* Accent Border Top for Cards */
     .accent-border-top {
         border-top: 2px solid transparent;
-        border-image: linear-gradient(to right, var(--accent-blue), #8b5cf6) 1;
+        border-image: linear-gradient(to right, var(--accent-cyan), var(--accent-cyan-hover)) 1;
+    }
+
+    /* Navigation Radio Buttons - Cyan Accent */
+    [data-testid="stSidebar"] [data-baseweb="radio"] label {
+        background-color: transparent !important;
+        border: 1px solid var(--border-subtle) !important;
+        border-radius: 0.375rem !important;
+        padding: 0.5rem 1rem !important;
+        margin: 0.25rem 0 !important;
+        transition: all 0.2s ease !important;
+    }
+
+    [data-testid="stSidebar"] [data-baseweb="radio"] label:hover {
+        background-color: var(--bg-hover) !important;
+        border-color: var(--accent-cyan) !important;
+    }
+
+    [data-testid="stSidebar"] [data-baseweb="radio"] input:checked + label {
+        background-color: var(--accent-cyan) !important;
+        border-color: var(--accent-cyan) !important;
+        color: #0a0a0a !important;
+        font-weight: 600 !important;
     }
 
     /* Pulse animation for live indicators */
@@ -431,6 +463,44 @@ def inject_custom_css():
 
     </style>
     """, unsafe_allow_html=True)
+
+def display_vwv_logo():
+    """
+    Display VWV logo in sidebar
+
+    PLACEHOLDER: Replace with actual logo image when available
+    Options to replace:
+    1. Use st.sidebar.image("path/to/logo.png", width=240)
+    2. Use base64 encoded image in HTML
+    3. Use hosted URL: st.sidebar.image("https://example.com/logo.png", width=240)
+    """
+    # OPTION 1: Professional text-based placeholder (current)
+    st.sidebar.markdown("""
+    <div style="text-align: center; padding: 2rem 1rem 1.5rem 1rem;">
+        <div style="font-size: 2.5rem; font-weight: 700;
+                    background: linear-gradient(135deg, #00d4ff 0%, #20c5e8 100%);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    margin-bottom: 0.5rem;
+                    letter-spacing: 0.1em;">
+            VWV
+        </div>
+        <div style="font-size: 0.75rem; color: #888888; font-weight: 500; letter-spacing: 0.1em;">
+            RESEARCH & ANALYSIS
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # OPTION 2: To use actual image file (uncomment and modify when ready):
+    # st.sidebar.image("assets/vwv_logo.png", width=240)
+
+    # OPTION 3: To use base64 encoded image (uncomment and add base64 string):
+    # st.sidebar.markdown(f"""
+    # <div style="text-align: center; padding: 1rem;">
+    #     <img src="data:image/png;base64,{BASE64_STRING_HERE}" width="240"/>
+    # </div>
+    # """, unsafe_allow_html=True)
 
 def create_command_center_header():
     """

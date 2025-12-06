@@ -1173,11 +1173,15 @@ def create_header() -> None:
         <hr style='border: 1px solid #333; margin: 20px 0;'>
     """, unsafe_allow_html=True)
 
-def create_options_chart_controls() -> Dict[str, Any]:
+def create_options_chart_controls(key_prefix: str = "") -> Dict[str, Any]:
     """
     Create interactive controls for options chart filtering
 
     VERSION 1.2.0 - New function for enhanced options visualization
+    VERSION 1.2.1 - Added key_prefix parameter to avoid duplicate keys
+
+    Args:
+        key_prefix: Prefix for widget keys to ensure uniqueness when called multiple times
 
     Returns:
         dict: User selections for chart customization including:
@@ -1192,15 +1196,15 @@ def create_options_chart_controls() -> Dict[str, Any]:
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        show_puts = st.checkbox("Show Put Strikes", value=True, key="opt_show_puts",
+        show_puts = st.checkbox("Show Put Strikes", value=True, key=f"{key_prefix}opt_show_puts",
                                help="Display put option strike levels (red lines)")
-        show_calls = st.checkbox("Show Call Strikes", value=True, key="opt_show_calls",
+        show_calls = st.checkbox("Show Call Strikes", value=True, key=f"{key_prefix}opt_show_calls",
                                 help="Display call option strike levels (green lines)")
 
     with col2:
-        show_expected_move = st.checkbox("Show Expected Move Zone", value=True, key="opt_expected_move",
+        show_expected_move = st.checkbox("Show Expected Move Zone", value=True, key=f"{key_prefix}opt_expected_move",
                                         help="Display ±1 standard deviation price range (blue shaded area)")
-        show_annotations = st.checkbox("Show Strike Details", value=True, key="opt_annotations",
+        show_annotations = st.checkbox("Show Strike Details", value=True, key=f"{key_prefix}opt_annotations",
                                       help="Show detailed Greeks and probabilities for each strike")
 
     with col3:
@@ -1208,7 +1212,7 @@ def create_options_chart_controls() -> Dict[str, Any]:
             "Select DTEs (Days to Expiration)",
             options=[7, 14, 30, 45, 60],
             default=[7, 14, 30, 45],
-            key="opt_selected_dtes",
+            key=f"{key_prefix}opt_selected_dtes",
             help="Filter which expiration dates to display"
         )
 

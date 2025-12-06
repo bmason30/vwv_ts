@@ -96,6 +96,14 @@ def inject_custom_css():
        PHASE 3: SIDEBAR - THE CONTROL DECK
        ======================================== */
 
+    /* Ensure sidebar collapse button is always accessible */
+    [data-testid="collapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 10000 !important;
+    }
+
     /* Sidebar Base Styling */
     [data-testid="stSidebar"] {
         background-color: var(--bg-secondary) !important;
@@ -627,14 +635,36 @@ def create_icon_navigation():
     # Icon navigation CSS
     st.sidebar.markdown("""
     <style>
-    /* Narrow sidebar for icon navigation */
-    [data-testid="stSidebar"] {
+    /* Ensure collapse button is always visible and functional */
+    [data-testid="collapsedControl"] {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        z-index: 9999 !important;
+        background: #1a1a1a !important;
+        border: 1px solid #2a2a2a !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 8px !important;
+    }
+
+    [data-testid="collapsedControl"]:hover {
+        background: #252525 !important;
+        border-color: #00d4ff !important;
+    }
+
+    /* Narrow sidebar for icon navigation - only when expanded */
+    [data-testid="stSidebar"]:not([aria-expanded="false"]) {
         width: 100px !important;
         min-width: 100px !important;
     }
-    [data-testid="stSidebar"] > div:first-child {
+    [data-testid="stSidebar"]:not([aria-expanded="false"]) > div:first-child {
         width: 100px !important;
         min-width: 100px !important;
+    }
+
+    /* When collapsed, allow default Streamlit behavior */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        width: 0px !important;
     }
 
     .nav-tab-container {

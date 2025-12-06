@@ -502,6 +502,238 @@ def display_vwv_logo():
     # </div>
     # """, unsafe_allow_html=True)
 
+def create_top_navigation_bar(symbol, period, on_analyze, market_status=None):
+    """
+    Create top navigation bar with search, time periods, and RUN ANALYSIS button
+
+    Args:
+        symbol: Current symbol value
+        period: Current time period value
+        on_analyze: Callback function when RUN ANALYSIS is clicked
+        market_status: Optional market status string
+
+    Returns:
+        Dict with updated symbol and period values
+    """
+    st.markdown("""
+    <style>
+    .top-nav-bar {
+        background: #1a1a1a;
+        padding: 12px 24px;
+        border-bottom: 1px solid #2a2a2a;
+        margin: -1rem -1rem 2rem -1rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+    }
+    .top-nav-logo {
+        font-size: 1.25rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, #00d4ff 0%, #20c5e8 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-right: 1rem;
+    }
+    .period-btn-group {
+        display: flex;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+    .period-btn {
+        background: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        color: #a0a0a0;
+        padding: 6px 16px;
+        border-radius: 6px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .period-btn.active {
+        background: #00d4ff;
+        color: #0a0a0a;
+        border-color: #00d4ff;
+    }
+    .period-btn:hover {
+        background: #3a3a3a;
+        border-color: #4a4a4a;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Create columns for layout
+    cols = st.columns([1, 3, 2, 1, 2])
+
+    with cols[0]:
+        st.markdown('<div class="top-nav-logo">VWV</div>', unsafe_allow_html=True)
+
+    with cols[1]:
+        new_symbol = st.text_input(
+            "Search Ticker",
+            value=symbol,
+            placeholder="Search Ticker...",
+            label_visibility="collapsed",
+            key="top_nav_symbol"
+        )
+
+    with cols[2]:
+        # Time period buttons
+        period_options = ['1D', '3M', '1Y', 'YTD']
+        period_mapping = {'1D': '1mo', '3M': '3mo', '1Y': '1y', 'YTD': '1y'}
+
+        period_cols = st.columns(4)
+        new_period = period
+        for idx, period_opt in enumerate(period_options):
+            with period_cols[idx]:
+                if st.button(
+                    period_opt,
+                    key=f"period_{period_opt}",
+                    use_container_width=True
+                ):
+                    new_period = period_mapping[period_opt]
+
+    with cols[3]:
+        if market_status:
+            st.markdown(f'<div style="font-size: 0.75rem; color: #888888; text-align: center;">{market_status}</div>', unsafe_allow_html=True)
+
+    with cols[4]:
+        analyze_clicked = st.button(
+            "RUN ANALYSIS",
+            type="primary",
+            use_container_width=True,
+            key="top_nav_analyze"
+        )
+
+    return {
+        'symbol': new_symbol if new_symbol else symbol,
+        'period': new_period,
+        'analyze_button': analyze_clicked
+    }
+
+def create_icon_navigation():
+    """
+    Create icon-based vertical navigation tabs for sidebar
+
+    Returns:
+        Selected page name
+    """
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = "Market Sentiment"
+    if 'settings_open' not in st.session_state:
+        st.session_state.settings_open = False
+
+    # Icon navigation CSS
+    st.sidebar.markdown("""
+    <style>
+    /* Narrow sidebar for icon navigation */
+    [data-testid="stSidebar"] {
+        width: 100px !important;
+        min-width: 100px !important;
+    }
+    [data-testid="stSidebar"] > div:first-child {
+        width: 100px !important;
+        min-width: 100px !important;
+    }
+
+    .nav-tab-container {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 1rem;
+    }
+    .nav-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 8px;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: all 0.2s;
+        text-align: center;
+        min-height: 75px;
+        position: relative;
+    }
+    .nav-tab:hover {
+        background: #252525;
+    }
+    .nav-tab.active {
+        background: #2a2a2a;
+        border-left: 4px solid #00d4ff;
+    }
+    .nav-tab.active::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 4px;
+        background: #00d4ff;
+        border-radius: 0 4px 4px 0;
+    }
+    .nav-tab-icon {
+        font-size: 24px;
+        margin-bottom: 6px;
+        opacity: 0.7;
+    }
+    .nav-tab.active .nav-tab-icon {
+        opacity: 1;
+        color: #00d4ff;
+    }
+    .nav-tab-label {
+        font-size: 10px;
+        line-height: 1.2;
+        color: #888888;
+        font-weight: 500;
+    }
+    .nav-tab.active .nav-tab-label {
+        color: #e0e0e0;
+        font-weight: 600;
+    }
+    .settings-tab {
+        margin-top: auto;
+        position: absolute;
+        bottom: 20px;
+        width: 84px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Define pages with icons
+    pages = [
+        ("Market Sentiment", "📊", "Market<br/>Sentiment"),
+        ("Equity Research", "📈", "Equity<br/>Research"),
+        ("Derivative Research", "💎", "Derivative<br/>Research"),
+        ("Scanner", "🔍", "Scanner"),
+        ("Strategy Backtest", "⚙️", "Strategy<br/>Backtest")
+    ]
+
+    # Render navigation tabs
+    for page_name, icon, label in pages:
+        active_class = "active" if st.session_state.current_page == page_name else ""
+
+        # Create button for each tab
+        if st.sidebar.button(
+            f"{icon}\n{page_name.replace(' ', '\n')}",
+            key=f"nav_{page_name}",
+            use_container_width=True
+        ):
+            st.session_state.current_page = page_name
+            st.rerun()
+
+    # Settings tab at bottom
+    st.sidebar.markdown("<div style='height: 200px;'></div>", unsafe_allow_html=True)
+    if st.sidebar.button(
+        "⚙️\nSettings",
+        key="nav_settings",
+        use_container_width=True
+    ):
+        st.session_state.settings_open = not st.session_state.settings_open
+
+    return st.session_state.current_page
+
 def create_command_center_header():
     """
     Create institutional command center header

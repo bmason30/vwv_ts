@@ -467,7 +467,7 @@ def show_individual_technical_analysis(analysis_results, show_debug=False):
         # Display table
         if indicators_data:
             df_technical = pd.DataFrame(indicators_data)
-            st.dataframe(df_technical, use_container_width=True, hide_index=True)
+            st.dataframe(df_technical, width='stretch', hide_index=True)
         
         # Debug info
         if show_debug:
@@ -882,7 +882,7 @@ def show_market_correlation_analysis(analysis_results, show_debug=False):
             
             if correlation_data:
                 df_corr = pd.DataFrame(correlation_data)
-                st.dataframe(df_corr, use_container_width=True, hide_index=True)
+                st.dataframe(df_corr, width='stretch', hide_index=True)
         else:
             st.warning("⚠️ Market correlation data not available")
 
@@ -982,7 +982,7 @@ def show_options_analysis(analysis_results, show_debug=False):
             # Display main options table
             st.subheader("📊 Options Levels with Black-Scholes Pricing")
             df_options = pd.DataFrame(options_levels)
-            st.dataframe(df_options, use_container_width=True, hide_index=True)
+            st.dataframe(df_options, width='stretch', hide_index=True)
 
             st.markdown("---")
 
@@ -1005,7 +1005,7 @@ def show_options_analysis(analysis_results, show_debug=False):
 
                 risk_reward_chart = create_risk_reward_scatter(options_levels, current_price)
                 if risk_reward_chart:
-                    st.plotly_chart(risk_reward_chart, use_container_width=True)
+                    st.plotly_chart(risk_reward_chart, width='stretch')
 
                     with st.expander("HOW TO READ THIS CHART"):
                         st.write("""
@@ -1068,7 +1068,7 @@ def show_confidence_intervals(analysis_results, show_debug=False):
                 })
             
             df_intervals = pd.DataFrame(intervals_data)
-            st.dataframe(df_intervals, use_container_width=True, hide_index=True)
+            st.dataframe(df_intervals, width='stretch', hide_index=True)
 
 def show_master_score(analysis_results, show_debug=False):
     """
@@ -1193,7 +1193,7 @@ def show_divergence_analysis(analysis_results, show_debug=False):
                 })
 
             df_div = pd.DataFrame(div_data)
-            st.dataframe(df_div, use_container_width=True, hide_index=True)
+            st.dataframe(df_div, width='stretch', hide_index=True)
         else:
             st.info("No divergences detected in current analysis period.")
 
@@ -1352,7 +1352,7 @@ def show_signal_confluence(analysis_results, show_debug=False):
                 })
 
             df_signals = pd.DataFrame(signal_data)
-            st.dataframe(df_signals, use_container_width=True, hide_index=True)
+            st.dataframe(df_signals, width='stretch', hide_index=True)
 
         # Conflicts section
         conflicts = confluence_data.get('conflicts', [])
@@ -1429,7 +1429,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
 
         with col2:
             run_button = st.button("🔄 Run Backtest", key=f"backtest_run_{symbol}",
-                                  type="primary", use_container_width=True)
+                                  type="primary", width='stretch')
             if run_button:
                 st.session_state[f'run_backtest_{symbol}'] = True
                 st.session_state[f'backtest_results_{symbol}'] = None  # Clear old results
@@ -1437,7 +1437,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
         with col3:
             if st.session_state.get(f'run_backtest_{symbol}', False):
                 clear_button = st.button("🗑️ Clear Results", key=f"backtest_clear_{symbol}",
-                                        use_container_width=True)
+                                        width='stretch')
                 if clear_button:
                     st.session_state[f'run_backtest_{symbol}'] = False
                     st.session_state[f'backtest_results_{symbol}'] = None
@@ -1570,7 +1570,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
                             showlegend=True
                         )
 
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, width='stretch')
 
                     # Trades table
                     st.subheader("📋 Trade History")
@@ -1599,7 +1599,7 @@ def show_backtest_analysis(analysis_results, show_debug=False):
                             'exit_reason': 'Exit Reason'
                         })
 
-                        st.dataframe(display_df, use_container_width=True, hide_index=True)
+                        st.dataframe(display_df, width='stretch', hide_index=True)
 
                     # Performance summary
                     st.subheader("📝 Performance Summary")
@@ -1800,7 +1800,7 @@ def show_pattern_recognition(analysis_results, show_debug=False):
                     })
 
                 df_patterns = pd.DataFrame(pattern_df_data)
-                st.dataframe(df_patterns, use_container_width=True, hide_index=True)
+                st.dataframe(df_patterns, width='stretch', hide_index=True)
 
             else:
                 st.info("No candlestick patterns detected in last 5 candles.")

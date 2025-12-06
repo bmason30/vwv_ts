@@ -98,7 +98,9 @@ from ui.components import (
     create_header,
     inject_custom_css,
     create_command_center_header,
-    display_vwv_logo
+    display_vwv_logo,
+    create_top_navigation_bar,
+    create_icon_navigation
 )
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
@@ -118,53 +120,11 @@ st.set_page_config(
 # NAVIGATION SYSTEM
 # ============================================================================
 
-def create_navigation():
-    """Create navigation menu in sidebar"""
-    if 'current_page' not in st.session_state:
-        st.session_state.current_page = "Market Sentiment"
+# Navigation is now handled by create_icon_navigation() from ui.components
 
-    # Display VWV logo at top of sidebar
-    display_vwv_logo()
-
-    st.sidebar.markdown("### Navigation")
-
-    pages = [
-        "Market Sentiment",
-        "Equity Research",
-        "Derivative Research",
-        "Scanner",
-        "Strategy Backtest"
-    ]
-
-    page = st.sidebar.radio(
-        "Select Page",
-        pages,
-        index=pages.index(st.session_state.current_page),
-        label_visibility="collapsed"
-    )
-
-    if page != st.session_state.current_page:
-        st.session_state.current_page = page
-        st.rerun()
-
-    st.sidebar.markdown("---")
-
-    return page
-
-def create_sidebar_controls():
-    """Create sidebar controls and return analysis parameters - Command Center Design"""
-
-    # COMPACT BRANDING (replaces emoji-heavy title)
-    st.sidebar.markdown("""
-    <div style="padding: 1rem 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
-        <div class="terminal-badge">
-            <div class="terminal-badge-dot"></div>
-            <span style="color: white; font-size: 0.875rem;">CONTROLS</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state for toggles
+def initialize_session_state():
+    """Initialize session state variables"""
+    # Initialize toggles
     if 'recently_viewed' not in st.session_state:
         st.session_state.recently_viewed = []
     if 'last_analyzed_symbol' not in st.session_state:
@@ -199,80 +159,20 @@ def create_sidebar_controls():
         st.session_state.show_patterns = True
     if 'show_scanner' not in st.session_state:
         st.session_state.show_scanner = True
-
-    # Initialize pending symbol state for quick links
     if 'pending_symbol' not in st.session_state:
         st.session_state.pending_symbol = "TSLA"
+    if 'pending_period' not in st.session_state:
+        st.session_state.pending_period = "3mo"
 
-    # Symbol input with Enter key support
-    symbol_input = st.sidebar.text_input(
-        "Symbol",
-        value=st.session_state.pending_symbol,
-        help="Enter a stock symbol (e.g., AAPL, TSLA, SPY)"
-    ).upper()
-
-    # Update pending_symbol if user typed a new value
-    if symbol_input and symbol_input != st.session_state.pending_symbol:
-        st.session_state.pending_symbol = symbol_input
-
-    # Data period selection with 3mo as default (optimal for all modules)
-    period = st.sidebar.selectbox(
-        "Data Period",
-        options=['1mo', '3mo', '6mo', '1y', '2y', '5y'],
-        index=1,  # Default to 3mo (recommended for technical analysis)
-        help="Select the historical data period for analysis. 3mo+ recommended for all modules."
-    )
-
-    # Analysis sections toggle - HIDDEN (redundant with page navigation)
-    # Module visibility controlled by pages now
-
-    # Analyze button - Professional command center style
-    analyze_button = st.sidebar.button("RUN ANALYSIS", use_container_width=True, type="primary")
-    
-    # Recently viewed
-    with st.sidebar.expander("RECENTLY VIEWED", expanded=False):
-        if st.session_state.recently_viewed:
-            for viewed_symbol in st.session_state.recently_viewed[-5:]:
-                if st.button(viewed_symbol, key=f"recent_{viewed_symbol}", use_container_width=True):
-                    st.session_state.symbol_input = viewed_symbol
-                    st.session_state.last_analyzed_symbol = None  # Force re-analysis
-                    st.rerun()
-        else:
-            st.write("No recent symbols")
-
-    # Quick Links
-    with st.sidebar.expander("QUICK LINKS", expanded=False):
-        for category, symbols in QUICK_LINK_CATEGORIES.items():
-            st.write(f"**{category}**")
-            cols = st.columns(2)
-            for idx, symbol in enumerate(symbols):
-                with cols[idx % 2]:
-                    if st.button(symbol, key=f"quick_{symbol}", use_container_width=True):
-                        st.session_state.pending_symbol = symbol
-                        st.session_state.last_analyzed_symbol = None  # Force re-analysis
-                        st.rerun()
-    
-    # FOOTER SECTION (at bottom of sidebar)
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("""
-    <div style="padding: 1rem 0; display: flex; justify-content: space-between;
-                align-items: center; font-size: 0.75rem; color: #6b7280;">
-        <span>v1.0.0</span>
-        <div style="width: 8px; height: 8px; background-color: #10b981;
-                    border-radius: 50%; animation: pulse 2s infinite;"></div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Debug mode in collapsible settings
-    with st.sidebar.expander("SETTINGS"):
-        show_debug = st.checkbox("Debug Mode", value=False, key="debug_mode")
-
-    return {
-        'symbol': symbol_input,
-        'period': period,
-        'analyze_button': analyze_button,
-        'show_debug': show_debug
-    }
+def render_settings_panel():
+    """Render settings panel when settings button is clicked"""
+    if st.session_state.get('settings_open', False):
+        with st.sidebar:
+            st.markdown("---")
+            st.markdown("### Settings")
+            show_debug = st.checkbox("Debug Mode", value=False, key="debug_mode")
+            return show_debug
+    return False
 
 def add_to_recently_viewed(symbol):
     """Add symbol to recently viewed list"""
@@ -2373,14 +2273,8 @@ def main():
     # CRITICAL: Inject custom CSS first
     inject_custom_css()
 
-    # Create command center header (replaces old green header)
-    create_command_center_header()
-
-    # Create navigation (returns selected page)
-    current_page = create_navigation()
-
-    # Create sidebar controls
-    controls = create_sidebar_controls()
+    # Initialize session state variables
+    initialize_session_state()
 
     # Initialize session state for analysis results persistence
     if 'cached_analysis_results' not in st.session_state:
@@ -2388,22 +2282,43 @@ def main():
     if 'cached_chart_data' not in st.session_state:
         st.session_state.cached_chart_data = None
 
+    # Create icon-based sidebar navigation
+    current_page = create_icon_navigation()
+
+    # Get market status for top nav
+    market_status = get_market_status()
+
+    # Create top navigation bar with search and controls
+    top_nav = create_top_navigation_bar(
+        symbol=st.session_state.pending_symbol,
+        period=st.session_state.pending_period,
+        on_analyze=None,  # Not used, using returned dict instead
+        market_status=market_status
+    )
+
+    # Update session state with top nav values
+    st.session_state.pending_symbol = top_nav['symbol']
+    st.session_state.pending_period = top_nav['period']
+
+    # Render settings panel if settings button clicked
+    show_debug = render_settings_panel()
+    if show_debug is None:
+        show_debug = False
+
     # Trigger analysis on button click OR when Enter is pressed (symbol changes)
-    symbol_changed = (controls['symbol'] and
-                     controls['symbol'] != st.session_state.last_analyzed_symbol)
-    should_analyze = (controls['analyze_button'] or symbol_changed) and controls['symbol']
+    symbol_changed = (top_nav['symbol'] and
+                     top_nav['symbol'] != st.session_state.last_analyzed_symbol)
+    should_analyze = (top_nav['analyze_button'] or symbol_changed) and top_nav['symbol']
 
     if should_analyze:
-        st.session_state.last_analyzed_symbol = controls['symbol']
-        add_to_recently_viewed(controls['symbol'])
+        st.session_state.last_analyzed_symbol = top_nav['symbol']
+        add_to_recently_viewed(top_nav['symbol'])
 
-        st.write(f"## 📊 VWV Research And Analysis v1.0.0 - {controls['symbol']}")
-
-        with st.spinner(f"Analyzing {controls['symbol']}..."):
+        with st.spinner(f"Analyzing {top_nav['symbol']}..."):
             analysis_results, chart_data = perform_enhanced_analysis(
-                controls['symbol'],
-                controls['period'],
-                controls['show_debug']
+                top_nav['symbol'],
+                top_nav['period'],
+                show_debug
             )
 
             # Cache results in session state for persistence across reruns
@@ -2414,11 +2329,11 @@ def main():
     # Route to appropriate page based on navigation
     # Market Sentiment page doesn't need symbol search - always shows SPY/QQQ/IWM
     if current_page == "Market Sentiment":
-        render_market_sentiment_page(controls['show_debug'])
+        render_market_sentiment_page(show_debug)
 
     # Scanner page doesn't need specific symbol
     elif current_page == "Scanner":
-        render_scanner_page(controls['show_debug'])
+        render_scanner_page(show_debug)
 
     # Other pages require analysis results for searched symbol
     elif (st.session_state.cached_analysis_results is not None and
@@ -2443,16 +2358,16 @@ def main():
 
         # Route to pages that need analysis results
         if current_page == "Equity Research":
-            render_equity_research_page(analysis_results, chart_data, controls['show_debug'])
+            render_equity_research_page(analysis_results, chart_data, show_debug)
 
         elif current_page == "Derivative Research":
-            render_derivative_research_page(analysis_results, chart_data, controls['show_debug'])
+            render_derivative_research_page(analysis_results, chart_data, show_debug)
 
         elif current_page == "Strategy Backtest":
-            render_strategy_backtest_page(analysis_results, chart_data, controls['show_debug'])
+            render_strategy_backtest_page(analysis_results, chart_data, show_debug)
 
         # Debug information (available on all pages)
-        if controls['show_debug']:
+        if show_debug:
             with st.expander("DEBUG INFORMATION", expanded=False):
                 st.write("### Analysis Results Structure")
                 st.json(analysis_results)
@@ -2462,18 +2377,17 @@ def main():
         st.info(f"Please enter a symbol and click 'RUN ANALYSIS' to view {current_page} data.")
     else:
         # Welcome screen (no symbol analyzed yet)
-        st.write("## VWV Research And Analysis System v2.0.0")
-        st.write("**Multi-Page Navigation • Advanced Technical Analysis • Professional Market Research**")
+        st.write("## VWV Research And Analysis System v3.0.0")
+        st.write("**Icon-Based Navigation • Top Search Bar • Advanced Technical Analysis • Professional Market Research**")
 
-        market_status = get_market_status()
         st.info(f"**Market Status:** {market_status}")
 
         with st.expander("QUICK START GUIDE", expanded=True):
             st.write("### Getting Started")
             st.write("1. **Click 'Market Sentiment'** to see SPY/QQQ/IWM market overview (no symbol needed)")
-            st.write("2. **For individual stocks:** Enter symbol and click 'RUN ANALYSIS'")
-            st.write("3. **Navigate pages** using the sidebar menu")
-            st.write("4. **Period:** 3 months default (optimal for all modules)")
+            st.write("2. **For individual stocks:** Enter symbol in top search bar and click 'RUN ANALYSIS'")
+            st.write("3. **Navigate pages** using the icon sidebar")
+            st.write("4. **Time Period:** Use horizontal buttons (1D, 3M, 1Y, YTD)")
             st.markdown("---")
             st.write("### Page Navigation")
             st.write("- **Market Sentiment** (Landing) - Baldwin + SPY/QQQ/IWM with Volume/Volatility")
@@ -2484,7 +2398,6 @@ def main():
             st.markdown("---")
             st.write("### Tips")
             st.write("- **Market Sentiment** always visible - no symbol search needed")
-            st.write("- Use **Quick Links** for instant symbol analysis")
             st.write("- **Equity Research** has most analysis modules")
             st.write("- Analysis results persist when switching pages")
 
@@ -2494,13 +2407,13 @@ def main():
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.write(f"**Version:** v2.0.0 - Multi-Page Navigation")
+        st.write(f"**Version:** v3.0.0 - Icon Navigation & Top Search")
         st.write(f"**Status:** Fully Operational")
     with col2:
         st.write(f"**Architecture:** 5-Page Navigation System")
         st.write(f"**Default Period:** 3 months (3mo)")
     with col3:
-        st.write(f"**File:** app_redesigned.py v2.0.0")
+        st.write(f"**File:** app.py v3.0.0")
         st.write(f"**Platform:** Research And Analysis System")
 
 if __name__ == "__main__":

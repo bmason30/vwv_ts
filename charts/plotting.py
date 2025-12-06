@@ -792,7 +792,7 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
             try:
                 main_chart = create_comprehensive_trading_chart(data, analysis_results)
                 if main_chart:
-                    st.plotly_chart(main_chart, use_container_width=True)
+                    st.plotly_chart(main_chart, width='stretch')
                 else:
                     st.error("Unable to create main trading chart")
                     # Fallback to simple line chart
@@ -809,7 +809,9 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
             try:
                 # Add interactive chart controls (v1.3.0 enhancement)
                 from ui.components import create_options_chart_controls
-                chart_controls = create_options_chart_controls()
+                # Use symbol as key prefix to avoid duplicate keys when multiple charts on same page
+                symbol = analysis_results.get('symbol', 'unknown')
+                chart_controls = create_options_chart_controls(key_prefix=f"{symbol}_")
 
                 # Create chart with user-selected options
                 options_chart = create_options_levels_chart(
@@ -823,7 +825,7 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
                 )
 
                 if options_chart:
-                    st.plotly_chart(options_chart, use_container_width=True)
+                    st.plotly_chart(options_chart, width='stretch')
 
                     # Add legend explanation
                     with st.expander("📖 Chart Legend & Interpretation", expanded=False):
@@ -860,7 +862,7 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
             try:
                 score_chart = create_technical_score_chart(analysis_results)
                 if score_chart:
-                    st.plotly_chart(score_chart, use_container_width=True)
+                    st.plotly_chart(score_chart, width='stretch')
                 else:
                     st.info("Technical score chart not available")
             except Exception as e:
@@ -879,7 +881,7 @@ def display_trading_charts(data: pd.DataFrame, analysis_results: Dict[str, Any])
                     st.metric("Columns", len(data.columns))
                 
                 # Show actual data
-                st.dataframe(data.tail(50), use_container_width=True)
+                st.dataframe(data.tail(50), width='stretch')
             except Exception as e:
                 st.error(f"Data table error: {str(e)}")
     

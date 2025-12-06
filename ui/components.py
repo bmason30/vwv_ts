@@ -87,21 +87,33 @@ def inject_custom_css():
        PHASE 2: REMOVE VISUAL CLUTTER
        ======================================== */
 
-    /* Hide Streamlit Branding */
+    /* Hide Streamlit Branding - but NOT sidebar controls */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header:not([data-testid="stHeader"]) {visibility: hidden;}
+
+    /* Ensure Streamlit header elements are visible (contains sidebar toggle) */
+    [data-testid="stHeader"] {
+        visibility: visible !important;
+        display: block !important;
+    }
 
     /* ========================================
        PHASE 3: SIDEBAR - THE CONTROL DECK
        ======================================== */
 
-    /* Ensure sidebar collapse button is always accessible */
-    [data-testid="collapsedControl"] {
+    /* CRITICAL: Ensure sidebar collapse button is ALWAYS accessible - multiple selectors */
+    [data-testid="collapsedControl"],
+    [data-testid="baseButton-header"],
+    button[kind="header"],
+    .stSidebarCollapsedControl,
+    section[data-testid="stSidebar"] button[kind="header"],
+    [data-testid="stSidebarNav"] button {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        z-index: 10000 !important;
+        z-index: 100000 !important;
+        pointer-events: auto !important;
     }
 
     /* Sidebar Base Styling */
@@ -598,7 +610,7 @@ def create_top_navigation_bar(symbol, period, on_analyze, market_status=None):
                 if st.button(
                     period_opt,
                     key=f"period_{period_opt}",
-                    use_container_width=True
+                    width='stretch'
                 ):
                     new_period = period_mapping[period_opt]
 
@@ -610,7 +622,7 @@ def create_top_navigation_bar(symbol, period, on_analyze, market_status=None):
         analyze_clicked = st.button(
             "RUN ANALYSIS",
             type="primary",
-            use_container_width=True,
+            width='stretch',
             key="top_nav_analyze"
         )
 
@@ -635,19 +647,29 @@ def create_icon_navigation():
     # Icon navigation CSS
     st.sidebar.markdown("""
     <style>
-    /* Ensure collapse button is always visible and functional */
-    [data-testid="collapsedControl"] {
+    /* CRITICAL: Ensure collapse button is always visible - try multiple selectors */
+    [data-testid="collapsedControl"],
+    [data-testid="baseButton-header"],
+    button[kind="header"],
+    .stSidebarCollapsedControl,
+    section[data-testid="stSidebar"] button[kind="header"] {
         display: block !important;
         visibility: visible !important;
         opacity: 1 !important;
-        z-index: 9999 !important;
+        z-index: 99999 !important;
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
         background: #1a1a1a !important;
         border: 1px solid #2a2a2a !important;
         border-radius: 0 8px 8px 0 !important;
         padding: 8px !important;
+        pointer-events: auto !important;
     }
 
-    [data-testid="collapsedControl"]:hover {
+    [data-testid="collapsedControl"]:hover,
+    [data-testid="baseButton-header"]:hover,
+    button[kind="header"]:hover {
         background: #252525 !important;
         border-color: #00d4ff !important;
     }
@@ -748,7 +770,7 @@ def create_icon_navigation():
         if st.sidebar.button(
             f"{icon}\n{page_name.replace(' ', '\n')}",
             key=f"nav_{page_name}",
-            use_container_width=True
+            width='stretch'
         ):
             st.session_state.current_page = page_name
             st.rerun()
@@ -758,7 +780,7 @@ def create_icon_navigation():
     if st.sidebar.button(
         "⚙️\nSettings",
         key="nav_settings",
-        use_container_width=True
+        width='stretch'
     ):
         st.session_state.settings_open = not st.session_state.settings_open
 
@@ -1289,7 +1311,7 @@ def display_strike_quality_table(options_data: List[Dict], current_price: float,
 
     st.dataframe(
         styled_df,
-        use_container_width=True,
+        width='stretch',
         hide_index=True,
         height=400
     )

@@ -759,7 +759,8 @@ def create_icon_navigation():
         ("Equity Research", "📈", "Equity<br/>Research"),
         ("Derivative Research", "💎", "Derivative<br/>Research"),
         ("Scanner", "🔍", "Scanner"),
-        ("Strategy Backtest", "⚙️", "Strategy<br/>Backtest")
+        ("Strategy Backtest", "⚙️", "Strategy<br/>Backtest"),
+        ("SEC EDGAR", "📄", "SEC<br/>EDGAR")
     ]
 
     # Render navigation tabs
@@ -767,8 +768,10 @@ def create_icon_navigation():
         active_class = "active" if st.session_state.current_page == page_name else ""
 
         # Create button for each tab
+        newline = '\n'
+        button_label = f"{icon}{newline}{page_name.replace(' ', newline)}"
         if st.sidebar.button(
-            f"{icon}\n{page_name.replace(' ', '\n')}",
+            button_label,
             key=f"nav_{page_name}",
             width='stretch'
         ):

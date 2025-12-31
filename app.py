@@ -102,6 +102,7 @@ from ui.components import (
     create_top_navigation_bar,
     create_icon_navigation
 )
+from ui.edgar_display import render_edgar_page
 from utils.helpers import format_large_number, get_market_status, get_etf_description
 from utils.decorators import safe_calculation_wrapper
 
@@ -2334,6 +2335,10 @@ def main():
     # Scanner page doesn't need specific symbol
     elif current_page == "Scanner":
         render_scanner_page(show_debug)
+
+    # SEC EDGAR page doesn't need symbol search - has its own ticker input
+    elif current_page == "SEC EDGAR":
+        render_edgar_page()
 
     # Other pages require analysis results for searched symbol
     elif (st.session_state.cached_analysis_results is not None and

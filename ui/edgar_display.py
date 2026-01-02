@@ -277,27 +277,9 @@ def render_edgar_page():
     # Initialize screener
     screener = initialize_edgar_screener()
 
-    # Sidebar controls
+    # Minimal sidebar settings
     with st.sidebar:
-        st.markdown("### 🎯 Screener Settings")
-
-        # Ticker input
-        tickers_input = st.text_area(
-            "Stock Tickers (one per line or comma-separated)",
-            value="AAPL\nMSFT\nGOOGL\nTSLA\nAMZN",
-            height=150,
-            key="edgar_screener_tickers"
-        )
-
-        # Parse tickers
-        tickers = []
-        for line in tickers_input.split('\n'):
-            for ticker in line.split(','):
-                ticker = ticker.strip().upper()
-                if ticker:
-                    tickers.append(ticker)
-
-        st.info(f"Screening {len(tickers)} tickers")
+        st.markdown("### ⚙️ Settings")
 
         # Options
         include_price_data = st.checkbox(
@@ -317,17 +299,41 @@ def render_edgar_page():
 
         st.markdown("---")
 
-        # Run screening button
-        if st.button("🔍 Run Screening", key="edgar_run_screen", type="primary", use_container_width=True):
-            st.session_state.edgar_screen_clicked = True
-
-        st.markdown("---")
-
         # Cache management
-        st.markdown("### 🔧 Settings")
         if st.button("Clear Cache", key="edgar_clear_cache"):
             count = st.session_state.edgar_session.clear_cache()
             st.success(f"Cleared {count} cache files")
+
+    # TOP OF PAGE: Ticker input and Run button
+    st.markdown("### Enter Tickers to Screen")
+
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        tickers_input = st.text_area(
+            "Stock Tickers (one per line or comma-separated)",
+            value="AAPL\nMSFT\nGOOGL\nTSLA\nAMZN",
+            height=100,
+            key="edgar_screener_tickers",
+            label_visibility="collapsed"
+        )
+
+    with col2:
+        st.write("")  # Spacing
+        st.write("")  # Spacing
+        if st.button("🔍 RUN SCREENING", key="edgar_run_screen", type="primary", use_container_width=True):
+            st.session_state.edgar_screen_clicked = True
+
+    # Parse tickers
+    tickers = []
+    for line in tickers_input.split('\n'):
+        for ticker in line.split(','):
+            ticker = ticker.strip().upper()
+            if ticker:
+                tickers.append(ticker)
+
+    st.info(f"📊 Ready to screen **{len(tickers)}** tickers")
+    st.markdown("---")
 
     # Main content
     if st.session_state.get('edgar_screen_clicked', False) and len(tickers) > 0:

@@ -2327,6 +2327,12 @@ def main():
                 st.session_state.cached_analysis_results = analysis_results
                 st.session_state.cached_chart_data = chart_data
 
+                # If user clicked analyze from a page that doesn't use analysis results,
+                # automatically navigate to Equity Research to show the results
+                if current_page in ["Market Sentiment", "Scanner", "SEC EDGAR"]:
+                    st.session_state.current_page = "Equity Research"
+                    st.rerun()
+
     # Route to appropriate page based on navigation
     # Market Sentiment page doesn't need symbol search - always shows SPY/QQQ/IWM
     if current_page == "Market Sentiment":

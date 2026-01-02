@@ -1,6 +1,6 @@
 """
-SEC EDGAR Financial Data UI Module
-Streamlit interface for the EDGAR module
+SEC EDGAR Financial Screener UI Module
+Streamlit interface for multi-ticker screening with advanced scores
 """
 
 import streamlit as st
@@ -10,495 +10,425 @@ import plotly.express as px
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-from edgar_module import EDGARClient
+from edgar_module import EDGARSession, EDGARScreener
 from edgar_module.exceptions import (
     CIKNotFound,
     DataNotAvailable,
     RateLimitExceeded,
     APIError
 )
+from data.fetcher import get_market_data_enhanced
 
 
-def initialize_edgar_client() -> EDGARClient:
-    """Initialize EDGAR client with proper User-Agent"""
-    if 'edgar_client' not in st.session_state:
-        st.session_state.edgar_client = EDGARClient(
-            user_agent="VWV Trading System/1.0 (vwv@trading.com)",
+def initialize_edgar_screener() -> EDGARScreener:
+    """Initialize EDGAR screener with proper User-Agent"""
+    if 'edgar_session' not in st.session_state:
+        st.session_state.edgar_session = EDGARSession(
+            user_agent="VWV Trading System/2.0 (vwv.screener@trading.com)",
             enable_cache=True
         )
-    return st.session_state.edgar_client
+    if 'edgar_screener' not in st.session_state:
+        st.session_state.edgar_screener = EDGARScreener(st.session_state.edgar_session)
+
+    return st.session_state.edgar_screener
 
 
-def display_company_info(client: EDGARClient, ticker: str) -> None:
-    """Display company information card"""
-    try:
-        info = client.get_company_info(ticker)
+def get_price_data_for_tickers(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
+    """
+    Get current price and SMA data for tickers using existing vwv data fetcher
 
-        st.markdown("### Company Information")
+    Args:
+        tickers: List of ticker symbols
 
-        col1, col2, col3 = st.columns(3)
+    Returns:
+        Dict mapping ticker to price data
+    """
+    price_data = {}
 
-        with col1:
-            st.metric("Company Name", info.get('name', 'N/A'))
-            st.metric("CIK", info.get('cik', 'N/A'))
+    for ticker in tickers:
+        try:
+            # Get market data using existing vwv function
+            data = get_market_data_enhanced(ticker, period='3mo', show_debug=False)
 
-        with col2:
-            st.metric("Industry", info.get('sicDescription', 'N/A')[:30] + '...')
-            st.metric("SIC Code", info.get('sic', 'N/A'))
+            if data is not None and not data.empty:
+                current_price = data['Close'].iloc[-1]
 
-        with col3:
-            tickers = ', '.join(info.get('tickers', []))
-            st.metric("Tickers", tickers if tickers else 'N/A')
-            st.metric("State", info.get('stateOfIncorporation', 'N/A'))
-
-    except Exception as e:
-        st.error(f"Error fetching company info: {str(e)}")
-
-
-def display_financial_statements(
-    client: EDGARClient,
-    ticker: str,
-    annual: bool = True
-) -> None:
-    """Display financial statements"""
-    try:
-        with st.spinner(f"Fetching {'annual' if annual else 'quarterly'} financial data..."):
-            financials = client.get_financials(ticker, annual=annual)
-
-        tabs = st.tabs(["📊 Balance Sheet", "💰 Income Statement", "💵 Cash Flow", "📈 Key Metrics"])
-
-        # Balance Sheet Tab
-        with tabs[0]:
-            bs = financials.get('balance_sheet', pd.DataFrame())
-            if not bs.empty:
-                st.markdown("#### Balance Sheet")
-
-                # Select key metrics to display
-                key_cols = ['Assets', 'AssetsCurrent', 'Liabilities', 'LiabilitiesCurrent', 'StockholdersEquity']
-                available_cols = [col for col in key_cols if col in bs.columns]
-
-                if available_cols:
-                    display_df = bs[available_cols].head(5)
-                    display_df.index = pd.to_datetime(display_df.index).strftime('%Y-%m-%d')
-
-                    # Format as currency
-                    for col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A")
-
-                    st.dataframe(display_df, use_container_width=True)
-
-                    # Chart
-                    if 'Assets' in bs.columns:
-                        fig = go.Figure()
-                        fig.add_trace(go.Scatter(
-                            x=bs.index,
-                            y=bs['Assets'],
-                            mode='lines+markers',
-                            name='Total Assets'
-                        ))
-                        fig.update_layout(
-                            title='Total Assets Over Time',
-                            xaxis_title='Date',
-                            yaxis_title='Assets (USD)',
-                            hovermode='x unified'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+                # Calculate 50-day SMA
+                if len(data) >= 50:
+                    sma_50 = data['Close'].tail(50).mean()
                 else:
-                    st.warning("No key balance sheet metrics available")
-            else:
-                st.warning("Balance sheet data not available")
+                    sma_50 = data['Close'].mean()
 
-        # Income Statement Tab
-        with tabs[1]:
-            income = financials.get('income_statement', pd.DataFrame())
-            if not income.empty:
-                st.markdown("#### Income Statement")
+                # Estimate market cap (would need shares outstanding - using placeholder)
+                # In production, this should come from yfinance .info or SEC data
+                market_cap = None  # Not calculating for now
 
-                # Select key metrics
-                key_cols = ['Revenues', 'GrossProfit', 'OperatingIncomeLoss', 'NetIncomeLoss']
-                # Also try alternative revenue concept
-                if 'Revenues' not in income.columns:
-                    key_cols[0] = 'RevenueFromContractWithCustomerExcludingAssessedTax'
+                price_data[ticker] = {
+                    'price': current_price,
+                    'sma_50': sma_50,
+                    'market_cap': market_cap
+                }
+        except Exception as e:
+            st.warning(f"Could not get price data for {ticker}: {str(e)}")
+            continue
 
-                available_cols = [col for col in key_cols if col in income.columns]
-
-                if available_cols:
-                    display_df = income[available_cols].head(5)
-                    display_df.index = pd.to_datetime(display_df.index).strftime('%Y-%m-%d')
-
-                    # Format as currency
-                    for col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A")
-
-                    st.dataframe(display_df, use_container_width=True)
-
-                    # Chart - Revenue and Net Income
-                    fig = go.Figure()
-                    revenue_col = 'Revenues' if 'Revenues' in income.columns else 'RevenueFromContractWithCustomerExcludingAssessedTax'
-                    if revenue_col in income.columns:
-                        fig.add_trace(go.Scatter(
-                            x=income.index,
-                            y=income[revenue_col],
-                            mode='lines+markers',
-                            name='Revenue'
-                        ))
-                    if 'NetIncomeLoss' in income.columns:
-                        fig.add_trace(go.Scatter(
-                            x=income.index,
-                            y=income['NetIncomeLoss'],
-                            mode='lines+markers',
-                            name='Net Income'
-                        ))
-
-                    fig.update_layout(
-                        title='Revenue and Net Income Over Time',
-                        xaxis_title='Date',
-                        yaxis_title='Amount (USD)',
-                        hovermode='x unified'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No key income statement metrics available")
-            else:
-                st.warning("Income statement data not available")
-
-        # Cash Flow Tab
-        with tabs[2]:
-            cf = financials.get('cash_flow', pd.DataFrame())
-            if not cf.empty:
-                st.markdown("#### Cash Flow Statement")
-
-                # Select key metrics
-                key_cols = [
-                    'NetCashProvidedByUsedInOperatingActivities',
-                    'NetCashProvidedByUsedInInvestingActivities',
-                    'NetCashProvidedByUsedInFinancingActivities'
-                ]
-                available_cols = [col for col in key_cols if col in cf.columns]
-
-                if available_cols:
-                    display_df = cf[available_cols].head(5)
-                    display_df.index = pd.to_datetime(display_df.index).strftime('%Y-%m-%d')
-
-                    # Rename for display
-                    display_df.columns = ['Operating CF', 'Investing CF', 'Financing CF']
-
-                    # Format as currency
-                    for col in display_df.columns:
-                        display_df[col] = display_df[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A")
-
-                    st.dataframe(display_df, use_container_width=True)
-
-                    # Chart
-                    fig = go.Figure()
-                    for col in available_cols:
-                        short_name = col.replace('NetCashProvidedByUsedIn', '').replace('Activities', '')
-                        fig.add_trace(go.Bar(
-                            x=cf.index,
-                            y=cf[col],
-                            name=short_name
-                        ))
-
-                    fig.update_layout(
-                        title='Cash Flow Components',
-                        xaxis_title='Date',
-                        yaxis_title='Cash Flow (USD)',
-                        hovermode='x unified',
-                        barmode='group'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("No key cash flow metrics available")
-            else:
-                st.warning("Cash flow data not available")
-
-        # Key Metrics Tab
-        with tabs[3]:
-            try:
-                metrics = client.get_key_metrics(ticker, annual=annual)
-                if not metrics.empty:
-                    st.markdown("#### Key Financial Metrics")
-
-                    # Display latest metrics
-                    latest_date = metrics.index[0]
-                    st.markdown(f"**As of:** {pd.to_datetime(latest_date).strftime('%Y-%m-%d')}")
-
-                    metric_cols = st.columns(4)
-
-                    idx = 0
-                    for col_name in metrics.columns:
-                        if idx >= 4:
-                            break
-                        with metric_cols[idx]:
-                            value = metrics[col_name].iloc[0]
-                            if pd.notna(value):
-                                if 'Ratio' in col_name:
-                                    st.metric(col_name, f"{value:.2f}")
-                                elif 'Margin' in col_name or 'Return' in col_name:
-                                    st.metric(col_name, f"{value:.2%}")
-                                else:
-                                    st.metric(col_name, f"${value:,.0f}")
-                                idx += 1
-
-                    # Chart metrics over time
-                    st.markdown("#### Metrics Trends")
-
-                    # Select a few key metrics to chart
-                    chart_metrics = []
-                    for m in ['ProfitMargin', 'ReturnOnEquity', 'ReturnOnAssets', 'CurrentRatio']:
-                        if m in metrics.columns:
-                            chart_metrics.append(m)
-
-                    if chart_metrics:
-                        fig = go.Figure()
-                        for metric in chart_metrics:
-                            fig.add_trace(go.Scatter(
-                                x=metrics.index,
-                                y=metrics[metric],
-                                mode='lines+markers',
-                                name=metric
-                            ))
-
-                        fig.update_layout(
-                            title='Key Metrics Over Time',
-                            xaxis_title='Date',
-                            yaxis_title='Value',
-                            hovermode='x unified'
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Key metrics not available")
-            except Exception as e:
-                st.error(f"Error calculating key metrics: {str(e)}")
-
-    except CIKNotFound:
-        st.error(f"Company ticker '{ticker}' not found in SEC database")
-    except DataNotAvailable as e:
-        st.warning(f"Financial data not available: {str(e)}")
-    except Exception as e:
-        st.error(f"Error fetching financial statements: {str(e)}")
+    return price_data
 
 
-def display_peer_comparison(
-    client: EDGARClient,
-    tickers: List[str],
-    metric: str = 'Revenues'
-) -> None:
-    """Display peer comparison"""
-    try:
-        with st.spinner("Comparing companies..."):
-            comparison = client.compare_metrics(tickers, metric, annual_only=True)
+def display_screening_results(df: pd.DataFrame) -> None:
+    """Display screening results in a formatted table"""
 
-        if not comparison.empty:
-            st.markdown(f"### {metric} Comparison")
+    if df.empty:
+        st.warning("No screening results to display")
+        return
 
-            # Convert CIKs back to tickers for display
-            ticker_map = {}
-            for ticker in tickers:
-                try:
-                    cik = client.ticker_to_cik(ticker)
-                    ticker_map[cik] = ticker
-                except:
-                    pass
+    st.markdown("### 📊 Screening Results")
 
-            # Rename columns from CIK to ticker
-            display_df = comparison.copy()
-            display_df.columns = [ticker_map.get(col, col) for col in display_df.columns]
+    # Create display DataFrame with formatted columns
+    display_df = df.copy()
 
-            # Show table
-            display_table = display_df.head(5).copy()
-            display_table.index = pd.to_datetime(display_table.index).strftime('%Y-%m-%d')
+    # Select columns to display
+    display_cols = [
+        'ticker',
+        'company_name',
+        'piotroski_score',
+        'altman_zscore',
+        'altman_zone',
+        'graham_number',
+        'price_to_graham_pct',
+        'insider_activity',
+        'vwv_alpha_score',
+        'sma_50_distance_pct'
+    ]
 
-            # Format as currency
-            for col in display_table.columns:
-                display_table[col] = display_table[col].apply(lambda x: f"${x:,.0f}" if pd.notna(x) else "N/A")
+    available_cols = [col for col in display_cols if col in display_df.columns]
+    display_df = display_df[available_cols]
 
-            st.dataframe(display_table, use_container_width=True)
+    # Rename columns for display
+    rename_map = {
+        'ticker': 'Ticker',
+        'company_name': 'Company',
+        'piotroski_score': 'Piotroski (0-9)',
+        'altman_zscore': 'Altman Z',
+        'altman_zone': 'Risk Zone',
+        'graham_number': 'Graham #',
+        'price_to_graham_pct': 'P/G %',
+        'insider_activity': 'Insider',
+        'vwv_alpha_score': 'VWV Alpha',
+        'sma_50_distance_pct': 'vs 50D SMA'
+    }
 
-            # Chart
-            fig = go.Figure()
-            for col in display_df.columns:
-                fig.add_trace(go.Scatter(
-                    x=display_df.index,
-                    y=display_df[col],
-                    mode='lines+markers',
-                    name=col
-                ))
+    display_df = display_df.rename(columns=rename_map)
 
-            fig.update_layout(
-                title=f'{metric} Comparison Over Time',
-                xaxis_title='Date',
-                yaxis_title=f'{metric} (USD)',
-                hovermode='x unified'
+    # Format numeric columns
+    if 'Altman Z' in display_df.columns:
+        display_df['Altman Z'] = display_df['Altman Z'].apply(
+            lambda x: f"{x:.2f}" if pd.notna(x) else "N/A"
+        )
+
+    if 'Graham #' in display_df.columns:
+        display_df['Graham #'] = display_df['Graham #'].apply(
+            lambda x: f"${x:.2f}" if pd.notna(x) else "N/A"
+        )
+
+    if 'P/G %' in display_df.columns:
+        display_df['P/G %'] = display_df['P/G %'].apply(
+            lambda x: f"{x:.0f}%" if pd.notna(x) else "N/A"
+        )
+
+    if 'VWV Alpha' in display_df.columns:
+        display_df['VWV Alpha'] = display_df['VWV Alpha'].apply(
+            lambda x: f"{x:.1f}" if pd.notna(x) else "N/A"
+        )
+
+    if 'vs 50D SMA' in display_df.columns:
+        display_df['vs 50D SMA'] = display_df['vs 50D SMA'].apply(
+            lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A"
+        )
+
+    # Display with color coding
+    st.dataframe(
+        display_df,
+        use_container_width=True,
+        height=min(600, len(display_df) * 35 + 38)
+    )
+
+    # Download button
+    csv = df.to_csv(index=False)
+    st.download_button(
+        label="📥 Download Results (CSV)",
+        data=csv,
+        file_name=f"edgar_screening_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv"
+    )
+
+
+def display_score_distributions(df: pd.DataFrame) -> None:
+    """Display visualizations of score distributions"""
+
+    if df.empty:
+        return
+
+    st.markdown("### 📈 Score Distributions")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if 'piotroski_score' in df.columns:
+            # Piotroski histogram
+            fig = px.histogram(
+                df,
+                x='piotroski_score',
+                nbins=10,
+                title='Piotroski F-Score Distribution',
+                labels={'piotroski_score': 'Piotroski Score (0-9)'}
             )
+            fig.update_layout(showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("No comparison data available")
 
-    except Exception as e:
-        st.error(f"Error in peer comparison: {str(e)}")
+    with col2:
+        if 'vwv_alpha_score' in df.columns:
+            # VWV Alpha histogram
+            fig = px.histogram(
+                df.dropna(subset=['vwv_alpha_score']),
+                x='vwv_alpha_score',
+                nbins=20,
+                title='VWV Alpha Score Distribution',
+                labels={'vwv_alpha_score': 'VWV Alpha Score (0-100)'}
+            )
+            fig.update_layout(showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Scatter plot: Piotroski vs Altman
+    if 'piotroski_score' in df.columns and 'altman_zscore' in df.columns:
+        st.markdown("### 📊 Quality vs. Financial Health")
+
+        scatter_df = df.dropna(subset=['piotroski_score', 'altman_zscore'])
+
+        if not scatter_df.empty:
+            fig = px.scatter(
+                scatter_df,
+                x='piotroski_score',
+                y='altman_zscore',
+                hover_data=['ticker', 'company_name'],
+                title='Piotroski F-Score vs Altman Z-Score',
+                labels={
+                    'piotroski_score': 'Piotroski Score (Quality)',
+                    'altman_zscore': 'Altman Z-Score (Health)'
+                }
+            )
+
+            # Add zone lines for Altman
+            fig.add_hline(y=2.99, line_dash="dash", line_color="green",
+                         annotation_text="Safe Zone")
+            fig.add_hline(y=1.81, line_dash="dash", line_color="orange",
+                         annotation_text="Distress Zone")
+
+            st.plotly_chart(fig, use_container_width=True)
 
 
-def display_filings(client: EDGARClient, ticker: str) -> None:
-    """Display recent filings"""
-    try:
-        with st.spinner("Fetching filings..."):
-            filings = client.get_filings(ticker)
+def display_top_picks(df: pd.DataFrame, n: int = 5) -> None:
+    """Display top N stocks by VWV Alpha Score"""
 
-        if not filings.empty:
-            st.markdown("### Recent SEC Filings")
+    if df.empty or 'vwv_alpha_score' not in df.columns:
+        return
 
-            # Filter options
-            col1, col2 = st.columns([1, 3])
+    st.markdown(f"### 🏆 Top {n} Value Picks (by VWV Alpha Score)")
+
+    # Filter out rows with null scores
+    top_df = df.dropna(subset=['vwv_alpha_score']).head(n)
+
+    if top_df.empty:
+        st.info("No stocks with complete scoring data")
+        return
+
+    for idx, row in top_df.iterrows():
+        with st.expander(f"**{row['ticker']}** - {row.get('company_name', 'N/A')} (Score: {row['vwv_alpha_score']:.1f})"):
+            col1, col2, col3 = st.columns(3)
+
             with col1:
-                form_types = ['All'] + sorted(filings['form'].unique().tolist())
-                selected_form = st.selectbox("Form Type", form_types, key="filing_form_filter")
+                st.metric("Piotroski F-Score", f"{row.get('piotroski_score', 'N/A')}/9")
+                st.metric("Altman Z-Score", f"{row.get('altman_zscore', 'N/A'):.2f}" if pd.notna(row.get('altman_zscore')) else "N/A")
 
-            # Filter filings
-            if selected_form != 'All':
-                display_filings = filings[filings['form'] == selected_form].copy()
-            else:
-                display_filings = filings.copy()
+            with col2:
+                st.metric("Graham Number", f"${row.get('graham_number', 0):.2f}" if pd.notna(row.get('graham_number')) else "N/A")
+                st.metric("Price/Graham", f"{row.get('price_to_graham_pct', 0):.0f}%" if pd.notna(row.get('price_to_graham_pct')) else "N/A")
 
-            # Display table
-            display_cols = ['filingDate', 'form', 'accessionNumber']
-            if all(col in display_filings.columns for col in display_cols):
-                display_table = display_filings[display_cols].head(20).copy()
-                display_table['filingDate'] = pd.to_datetime(display_table['filingDate']).dt.strftime('%Y-%m-%d')
-                display_table.columns = ['Filing Date', 'Form Type', 'Accession Number']
+            with col3:
+                st.metric("Insider Activity", row.get('insider_activity', 'N/A'))
+                st.metric("vs 50D SMA", f"{row.get('sma_50_distance_pct', 0):+.1f}%" if pd.notna(row.get('sma_50_distance_pct')) else "N/A")
 
-                st.dataframe(display_table, use_container_width=True, height=400)
-
-                # Link to latest 10-K
-                st.markdown("#### Quick Links")
-                col1, col2, col3 = st.columns(3)
-
-                try:
-                    with col1:
-                        url_10k = client.get_filing_url(ticker, '10-K')
-                        st.markdown(f"[Latest 10-K Filing]({url_10k})")
-                except:
-                    pass
-
-                try:
-                    with col2:
-                        url_10q = client.get_filing_url(ticker, '10-Q')
-                        st.markdown(f"[Latest 10-Q Filing]({url_10q})")
-                except:
-                    pass
-
-                try:
-                    with col3:
-                        url_8k = client.get_filing_url(ticker, '8-K')
-                        st.markdown(f"[Latest 8-K Filing]({url_8k})")
-                except:
-                    pass
-            else:
-                st.warning("Filing data format not recognized")
-        else:
-            st.warning("No filings found")
-
-    except Exception as e:
-        st.error(f"Error fetching filings: {str(e)}")
+            # Interpretation
+            risk_zone = row.get('altman_zone', 'N/A')
+            if risk_zone == 'Safe Zone':
+                st.success(f"✅ {risk_zone} - Low bankruptcy risk")
+            elif risk_zone == 'Grey Zone':
+                st.warning(f"⚠️ {risk_zone} - Moderate risk")
+            elif risk_zone == 'Distress Zone':
+                st.error(f"🚨 {risk_zone} - High bankruptcy risk")
 
 
 def render_edgar_page():
-    """Main EDGAR page renderer for Streamlit"""
-    st.markdown("## 📄 SEC EDGAR Financial Data")
+    """Main EDGAR screener page renderer for Streamlit"""
 
-    # Initialize client
-    client = initialize_edgar_client()
+    st.markdown("## 📄 SEC EDGAR Value Screener")
+    st.markdown("**Advanced Financial Screening with Piotroski, Altman, Graham & Insider Analysis**")
+
+    # Initialize screener
+    screener = initialize_edgar_screener()
 
     # Sidebar controls
     with st.sidebar:
-        st.markdown("### 🎯 Analysis Settings")
+        st.markdown("### 🎯 Screener Settings")
 
-        mode = st.radio(
-            "Analysis Mode",
-            ["Single Company", "Peer Comparison", "Filings"],
-            key="edgar_mode"
+        # Ticker input
+        tickers_input = st.text_area(
+            "Stock Tickers (one per line or comma-separated)",
+            value="AAPL\nMSFT\nGOOGL\nTSLA\nAMZN",
+            height=150,
+            key="edgar_screener_tickers"
+        )
+
+        # Parse tickers
+        tickers = []
+        for line in tickers_input.split('\n'):
+            for ticker in line.split(','):
+                ticker = ticker.strip().upper()
+                if ticker:
+                    tickers.append(ticker)
+
+        st.info(f"Screening {len(tickers)} tickers")
+
+        # Options
+        include_price_data = st.checkbox(
+            "Include Price Data (50D SMA)",
+            value=True,
+            help="Fetch current prices and calculate distance from 50-day moving average"
+        )
+
+        min_alpha_score = st.slider(
+            "Minimum VWV Alpha Score",
+            min_value=0,
+            max_value=100,
+            value=50,
+            step=5,
+            help="Filter results to show only stocks above this score"
         )
 
         st.markdown("---")
 
-        if mode == "Single Company":
-            ticker = st.text_input(
-                "Company Ticker",
-                value="AAPL",
-                key="edgar_ticker"
-            ).upper().strip()
+        # Run screening button
+        if st.button("🔍 Run Screening", key="edgar_run_screen", type="primary", use_container_width=True):
+            st.session_state.edgar_screen_clicked = True
 
-            data_type = st.radio(
-                "Data Frequency",
-                ["Annual (10-K)", "Quarterly (10-Q)"],
-                key="edgar_frequency"
-            )
-            annual = data_type == "Annual (10-K)"
-
-            if st.button("🔍 Analyze", key="edgar_analyze", type="primary", use_container_width=True):
-                st.session_state.edgar_analyze_clicked = True
-
-        elif mode == "Peer Comparison":
-            tickers_input = st.text_input(
-                "Company Tickers (comma-separated)",
-                value="AAPL,MSFT,GOOGL",
-                key="edgar_peer_tickers"
-            )
-            tickers = [t.strip().upper() for t in tickers_input.split(',') if t.strip()]
-
-            metric = st.selectbox(
-                "Metric to Compare",
-                ["Revenues", "Assets", "NetIncomeLoss", "StockholdersEquity"],
-                key="edgar_peer_metric"
-            )
-
-            if st.button("🔍 Compare", key="edgar_compare", type="primary", use_container_width=True):
-                st.session_state.edgar_compare_clicked = True
-
-        else:  # Filings
-            ticker = st.text_input(
-                "Company Ticker",
-                value="AAPL",
-                key="edgar_filings_ticker"
-            ).upper().strip()
-
-            if st.button("🔍 Get Filings", key="edgar_filings_btn", type="primary", use_container_width=True):
-                st.session_state.edgar_filings_clicked = True
-
-    # Main content
-    if mode == "Single Company":
-        if st.session_state.get('edgar_analyze_clicked', False):
-            if ticker:
-                display_company_info(client, ticker)
-                st.markdown("---")
-                display_financial_statements(client, ticker, annual)
-            else:
-                st.warning("Please enter a company ticker")
-        else:
-            st.info("👈 Enter a company ticker and click 'Analyze' to view SEC financial data")
-
-    elif mode == "Peer Comparison":
-        if st.session_state.get('edgar_compare_clicked', False):
-            if len(tickers) >= 2:
-                display_peer_comparison(client, tickers, metric)
-            else:
-                st.warning("Please enter at least 2 company tickers for comparison")
-        else:
-            st.info("👈 Enter company tickers and click 'Compare' to analyze peers")
-
-    else:  # Filings
-        if st.session_state.get('edgar_filings_clicked', False):
-            if ticker:
-                display_filings(client, ticker)
-            else:
-                st.warning("Please enter a company ticker")
-        else:
-            st.info("👈 Enter a company ticker and click 'Get Filings' to view SEC filings")
-
-    # Cache management
-    with st.sidebar:
         st.markdown("---")
+
+        # Cache management
         st.markdown("### 🔧 Settings")
         if st.button("Clear Cache", key="edgar_clear_cache"):
-            count = client.clear_cache()
+            count = st.session_state.edgar_session.clear_cache()
             st.success(f"Cleared {count} cache files")
+
+    # Main content
+    if st.session_state.get('edgar_screen_clicked', False) and len(tickers) > 0:
+
+        with st.spinner(f"Screening {len(tickers)} tickers... This may take a few minutes."):
+
+            # Get price data if requested
+            price_data_dict = None
+            if include_price_data:
+                with st.spinner("Fetching current price data..."):
+                    price_data_dict = get_price_data_for_tickers(tickers)
+
+            # Run screening
+            try:
+                results_df = screener.screen_multiple_tickers(
+                    tickers,
+                    include_price_data=include_price_data,
+                    price_data_dict=price_data_dict,
+                    max_workers=3  # Respect rate limits
+                )
+
+                if not results_df.empty:
+                    # Store results in session state
+                    st.session_state.screening_results = results_df
+
+                    # Filter by minimum score
+                    if 'vwv_alpha_score' in results_df.columns:
+                        filtered_df = results_df[
+                            results_df['vwv_alpha_score'] >= min_alpha_score
+                        ]
+                    else:
+                        filtered_df = results_df
+
+                    # Display results
+                    if not filtered_df.empty:
+                        display_top_picks(filtered_df, n=5)
+                        st.markdown("---")
+                        display_screening_results(filtered_df)
+                        st.markdown("---")
+                        display_score_distributions(results_df)
+                    else:
+                        st.warning(f"No stocks meet the minimum VWV Alpha Score of {min_alpha_score}")
+                        st.info("Try lowering the minimum score or add more tickers to screen")
+
+                else:
+                    st.error("No screening results returned. Check your tickers and try again.")
+
+            except RateLimitExceeded:
+                st.error("⚠️ SEC rate limit exceeded. Please wait a moment and try again with fewer tickers.")
+            except Exception as e:
+                st.error(f"Screening error: {str(e)}")
+                import traceback
+                with st.expander("Error Details"):
+                    st.code(traceback.format_exc())
+
+    elif st.session_state.get('edgar_screen_clicked', False):
+        st.warning("Please enter at least one ticker symbol to screen")
+
+    else:
+        # Welcome screen
+        st.info("👈 Enter ticker symbols and click 'Run Screening' to analyze stocks")
+
+        st.markdown("### 📚 What This Screener Does")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("""
+            **Financial Health Scores:**
+            - **Piotroski F-Score (0-9)**: Quality and value indicator
+              - 8-9: Very Strong
+              - 6-7: Strong
+              - 4-5: Moderate
+              - 0-3: Weak
+
+            - **Altman Z-Score**: Bankruptcy prediction
+              - Z > 2.99: Safe Zone
+              - 1.81-2.99: Grey Zone
+              - Z < 1.81: Distress Zone
+            """)
+
+        with col2:
+            st.markdown("""
+            **Valuation Metrics:**
+            - **Graham Number**: Maximum fair value
+              - Compares current price to intrinsic value
+              - Based on EPS and Book Value
+
+            - **VWV Alpha Score (0-100)**: Combined quality score
+              - Weighted combination of all metrics
+              - Higher = Better value/quality
+
+            - **Insider Activity**: Recent Form 4 filings
+            """)
+
+        st.markdown("### 💡 How to Use")
+        st.markdown("""
+        1. Enter ticker symbols in the sidebar (one per line or comma-separated)
+        2. Optionally enable price data for SMA analysis
+        3. Set minimum VWV Alpha Score filter
+        4. Click "Run Screening"
+        5. Review top picks and detailed results
+        6. Download results as CSV for further analysis
+        """)

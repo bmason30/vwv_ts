@@ -34,6 +34,9 @@ from .rate_limiter import RateLimiter, rate_limited, get_rate_limiter
 from .metadata import CIKLookup, SubmissionsParser
 from .financials import FinancialsParser
 from .comparison import CompanyComparison
+from .scoring import AdvancedScoring
+from .insider import InsiderTransactionAnalyzer
+from .screener import EDGARScreener
 
 # Layer C: VWV Integration (Controller)
 from .client import EDGARClient, get_financials
@@ -74,6 +77,9 @@ __all__ = [
     'SubmissionsParser',
     'FinancialsParser',
     'CompanyComparison',
+    'AdvancedScoring',
+    'InsiderTransactionAnalyzer',
+    'EDGARScreener',
 
     # Layer C: VWV Integration (Main API)
     'EDGARClient',

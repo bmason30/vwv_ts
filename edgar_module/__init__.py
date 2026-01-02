@@ -36,6 +36,7 @@ from .financials import FinancialsParser
 from .comparison import CompanyComparison
 from .scoring import AdvancedScoring
 from .insider import InsiderTransactionAnalyzer
+from .insider_monitor import InsiderTransactionMonitor
 from .screener import EDGARScreener
 
 # Layer C: VWV Integration (Controller)
@@ -79,6 +80,7 @@ __all__ = [
     'CompanyComparison',
     'AdvancedScoring',
     'InsiderTransactionAnalyzer',
+    'InsiderTransactionMonitor',
     'EDGARScreener',
 
     # Layer C: VWV Integration (Main API)

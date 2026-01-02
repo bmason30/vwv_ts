@@ -26,6 +26,7 @@ statsmodels>=0.14.0
 # Additional utilities that might be needed
 requests>=2.31.0
 python-dateutil>=2.8.2
+beautifulsoup4>=4.12.0
 
 # Optional: For enhanced performance with large datasets
 # numba>=0.57.0  # Uncomment if using JIT compilation for volatility calculations
